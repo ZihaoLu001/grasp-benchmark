@@ -1,0 +1,29 @@
+track: track_a
+sensor_stack: dual_fixed_realsense_rgbd
+control_mode: blocking
+workspace_cm:
+  x: 40
+  y: 50
+  z: 20
+cameras:
+  front:
+    modality:
+      - rgb
+      - depth
+    resolution:
+      width: 256
+      height: 256
+    pose: fixed
+  side:
+    modality:
+      - rgb
+      - depth
+    resolution:
+      width: 256
+      height: 256
+    pose: fixed
+success_definition:
+  lift_cm_min: 15
+  hold_s_min: 2
+attempts_per_trial: 3
+

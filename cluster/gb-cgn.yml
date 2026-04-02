@@ -1,0 +1,12 @@
+name: gb-cgn
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - pip
+  - git
+  - git-lfs
+  - ffmpeg
+  - pyyaml
+  - numpy
+

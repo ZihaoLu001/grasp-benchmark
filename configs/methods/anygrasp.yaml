@@ -1,0 +1,15 @@
+name: anygrasp
+display_name: AnyGrasp + Grounding DINO + Motion Planner
+env_name: gb-anygrasp
+preferred_nodes:
+  - em14
+  - rll_6000_1
+  - rll_6000_2
+upstreams:
+  - anygrasp_sdk
+  - GroundingDINO
+  - curobo
+sim:
+  runner: benchmark_wrapper
+  uses_depth: true
+

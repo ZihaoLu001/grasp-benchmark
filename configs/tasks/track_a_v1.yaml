@@ -1,0 +1,36 @@
+name: track_a_v1
+track: track_a
+task_groups:
+  - name: language_conditioned_single_target_pick
+    instruction_template: "pick up {object}"
+    attempts_per_trial: 3
+    conditions:
+      - basic
+      - lighting
+      - background
+      - distractors
+      - height
+  - name: arbitrary_grasping_transparent
+    instruction_template: "pick up any object"
+    attempts_per_trial: 3
+    conditions:
+      - transparent
+object_groups:
+  - ycb_core
+  - transparent
+metrics:
+  - task_success
+  - spl
+  - attempts_to_success
+  - inference_latency
+  - cycle_time
+failure_taxonomy:
+  - grounding_error
+  - segmentation_error
+  - bad_grasp_proposal
+  - planner_failure
+  - collision
+  - slip
+  - occlusion
+  - ambiguous_language
+

@@ -1,0 +1,21 @@
+name: graspvla
+display_name: GraspVLA
+env_name: gb-core
+preferred_nodes:
+  - em14
+upstreams:
+  - GraspVLA
+  - GraspVLA-playground
+  - GraspVLA-real-world-controller
+hf_repo: shengliangd/GraspVLA
+model_cache_dir: /datasets/ss/current/zihao/hf_cache/graspvla
+model_glob: "*.safetensors"
+server:
+  host: 127.0.0.1
+  port: 6666
+  compile: true
+sim:
+  runner: benchmark_wrapper
+  control_freq: 5
+  stabilization_steps: 10
+

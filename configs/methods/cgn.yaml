@@ -1,0 +1,15 @@
+name: cgn
+display_name: Contact-GraspNet + Segmentation + Grounding DINO + Motion Planner
+env_name: gb-cgn
+preferred_nodes:
+  - em14
+  - rll_6000_1
+  - rll_6000_2
+upstreams:
+  - contact_graspnet
+  - GroundingDINO
+  - curobo
+sim:
+  runner: benchmark_wrapper
+  uses_depth: true
+

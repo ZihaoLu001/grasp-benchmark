@@ -1,0 +1,43 @@
+remote_root: /datasets/ss/current/zihao/grasp-benchmark
+miniforge_root: /datasets/ss/current/zihao/miniforge3
+conda_envs_dir: /datasets/ss/current/zihao/conda/envs
+conda_pkgs_dir: /datasets/ss/current/zihao/conda/pkgs
+preferred_dispatch_order:
+  - em
+  - rll
+pool_hosts:
+  em:
+    - em1
+    - em2
+    - em3
+    - em4
+    - em5
+    - em6
+    - em7
+    - em8
+    - em9
+    - em10
+    - em11
+    - em12
+    - em13
+    - em14
+  rll:
+    - rll_6000_1
+    - rll_6000_2
+known_failures:
+  em2: host_key_verification_failed
+  em13: host_key_verification_failed
+known_warnings:
+  em10: missing_home_directory
+  em11: missing_home_directory
+  em12: missing_home_directory
+required_bins:
+  - git
+  - python3
+optional_bins:
+  - docker
+  - git-lfs
+  - ffmpeg
+project_disk_probe: /datasets/ss/current/zihao
+default_server_port: 6666
+default_graspvla_node: em14
