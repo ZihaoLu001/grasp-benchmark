@@ -79,6 +79,7 @@ def build_method_install_script(
             [
                 "Contact-GraspNet upstream pins a legacy TensorFlow 2.2 / Python 3.7 stack that is not auto-installed here.",
                 "You will need a dedicated legacy runtime before full Contact-GraspNet inference can be enabled.",
+                "Run python -m grasp_benchmark.prepare_cgn --node <host> --bootstrap-legacy-env to probe or create the legacy runtime.",
             ]
         )
     else:

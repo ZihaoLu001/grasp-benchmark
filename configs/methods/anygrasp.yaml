@@ -12,4 +12,5 @@ upstreams:
 sim:
   runner: benchmark_wrapper
   uses_depth: true
-
+checkpoint_relpath: log/checkpoint_detection.tar
+license_cfg_relpath: license/licenseCfg.json

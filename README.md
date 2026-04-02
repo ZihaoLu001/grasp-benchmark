@@ -57,6 +57,13 @@ powershell -ExecutionPolicy Bypass -File .\scripts\install_remote_deps.ps1 -Meth
 python -m grasp_benchmark.prepare_anygrasp --node em14
 ```
 
+For Contact-GraspNet, install the shared detector stack and then probe or bootstrap the legacy TensorFlow 2.2 runtime:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\install_remote_deps.ps1 -Method cgn -Node em14
+python -m grasp_benchmark.prepare_cgn --node em14 --bootstrap-legacy-env
+```
+
 6. Launch the GraspVLA model server:
 
 ```powershell
@@ -90,4 +97,4 @@ python -m grasp_benchmark.report.aggregate --input artifacts\runs
 - `run.worker` now executes an integration-fixture backend that writes benchmark-shaped `results.csv` plus per-attempt artifacts under `episodes/`. This is the common adapter/logging layer that will later be swapped under real simulation or robot controllers.
 - `python -m grasp_benchmark.install_remote --method anygrasp` now installs GroundingDINO in CPU-only mode and prepares the version-matched SDK binaries, but AnyGrasp still needs MinkowskiEngine and a real license file.
 - `python -m grasp_benchmark.prepare_anygrasp --node em14` writes an artifact with the machine feature id plus current import/license status to help the license request flow.
-- `python -m grasp_benchmark.install_remote --method cgn` installs shared detector dependencies only; Contact-GraspNet still needs a separate legacy TensorFlow runtime before inference is enabled.
+- `python -m grasp_benchmark.install_remote --method cgn` installs shared detector dependencies only; `python -m grasp_benchmark.prepare_cgn --node em14 --bootstrap-legacy-env` prepares and probes the separate legacy TensorFlow runtime that Contact-GraspNet still needs.

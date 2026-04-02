@@ -7,6 +7,12 @@ from typing import Any
 from grasp_benchmark.types import Action, Observation
 
 
+class AdapterExecutionError(RuntimeError):
+    def __init__(self, message: str, *, failure_stage: str = "adapter_execution") -> None:
+        super().__init__(message)
+        self.failure_stage = failure_stage
+
+
 class AgentAdapter(ABC):
     def __init__(self, method_config: dict[str, Any], sensor_config: dict[str, Any]) -> None:
         self.method_config = method_config
@@ -42,4 +48,3 @@ class AgentAdapter(ABC):
     @abstractmethod
     def close(self) -> None:
         raise NotImplementedError
-

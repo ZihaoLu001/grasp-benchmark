@@ -6,7 +6,7 @@ from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
-from grasp_benchmark.adapters.base import AgentAdapter
+from grasp_benchmark.adapters.base import AgentAdapter, AdapterExecutionError
 from grasp_benchmark.paths import ensure_dir
 from grasp_benchmark.task_specs import TrialSpec
 from grasp_benchmark.types import EpisodeResult, Observation
@@ -136,6 +136,24 @@ def execute_integration_trial(
                 video_path=str(artifact_path.relative_to(artifact_dir.parent)),
                 node=node,
                 commit=commit,
+            )
+        except AdapterExecutionError as exc:
+            inference_ms = (time.perf_counter() - inference_start) * 1000.0
+            last_stage = exc.failure_stage or "adapter_execution"
+            last_failure = _sanitize_reason(exc)
+            _write_attempt_artifact(
+                artifact_dir,
+                trial,
+                attempt,
+                {
+                    "scene_id": trial.scene_id,
+                    "attempt": attempt,
+                    "instruction": trial.instruction,
+                    "error": last_failure,
+                    "failure_stage": last_stage,
+                    "inference_ms": round(inference_ms, 4),
+                    "integration_mode": "mock_observation_fixture",
+                },
             )
         except Exception as exc:  # pragma: no cover - exercised via tests with dummy adapter
             inference_ms = (time.perf_counter() - inference_start) * 1000.0
