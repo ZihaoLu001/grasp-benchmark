@@ -7,6 +7,7 @@ from pathlib import Path
 
 from grasp_benchmark.config import load_named_config
 from grasp_benchmark.paths import ARTIFACTS_DIR, ensure_dir
+from grasp_benchmark.provenance import resolve_commit
 from grasp_benchmark.shell import run_command
 
 
@@ -103,6 +104,7 @@ def main() -> None:
         "remote_run_dir": remote_run_dir,
         "remote_command": remote_command,
         "smoke_only": args.smoke_only,
+        "local_commit": resolve_commit(),
     }
     (run_dir / "dispatch_manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
 

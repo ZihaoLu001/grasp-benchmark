@@ -8,12 +8,7 @@ from pathlib import Path
 from grasp_benchmark.adapters import build_adapter
 from grasp_benchmark.config import load_named_config
 from grasp_benchmark.paths import PROJECT_ROOT, ensure_dir
-from grasp_benchmark.shell import run_command
-
-
-def _git_commit() -> str:
-    result = run_command(["git", "-C", str(PROJECT_ROOT), "rev-parse", "HEAD"])
-    return result.stdout.strip() if result.ok else "unknown"
+from grasp_benchmark.provenance import resolve_commit
 
 
 def main() -> None:
@@ -38,7 +33,7 @@ def main() -> None:
         "sensor_config": args.sensor_config,
         "node": socket.gethostname(),
         "project_root": str(PROJECT_ROOT),
-        "commit": _git_commit(),
+        "commit": resolve_commit(PROJECT_ROOT),
         "required_upstreams": adapter.required_upstreams(),
         "missing_upstreams": adapter.validate_project_root(PROJECT_ROOT),
         "task_groups": task_config.get("task_groups", []),
@@ -56,4 +51,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

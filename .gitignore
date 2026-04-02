@@ -13,6 +13,7 @@ venv/
 
 artifacts/*
 !artifacts/.gitkeep
+/.grasp-benchmark-sync.json
 
 third_party/upstreams/
 third_party/cache/

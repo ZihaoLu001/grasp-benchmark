@@ -44,19 +44,25 @@ python -m grasp_benchmark.fetch_upstreams
 powershell -ExecutionPolicy Bypass -File .\scripts\bootstrap_cluster.ps1 -Node em14
 ```
 
-5. Launch the GraspVLA model server:
+5. Install method-specific remote dependencies:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\install_remote_deps.ps1 -Method graspvla -Node em14
+```
+
+6. Launch the GraspVLA model server:
 
 ```powershell
 python -m grasp_benchmark.serve.graspvla --node em14 --download-model
 ```
 
-6. Generate a simulation dispatch manifest:
+7. Generate a simulation dispatch manifest:
 
 ```powershell
 python -m grasp_benchmark.run.sim --method graspvla --task-set track_a_v1 --dry-run
 ```
 
-7. Aggregate result files:
+8. Aggregate result files:
 
 ```powershell
 python -m grasp_benchmark.report.aggregate --input artifacts\runs
@@ -67,4 +73,6 @@ python -m grasp_benchmark.report.aggregate --input artifacts\runs
 - The project uses `src/` layout, so `python -m grasp_benchmark...` requires `pip install -e .`.
 - The generated `available_nodes.json` is the source of truth for dispatch selection.
 - Remote environments are rooted at `/datasets/ss/current/zihao/miniforge3`, with env packages stored under `/datasets/ss/current/zihao/conda`.
-
+- Archive-based cluster sync now preserves remote `artifacts/` and `third_party/upstreams/` directories and writes `.grasp-benchmark-sync.json` for commit provenance.
+- `python -m grasp_benchmark.install_remote --method anygrasp` installs the public Python pieces, but AnyGrasp still needs MinkowskiEngine and a license file.
+- `python -m grasp_benchmark.install_remote --method cgn` installs shared detector dependencies only; Contact-GraspNet still needs a separate legacy TensorFlow runtime before inference is enabled.
