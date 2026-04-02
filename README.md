@@ -88,6 +88,22 @@ python -m grasp_benchmark.run.sim --method graspvla --task-set track_a_v1 --node
 python -m grasp_benchmark.report.aggregate --input artifacts\runs
 ```
 
+10. Run the official GraspVLA validation entrypoints and pull the outputs back to `artifacts/official/...`:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\check_official_graspvla.ps1 -Node em14
+```
+
+## Teacher Materials
+
+- Slide source: `docs/slides/graspvla_inner_workings.md`
+- Generated slide deck: `docs/slides/graspvla_inner_workings.pptx`
+- Official runbook: `docs/runbooks/graspvla_official_runbook.md`
+- Latest official validation artifact:
+  `artifacts/official/20260402_194109_em14_graspvla_checks/summary.json`
+- Latest official offline visualization:
+  `artifacts/official/20260402_194109_em14_graspvla_checks/offline_test_visualization.png`
+
 ## Notes
 
 - The project uses `src/` layout, so `python -m grasp_benchmark...` requires `pip install -e .`.
