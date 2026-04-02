@@ -342,14 +342,15 @@ class ContactGraspNetAdapter(AgentAdapter):
                 (
                     f'source "{self._miniforge_root}/etc/profile.d/conda.sh" && '
                     f'PYTHONPATH="{_project_root(self.runtime_config) / "src"}" '
-                    f'conda run -p "{self._legacy_env_prefix}" python -m grasp_benchmark.runners.contact_graspnet '
+                    f'CUDA_VISIBLE_DEVICES=0 conda run -p "{self._legacy_env_prefix}" python -m grasp_benchmark.runners.contact_graspnet '
                     f'--input "{input_path}" '
                     f'--output "{output_path}" '
                     f'--upstream-root "{self._upstream_root}" '
                     f'--checkpoint-dir "{self._checkpoint_dir}" '
                     f'--forward-passes {self._forward_passes} '
                     f'--z-min {self._z_min} '
-                    f'--z-max {self._z_max}'
+                    f'--z-max {self._z_max} '
+                    f'--cuda-visible-devices 0'
                 ),
             ]
             completed = subprocess.run(

@@ -18,6 +18,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--forward-passes", type=int, default=1)
     parser.add_argument("--z-min", type=float, default=0.2)
     parser.add_argument("--z-max", type=float, default=1.1)
+    parser.add_argument("--cuda-visible-devices", default="0")
     return parser
 
 
@@ -32,13 +33,15 @@ def main() -> None:
     sys.path.insert(0, str(upstream_root))
     sys.path.insert(0, str(upstream_root / "contact_graspnet"))
 
+    os.environ.setdefault("CUDA_VISIBLE_DEVICES", str(args.cuda_visible_devices))
+
     import tensorflow.compat.v1 as tf
 
     tf.disable_eager_execution()
     physical_devices = tf.config.experimental.list_physical_devices("GPU")
-    if physical_devices:
+    for device in physical_devices:
         try:
-            tf.config.experimental.set_memory_growth(physical_devices[0], True)
+            tf.config.experimental.set_memory_growth(device, True)
         except Exception:
             pass
 
