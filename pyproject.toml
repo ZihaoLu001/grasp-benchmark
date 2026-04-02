@@ -13,6 +13,7 @@ authors = [
   { name = "Zihao Lu" }
 ]
 dependencies = [
+  "numpy>=1.26,<3",
   "PyYAML>=6.0,<7",
 ]
 
@@ -21,4 +22,3 @@ package-dir = { "" = "src" }
 
 [tool.setuptools.packages.find]
 where = ["src"]
-

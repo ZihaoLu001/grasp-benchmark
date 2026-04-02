@@ -37,11 +37,13 @@ def _build_remote_command(
     sensor_config: str,
     run_dir: str,
     smoke_only: bool,
+    max_trials: int,
 ) -> str:
     miniforge_root = cluster_config["miniforge_root"]
     remote_root = cluster_config["remote_root"]
     env_prefix = f'{cluster_config["conda_envs_dir"]}/{method_config["env_name"]}'
     smoke_flag = "--smoke-only" if smoke_only else ""
+    max_trials_flag = f'--max-trials "{max_trials}"' if max_trials > 0 else ""
     return (
         f'source "{miniforge_root}/etc/profile.d/conda.sh" && '
         f'conda activate "{env_prefix}" && '
@@ -51,8 +53,24 @@ def _build_remote_command(
         f'--task-set "{task_set}" '
         f'--sensor-config "{sensor_config}" '
         f'--output-dir "{run_dir}" '
+        f'{max_trials_flag} '
         f'{smoke_flag}'
     ).strip()
+
+
+def _fetch_remote_results(node: str, remote_run_dir: str, local_run_dir: Path) -> None:
+    result = run_command(
+        [
+            "scp",
+            "-r",
+            f"{node}:{remote_run_dir}/.",
+            str(local_run_dir),
+        ]
+    )
+    (local_run_dir / "fetch_stdout.txt").write_text(result.stdout, encoding="utf-8")
+    (local_run_dir / "fetch_stderr.txt").write_text(result.stderr, encoding="utf-8")
+    if not result.ok:
+        raise RuntimeError(result.stderr or result.stdout or "Failed to fetch remote run directory.")
 
 
 def main() -> None:
@@ -72,6 +90,7 @@ def main() -> None:
         action="store_true",
         help="Dispatch the remote worker in smoke-only mode.",
     )
+    parser.add_argument("--max-trials", type=int, default=0, help="Optional cap on expanded trial count.")
     args = parser.parse_args()
 
     cluster_config = load_named_config("cluster", "default")
@@ -93,6 +112,7 @@ def main() -> None:
         sensor_config=args.sensor_config,
         run_dir=remote_run_dir,
         smoke_only=args.smoke_only,
+        max_trials=args.max_trials,
     )
     manifest = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -104,6 +124,7 @@ def main() -> None:
         "remote_run_dir": remote_run_dir,
         "remote_command": remote_command,
         "smoke_only": args.smoke_only,
+        "max_trials": args.max_trials,
         "local_commit": resolve_commit(),
     }
     (run_dir / "dispatch_manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
@@ -125,6 +146,7 @@ def main() -> None:
     (run_dir / "dispatch_stderr.txt").write_text(result.stderr, encoding="utf-8")
     if not result.ok:
         raise SystemExit(result.stderr or result.stdout)
+    _fetch_remote_results(node=node, remote_run_dir=remote_run_dir, local_run_dir=run_dir)
     print(result.stdout.strip() or f"Dispatched run to {node}")
 
 

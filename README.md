@@ -62,7 +62,13 @@ python -m grasp_benchmark.serve.graspvla --node em14 --download-model
 python -m grasp_benchmark.run.sim --method graspvla --task-set track_a_v1 --dry-run
 ```
 
-8. Aggregate result files:
+8. Run a small integration batch and fetch results back to `artifacts/runs/...`:
+
+```powershell
+python -m grasp_benchmark.run.sim --method graspvla --task-set track_a_v1 --node em14 --max-trials 2
+```
+
+9. Aggregate result files:
 
 ```powershell
 python -m grasp_benchmark.report.aggregate --input artifacts\runs
@@ -74,5 +80,6 @@ python -m grasp_benchmark.report.aggregate --input artifacts\runs
 - The generated `available_nodes.json` is the source of truth for dispatch selection.
 - Remote environments are rooted at `/datasets/ss/current/zihao/miniforge3`, with env packages stored under `/datasets/ss/current/zihao/conda`.
 - Archive-based cluster sync now preserves remote `artifacts/` and `third_party/upstreams/` directories and writes `.grasp-benchmark-sync.json` for commit provenance.
+- `run.worker` now executes an integration-fixture backend that writes benchmark-shaped `results.csv` plus per-attempt artifacts under `episodes/`. This is the common adapter/logging layer that will later be swapped under real simulation or robot controllers.
 - `python -m grasp_benchmark.install_remote --method anygrasp` installs the public Python pieces, but AnyGrasp still needs MinkowskiEngine and a license file.
 - `python -m grasp_benchmark.install_remote --method cgn` installs shared detector dependencies only; Contact-GraspNet still needs a separate legacy TensorFlow runtime before inference is enabled.
