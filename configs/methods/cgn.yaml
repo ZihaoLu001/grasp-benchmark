@@ -14,3 +14,4 @@ sim:
   uses_depth: true
 legacy_env_name: gb-cgn-tf22
 checkpoint_relpath: checkpoints/scene_test_2048_bs3_hor_sigma_001
+smoke_downsample_stride: 4

@@ -303,6 +303,7 @@ class ContactGraspNetAdapter(AgentAdapter):
         self._forward_passes = int(config.get("forward_passes", 1))
         self._z_min = float(config.get("z_min", 0.2))
         self._z_max = float(config.get("z_max", 1.1))
+        self._downsample_stride = max(int(self.method_config.get("smoke_downsample_stride", 1)), 1)
 
     def reset(self, task_spec: dict[str, Any]) -> None:
         self.task_spec = task_spec
@@ -317,6 +318,9 @@ class ContactGraspNetAdapter(AgentAdapter):
 
         depth = self._np.asarray(obs.depth_front, dtype=self._np.float32)
         rgb = self._np.asarray(obs.rgb_front, dtype=self._np.uint8)
+        if self._downsample_stride > 1:
+            depth = depth[:: self._downsample_stride, :: self._downsample_stride]
+            rgb = rgb[:: self._downsample_stride, :: self._downsample_stride, :]
         K = self._np.array(
             [
                 [float(obs.intrinsics_front.get("fx", 0.0)), 0.0, float(obs.intrinsics_front.get("cx", 0.0))],
@@ -325,6 +329,11 @@ class ContactGraspNetAdapter(AgentAdapter):
             ],
             dtype=self._np.float32,
         )
+        if self._downsample_stride > 1:
+            K[0, 0] /= self._downsample_stride
+            K[1, 1] /= self._downsample_stride
+            K[0, 2] /= self._downsample_stride
+            K[1, 2] /= self._downsample_stride
         if K[0, 0] <= 0 or K[1, 1] <= 0:
             raise AdapterExecutionError(
                 "Contact-GraspNet requires positive camera intrinsics.",
