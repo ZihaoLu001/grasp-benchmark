@@ -94,6 +94,18 @@ python -m grasp_benchmark.report.aggregate --input artifacts\runs
 powershell -ExecutionPolicy Bypass -File .\scripts\check_official_graspvla.ps1 -Node em14
 ```
 
+11. Prepare the dedicated official GraspVLA simulation environment:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\prepare_graspvla_playground.ps1 -Node em14 -BootstrapEnv
+```
+
+12. Run the official simulation stack and pull the outputs back to `artifacts/official_sim/...`:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\run_official_graspvla_sim.ps1 -Node em14 -Mode full -PlaygroundTrials 1 -LiberoTrialNum 1 -MaxTasksPerBenchmark 1
+```
+
 ## Teacher Materials
 
 - Slide source: `docs/slides/graspvla_inner_workings.md`
@@ -103,14 +115,18 @@ powershell -ExecutionPolicy Bypass -File .\scripts\check_official_graspvla.ps1 -
   `artifacts/official/20260402_194109_em14_graspvla_checks/summary.json`
 - Latest official offline visualization:
   `artifacts/official/20260402_194109_em14_graspvla_checks/offline_test_visualization.png`
+- Latest official simulation artifact:
+  `artifacts/official_sim/20260402_210105_em14_full/summary.json`
 
 ## Notes
 
 - The project uses `src/` layout, so `python -m grasp_benchmark...` requires `pip install -e .`.
 - The generated `available_nodes.json` is the source of truth for dispatch selection.
 - Remote environments are rooted at `/datasets/ss/current/zihao/miniforge3`, with env packages stored under `/datasets/ss/current/zihao/conda`.
+- The official GraspVLA simulation stack now runs in a dedicated env at `/datasets/ss/current/zihao/conda/envs/gb-graspvla-sim` so the `gb-core` server runtime stays stable.
 - Archive-based cluster sync now preserves remote `artifacts/` and `third_party/upstreams/` directories and writes `.grasp-benchmark-sync.json` for commit provenance.
 - `run.worker` now executes an integration-fixture backend that writes benchmark-shaped `results.csv` plus per-attempt artifacts under `episodes/`. This is the common adapter/logging layer that will later be swapped under real simulation or robot controllers.
 - `python -m grasp_benchmark.install_remote --method anygrasp` now installs GroundingDINO in CPU-only mode and prepares the version-matched SDK binaries, but AnyGrasp still needs MinkowskiEngine and a real license file.
 - `python -m grasp_benchmark.prepare_anygrasp --node em14` writes an artifact with the machine feature id plus current import/license status to help the license request flow.
 - `python -m grasp_benchmark.install_remote --method cgn` installs shared detector dependencies only; `python -m grasp_benchmark.prepare_cgn --node em14 --bootstrap-legacy-env` prepares and probes the separate legacy TensorFlow runtime that Contact-GraspNet still needs.
+- `python -m grasp_benchmark.prepare_graspvla_playground --node em14 --bootstrap-env` prepares the dedicated official simulation env, patches the cuRobo build for the cluster toolchain, writes a non-interactive LIBERO config, and enables a no-FCL fallback for playground sampling.

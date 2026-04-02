@@ -35,8 +35,15 @@ def build_method_install_script(
             ]
         )
         if include_playground:
-            lines.append(
-                f'python -m pip install -r "{remote_root}/third_party/upstreams/GraspVLA-playground/requirements.txt"'
+            lines.extend(
+                [
+                    'conda install -y -c conda-forge ffmpeg',
+                    'python -m pip install "hydra-core==1.2.0" "gym==0.25.2" "cloudpickle==2.1.0"',
+                ]
+            )
+            notes.append(
+                "For full official playground or LIBERO simulation, use the dedicated sim environment via "
+                "python -m grasp_benchmark.prepare_graspvla_playground --node <host> --bootstrap-env."
             )
     elif method_name == "anygrasp":
         lines.extend(

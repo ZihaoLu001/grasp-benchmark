@@ -27,6 +27,8 @@ This runbook is the shortest path from our current cluster setup to something we
   `/datasets/ss/current/zihao/miniforge3`
 - Core environment:
   `/datasets/ss/current/zihao/conda/envs/gb-core`
+- Official simulation environment:
+  `/datasets/ss/current/zihao/conda/envs/gb-graspvla-sim`
 - Latest synced commit should match `.grasp-benchmark-sync.json`
 
 ## Official Server Commands
@@ -73,6 +75,18 @@ This writes a visualization under `third_party/upstreams/GraspVLA/visualization/
 python -m grasp_benchmark.run.sim --method graspvla --task-set track_a_v1 --node em14 --max-trials 1
 ```
 
+### Dedicated official simulation environment
+
+```powershell
+python -m grasp_benchmark.prepare_graspvla_playground --node em14 --bootstrap-env
+```
+
+### Official playground plus LIBERO smoke
+
+```powershell
+python -m grasp_benchmark.official_graspvla_sim --node em14 --mode full --playground-trials 1 --libero-trial-num 1 --max-tasks-per-benchmark 1
+```
+
 ### Contact-GraspNet smoke
 
 ```powershell
@@ -96,6 +110,8 @@ If AnyGrasp still fails, check whether `license/licenseCfg.json` is present unde
 - GraspVLA model server is live on `em14:6666`.
 - Official `validate_server.py` succeeds.
 - Official `offline_test.py` succeeds and produces a visualization artifact.
+- Official `playground.py` succeeds in the dedicated `gb-graspvla-sim` environment.
+- Official `evaluate_libero_tasks.py` succeeds for a one-trial smoke over `libero_object`, `libero_10`, and `libero_goal`.
 - GraspVLA benchmark smoke succeeds.
 - Contact-GraspNet legacy runtime and checkpoint are ready, and smoke succeeds.
 - AnyGrasp setup is ready up to the license boundary.
@@ -106,9 +122,12 @@ If AnyGrasp still fails, check whether `license/licenseCfg.json` is present unde
   `artifacts/official/20260402_194109_em14_graspvla_checks/summary.json`
 - Visualization:
   `artifacts/official/20260402_194109_em14_graspvla_checks/offline_test_visualization.png`
+- Official simulation artifact:
+  `artifacts/official_sim/20260402_210105_em14_full/summary.json`
 
 ## Next Week Plan
 
-- Move from one-trial smoke runs to a small Track A batch for GraspVLA and Contact-GraspNet.
+- Move from one-trial smoke runs to a larger official LIBERO batch for GraspVLA.
+- Mirror the same remote artifact structure for the first modular baseline.
 - Fetch the AnyGrasp license and complete the third baseline.
 - Start packaging plots and failure videos for the benchmark meeting.

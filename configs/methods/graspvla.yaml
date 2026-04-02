@@ -14,8 +14,8 @@ server:
   host: 127.0.0.1
   port: 6666
   compile: true
+official_sim_env_name: gb-graspvla-sim
 sim:
   runner: benchmark_wrapper
   control_freq: 5
   stabilization_steps: 10
-

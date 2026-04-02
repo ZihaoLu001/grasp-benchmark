@@ -14,6 +14,32 @@ class RemoteSetupTest(unittest.TestCase):
         self.assertIn("GraspVLA/requirements.txt", script)
         self.assertEqual(notes, [])
 
+    def test_graspvla_playground_install_script_contains_official_setup_steps(self) -> None:
+        cluster_config = load_named_config("cluster", "default")
+        method_config = load_named_config("methods", "graspvla")
+        script, _ = build_method_install_script(
+            cluster_config,
+            method_config,
+            "graspvla",
+            include_playground=True,
+        )
+        self.assertIn("conda install -y -c conda-forge ffmpeg", script)
+        self.assertIn("hydra-core==1.2.0", script)
+        self.assertNotIn("third_party/upstreams/curobo", script)
+        self.assertNotIn("PATCHED_FRANKA_YAML", script)
+
+    def test_graspvla_playground_install_script_emits_separate_env_note(self) -> None:
+        cluster_config = load_named_config("cluster", "default")
+        method_config = load_named_config("methods", "graspvla")
+        _, notes = build_method_install_script(
+            cluster_config,
+            method_config,
+            "graspvla",
+            include_playground=True,
+        )
+        self.assertTrue(notes)
+        self.assertIn("prepare_graspvla_playground", notes[0])
+
     def test_anygrasp_install_script_emits_manual_notes(self) -> None:
         cluster_config = load_named_config("cluster", "default")
         method_config = load_named_config("methods", "anygrasp")

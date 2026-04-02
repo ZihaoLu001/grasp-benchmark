@@ -62,6 +62,7 @@ SLIDES = [
         [
             "Official model server is running on em14:6666",
             "Official validate_server.py and offline_test.py both succeeded on em14",
+            "Official playground.py and evaluate_libero_tasks.py now run in gb-graspvla-sim",
             "GraspVLA smoke success 1/1 at about 377 ms",
             "Contact-GraspNet smoke success 1/1 at about 405.6 s",
             "AnyGrasp is blocked only by license, not by repo setup",

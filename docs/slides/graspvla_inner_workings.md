@@ -81,6 +81,7 @@ Zihao Lu benchmark notes
 - Official model server is running on `em14:6666`.
 - Official validation path works through the public `validate_server.py`.
 - Official `offline_test.py` also succeeds and exports a visualization artifact.
+- Official `playground.py` and `evaluate_libero_tasks.py` both run on the dedicated `gb-graspvla-sim` environment.
 - Benchmark smoke results:
   `GraspVLA` success `1/1`, about `377 ms`.
 - `Contact-GraspNet` success `1/1`, but much slower, about `405.6 s`.
