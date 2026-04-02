@@ -39,10 +39,11 @@ def _build_remote_command(
 ) -> str:
     miniforge_root = cluster_config["miniforge_root"]
     remote_root = cluster_config["remote_root"]
+    env_prefix = f'{cluster_config["conda_envs_dir"]}/{method_config["env_name"]}'
     smoke_flag = "--smoke-only" if smoke_only else ""
     return (
         f'source "{miniforge_root}/etc/profile.d/conda.sh" && '
-        f'conda activate "{method_config["env_name"]}" && '
+        f'conda activate "{env_prefix}" && '
         f'cd "{remote_root}" && '
         f'python -m grasp_benchmark.run.worker '
         f'--method "{method_config["name"]}" '
@@ -127,4 +128,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

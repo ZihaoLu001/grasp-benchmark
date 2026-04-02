@@ -17,7 +17,7 @@ def _build_remote_launch_script(
 ) -> str:
     miniforge_root = cluster_config["miniforge_root"]
     remote_root = cluster_config["remote_root"]
-    env_name = method_config["env_name"]
+    env_prefix = f'{cluster_config["conda_envs_dir"]}/{method_config["env_name"]}'
     upstream_dir = f"{remote_root}/third_party/upstreams/GraspVLA"
     log_dir = f"{remote_root}/artifacts/server"
     compile_flag = "--compile" if compile_model else ""
@@ -26,7 +26,7 @@ def _build_remote_launch_script(
             "set -e",
             f'mkdir -p "{log_dir}"',
             f'source "{miniforge_root}/etc/profile.d/conda.sh"',
-            f'conda activate "{env_name}"',
+            f'conda activate "{env_prefix}"',
             f'cd "{upstream_dir}"',
             (
                 f'nohup python -u -m vla_network.scripts.serve '
@@ -41,13 +41,13 @@ def _build_download_script(cluster_config: dict, method_config: dict) -> str:
     miniforge_root = cluster_config["miniforge_root"]
     cache_dir = method_config["model_cache_dir"]
     hf_repo = method_config["hf_repo"]
-    env_name = method_config["env_name"]
+    env_prefix = f'{cluster_config["conda_envs_dir"]}/{method_config["env_name"]}'
     return "\n".join(
         [
             "set -e",
             f'mkdir -p "{cache_dir}"',
             f'source "{miniforge_root}/etc/profile.d/conda.sh"',
-            f'conda activate "{env_name}"',
+            f'conda activate "{env_prefix}"',
             "python - <<'PY'",
             "from huggingface_hub import snapshot_download",
             f"snapshot_download(repo_id='{hf_repo}', local_dir='{cache_dir}', local_dir_use_symlinks=False)",
