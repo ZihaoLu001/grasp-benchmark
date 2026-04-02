@@ -30,6 +30,7 @@ def build_method_install_script(
         lines.extend(
             [
                 f'python -m pip install -r "{remote_root}/third_party/upstreams/GraspVLA/requirements.txt"',
+                'python -m pip install "einops>=0.4"',
                 'python -m pip install "huggingface_hub>=0.30,<1.0"',
             ]
         )
@@ -40,9 +41,12 @@ def build_method_install_script(
     elif method_name == "anygrasp":
         lines.extend(
             [
+                'export SKLEARN_ALLOW_DEPRECATED_SKLEARN_PACKAGE_INSTALL=True',
+                'python -m pip install scikit-learn torch torchvision',
                 f'python -m pip install -r "{remote_root}/third_party/upstreams/anygrasp_sdk/requirements.txt"',
                 f'python -m pip install -r "{remote_root}/third_party/upstreams/GroundingDINO/requirements.txt"',
-                f'python -m pip install -e "{remote_root}/third_party/upstreams/GroundingDINO"',
+                'unset CUDA_HOME',
+                f'python -m pip install -e "{remote_root}/third_party/upstreams/GroundingDINO" --no-build-isolation',
             ]
         )
         notes.extend(
@@ -54,8 +58,11 @@ def build_method_install_script(
     elif method_name == "cgn":
         lines.extend(
             [
+                'export SKLEARN_ALLOW_DEPRECATED_SKLEARN_PACKAGE_INSTALL=True',
+                'python -m pip install scikit-learn torch torchvision',
                 f'python -m pip install -r "{remote_root}/third_party/upstreams/GroundingDINO/requirements.txt"',
-                f'python -m pip install -e "{remote_root}/third_party/upstreams/GroundingDINO"',
+                'unset CUDA_HOME',
+                f'python -m pip install -e "{remote_root}/third_party/upstreams/GroundingDINO" --no-build-isolation',
             ]
         )
         notes.extend(
