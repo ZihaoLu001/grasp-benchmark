@@ -1,10 +1,18 @@
 param(
     [string]$Node = "em14",
-    [string]$RepoUrl = "git@github.com:ZihaoLu001/grasp-benchmark.git",
-    [string]$RemoteRoot = "/datasets/ss/current/zihao/grasp-benchmark"
+    [string]$RemoteRoot = "/datasets/ss/current/zihao/grasp-benchmark",
+    [string]$MiniforgeRoot = "/datasets/ss/current/zihao/miniforge3",
+    [string]$CondaEnvsDir = "/datasets/ss/current/zihao/conda/envs",
+    [string]$CondaPkgsDir = "/datasets/ss/current/zihao/conda/pkgs"
 )
 
-$scriptPath = Join-Path $PSScriptRoot "..\\cluster\\bootstrap_project.sh"
-$script = Get-Content -Raw $scriptPath
-$script | ssh $Node "/bin/bash -s -- $RepoUrl $RemoteRoot"
+$repoRoot = Split-Path $PSScriptRoot -Parent
+$archivePath = Join-Path $env:TEMP "grasp-benchmark-bootstrap.tar"
+$remoteArchive = "/tmp/grasp-benchmark-bootstrap.tar"
 
+git -C $repoRoot archive --format=tar -o $archivePath HEAD
+scp $archivePath "${Node}:$remoteArchive"
+ssh $Node "rm -rf '$RemoteRoot' && mkdir -p '$RemoteRoot' && tar -xf '$remoteArchive' -C '$RemoteRoot'"
+ssh $Node "bash '$RemoteRoot/cluster/install_miniforge.sh' '$MiniforgeRoot' '$CondaEnvsDir' '$CondaPkgsDir'"
+ssh $Node "bash '$RemoteRoot/cluster/create_envs.sh' '$MiniforgeRoot' '$RemoteRoot'"
+Remove-Item -LiteralPath $archivePath -ErrorAction SilentlyContinue
