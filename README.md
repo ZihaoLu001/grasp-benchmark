@@ -103,7 +103,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\prepare_graspvla_playground.p
 12. Run the official simulation stack and pull the outputs back to `artifacts/official_sim/...`:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\run_official_graspvla_sim.ps1 -Node em14 -Mode full -PlaygroundTrials 1 -LiberoTrialNum 1 -MaxTasksPerBenchmark 1
+powershell -ExecutionPolicy Bypass -File .\scripts\run_official_graspvla_sim.ps1 -Node em14 -Mode full -PlaygroundTrials 10 -LiberoTrialNum 50 -MaxTasksPerBenchmark 10 -Benchmarks libero_object,libero_10,libero_goal -ParallelEnvNum 5
 ```
 
 ## Teacher Materials
@@ -111,12 +111,14 @@ powershell -ExecutionPolicy Bypass -File .\scripts\run_official_graspvla_sim.ps1
 - Slide source: `docs/slides/graspvla_inner_workings.md`
 - Generated slide deck: `docs/slides/graspvla_inner_workings.pptx`
 - Official runbook: `docs/runbooks/graspvla_official_runbook.md`
+- Official sim report:
+  `docs/reports/graspvla_official_sim_complete_20260402.md`
 - Latest official validation artifact:
-  `artifacts/official/20260402_194109_em14_graspvla_checks/summary.json`
+  `artifacts/official/20260402_211510_em14_graspvla_checks/summary.json`
 - Latest official offline visualization:
   `artifacts/official/20260402_194109_em14_graspvla_checks/offline_test_visualization.png`
-- Latest official simulation artifact:
-  `artifacts/official_sim/20260402_210105_em14_full/summary.json`
+- Latest official full simulation artifact:
+  `artifacts/official_sim/20260402_231726_em14_full/summary.json`
 
 ## Notes
 
@@ -124,6 +126,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\run_official_graspvla_sim.ps1
 - The generated `available_nodes.json` is the source of truth for dispatch selection.
 - Remote environments are rooted at `/datasets/ss/current/zihao/miniforge3`, with env packages stored under `/datasets/ss/current/zihao/conda`.
 - The official GraspVLA simulation stack now runs in a dedicated env at `/datasets/ss/current/zihao/conda/envs/gb-graspvla-sim` so the `gb-core` server runtime stays stable.
+- The official complete GraspVLA batch now runs through the same wrapper with `ParallelEnvNum=5`, which is enough to finish the public `playground + LIBERO` release on `em14` in one reproducible batch.
 - Archive-based cluster sync now preserves remote `artifacts/` and `third_party/upstreams/` directories and writes `.grasp-benchmark-sync.json` for commit provenance.
 - `run.worker` now executes an integration-fixture backend that writes benchmark-shaped `results.csv` plus per-attempt artifacts under `episodes/`. This is the common adapter/logging layer that will later be swapped under real simulation or robot controllers.
 - `python -m grasp_benchmark.install_remote --method anygrasp` now installs GroundingDINO in CPU-only mode and prepares the version-matched SDK binaries, but AnyGrasp still needs MinkowskiEngine and a real license file.

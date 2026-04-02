@@ -63,6 +63,8 @@ SLIDES = [
             "Official model server is running on em14:6666",
             "Official validate_server.py and offline_test.py both succeeded on em14",
             "Official playground.py and evaluate_libero_tasks.py now run in gb-graspvla-sim",
+            "Official complete sim batch is done: playground 8/10, libero_object 482/500, libero_10 325/350, libero_goal 336/350",
+            "The 350 denominators are expected: libero_10 exposes 7 tasks and libero_goal skips 3 invalid tasks",
             "GraspVLA smoke success 1/1 at about 377 ms",
             "Contact-GraspNet smoke success 1/1 at about 405.6 s",
             "AnyGrasp is blocked only by license, not by repo setup",
@@ -71,6 +73,7 @@ SLIDES = [
     (
         "Next Step For The Team",
         [
+            "Use the complete official GraspVLA sim run as the anchor reference",
             "Run a small Track A batch with GraspVLA and Contact-GraspNet",
             "Fetch the AnyGrasp license and complete the third baseline",
             "Collect plots, failure taxonomy, and videos for the benchmark meeting",

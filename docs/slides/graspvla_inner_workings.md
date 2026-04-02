@@ -82,6 +82,10 @@ Zihao Lu benchmark notes
 - Official validation path works through the public `validate_server.py`.
 - Official `offline_test.py` also succeeds and exports a visualization artifact.
 - Official `playground.py` and `evaluate_libero_tasks.py` both run on the dedicated `gb-graspvla-sim` environment.
+- Official complete simulation batch is done:
+  playground `8/10`, `libero_object 482/500`, `libero_10 325/350`, `libero_goal 336/350`.
+- The `350` denominators are expected in the public release:
+  `libero_10` has 7 tasks, and `libero_goal` has 3 official `invalid` tasks that get skipped.
 - Benchmark smoke results:
   `GraspVLA` success `1/1`, about `377 ms`.
 - `Contact-GraspNet` success `1/1`, but much slower, about `405.6 s`.
@@ -94,5 +98,6 @@ Zihao Lu benchmark notes
 - GraspVLA is best understood as:
   language-conditioned perception tokens plus flow-matching action generation.
 - The public release is strong enough for deployment benchmarking even without the full training code.
+- We now have a reproducible full official simulation artifact on disk, not just a smoke test.
 - Our benchmark wrapper already normalizes outputs to the same `ee_delta[6] + gripper` interface as the modular baselines.
 - The next useful comparison is a small Track A batch once the AnyGrasp license arrives.
