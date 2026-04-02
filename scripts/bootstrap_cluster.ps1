@@ -27,18 +27,19 @@ git -C $repoRoot archive --format=tar -o $archivePath HEAD
 scp $archivePath "${Node}:$remoteArchive"
 scp $metadataPath "${Node}:$remoteMetadata"
 
-$remoteSync = @"
+$remoteSync = @'
 set -euo pipefail
-tmp_dir="\$(mktemp -d /tmp/grasp-benchmark-sync.XXXXXX)"
-trap 'rm -rf "\${tmp_dir}"' EXIT
-mkdir -p "$RemoteRoot"
-tar -xf "$remoteArchive" -C "\${tmp_dir}"
-mkdir -p "$RemoteRoot/artifacts" "$RemoteRoot/third_party" "$RemoteRoot/cluster"
-cp -a "\${tmp_dir}/." "$RemoteRoot/"
-cp "$remoteMetadata" "$RemoteRoot/.grasp-benchmark-sync.json"
-"@
+tmp_dir="$(mktemp -d /tmp/grasp-benchmark-sync.XXXXXX)"
+trap 'rm -rf "${{tmp_dir}}"' EXIT
+mkdir -p "{0}"
+tar -xf "{1}" -C "${{tmp_dir}}"
+mkdir -p "{0}/artifacts" "{0}/third_party" "{0}/cluster"
+cp -a "${{tmp_dir}}/." "{0}/"
+cp "{2}" "{0}/.grasp-benchmark-sync.json"
+'@ -f $RemoteRoot, $remoteArchive, $remoteMetadata
 
-$remoteSync | ssh $Node /bin/bash
+$remoteSyncBase64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes(($remoteSync -replace "`r`n", "`n")))
+ssh $Node "printf '%s' '$remoteSyncBase64' | base64 -d | /bin/bash"
 ssh $Node "bash '$RemoteRoot/cluster/install_miniforge.sh' '$MiniforgeRoot' '$CondaEnvsDir' '$CondaPkgsDir'"
 ssh $Node "bash '$RemoteRoot/cluster/create_envs.sh' '$MiniforgeRoot' '$RemoteRoot' '$CondaEnvsDir'"
 

@@ -45,14 +45,21 @@ def build_method_install_script(
                 'python -m pip install scikit-learn torch torchvision',
                 f'python -m pip install -r "{remote_root}/third_party/upstreams/anygrasp_sdk/requirements.txt"',
                 f'python -m pip install -r "{remote_root}/third_party/upstreams/GroundingDINO/requirements.txt"',
-                'unset CUDA_HOME',
+                'export CUDA_VISIBLE_DEVICES=""',
+                'export FORCE_CUDA=0',
                 f'python -m pip install -e "{remote_root}/third_party/upstreams/GroundingDINO" --no-build-isolation',
+                'unset CUDA_VISIBLE_DEVICES',
+                'unset FORCE_CUDA',
+                'SOABI=$(python -c \'import sysconfig; print(sysconfig.get_config_var("SOABI") or "")\')',
+                f'cp -f "{remote_root}/third_party/upstreams/anygrasp_sdk/grasp_detection/gsnet_versions/gsnet.${{SOABI}}.so" "{remote_root}/third_party/upstreams/anygrasp_sdk/grasp_detection/gsnet.so"',
+                f'cp -f "{remote_root}/third_party/upstreams/anygrasp_sdk/license_registration/lib_cxx_versions/lib_cxx.${{SOABI}}.so" "{remote_root}/third_party/upstreams/anygrasp_sdk/grasp_detection/lib_cxx.so"',
             ]
         )
         notes.extend(
             [
                 "AnyGrasp still needs MinkowskiEngine to be built against the target CUDA toolkit.",
                 "AnyGrasp inference also requires a license registration step before the SDK binary will run.",
+                "Run python -m grasp_benchmark.prepare_anygrasp --node <host> to capture the machine feature id and current license state.",
             ]
         )
     elif method_name == "cgn":
@@ -61,8 +68,11 @@ def build_method_install_script(
                 'export SKLEARN_ALLOW_DEPRECATED_SKLEARN_PACKAGE_INSTALL=True',
                 'python -m pip install scikit-learn torch torchvision',
                 f'python -m pip install -r "{remote_root}/third_party/upstreams/GroundingDINO/requirements.txt"',
-                'unset CUDA_HOME',
+                'export CUDA_VISIBLE_DEVICES=""',
+                'export FORCE_CUDA=0',
                 f'python -m pip install -e "{remote_root}/third_party/upstreams/GroundingDINO" --no-build-isolation',
+                'unset CUDA_VISIBLE_DEVICES',
+                'unset FORCE_CUDA',
             ]
         )
         notes.extend(
