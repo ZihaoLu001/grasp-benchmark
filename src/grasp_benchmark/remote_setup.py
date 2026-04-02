@@ -30,7 +30,7 @@ def build_method_install_script(
         lines.extend(
             [
                 f'python -m pip install -r "{remote_root}/third_party/upstreams/GraspVLA/requirements.txt"',
-                'python -m pip install -U "huggingface_hub"',
+                'python -m pip install "huggingface_hub>=0.30,<1.0"',
             ]
         )
         if include_playground:
