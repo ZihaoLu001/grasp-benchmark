@@ -110,14 +110,18 @@ def _failure_taxonomy(rows: list[dict[str, object]]) -> list[dict[str, object]]:
     return taxonomy
 
 
-def _resolve_parent_run_id(
+def _parse_parent_run_ids(value: str) -> list[str]:
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
+def _resolve_parent_run_ids(
     rows: list[dict[str, object]],
     *,
     execution_mode: str,
     explicit_parent_run_id: str,
-) -> str:
+) -> list[str]:
     if explicit_parent_run_id:
-        return explicit_parent_run_id
+        return _parse_parent_run_ids(explicit_parent_run_id)
     latest = ""
     for row in rows:
         candidate = str(row.get("parent_run_id", "")).strip()
@@ -127,18 +131,24 @@ def _resolve_parent_run_id(
             and str(row.get("execution_mode", "")) == execution_mode
         ):
             latest = candidate
-    return latest
+    return [latest] if latest else []
 
 
-def _track_a_rows(rows: list[dict[str, object]], *, execution_mode: str, parent_run_id: str = "") -> list[dict[str, object]]:
+def _track_a_rows(
+    rows: list[dict[str, object]],
+    *,
+    execution_mode: str,
+    parent_run_ids: list[str] | None = None,
+) -> list[dict[str, object]]:
     filtered = [
         row
         for row in rows
         if str(row.get("track", "")).startswith("track_a") and str(row.get("execution_mode", "")) == execution_mode
     ]
-    if not parent_run_id:
+    if not parent_run_ids:
         return filtered
-    return [row for row in filtered if str(row.get("parent_run_id", "")).strip() == parent_run_id]
+    allowed = set(parent_run_ids)
+    return [row for row in filtered if str(row.get("parent_run_id", "")).strip() in allowed]
 
 
 def _by_shard(rows: list[dict[str, object]]) -> list[dict[str, object]]:
@@ -211,7 +221,7 @@ def _write_markdown(
     taxonomy: list[dict[str, object]],
     track_b_reference: list[dict[str, object]],
     *,
-    parent_run_id: str,
+    parent_run_ids: list[str],
 ) -> None:
     lines = [
         "# Aggregate Report",
@@ -219,8 +229,8 @@ def _write_markdown(
         "## Track A Shared Benchmark",
         "",
     ]
-    if parent_run_id:
-        lines.extend([f"_Filtered to parent_run_id `{parent_run_id}`._", ""])
+    if parent_run_ids:
+        lines.extend([f"_Filtered to parent_run_id(s) `{', '.join(parent_run_ids)}`._", ""])
     lines.extend(
         _markdown_table(
             ["track", "method", "task", "trials", "success_rate", "mean_spl", "mean_attempts", "mean_inference_ms", "mean_cycle_time_s"],
@@ -265,8 +275,9 @@ def _write_teacher_summary(
     by_condition: list[dict[str, object]],
     track_b_reference: list[dict[str, object]],
     *,
-    parent_run_id: str,
+    parent_run_ids: list[str],
 ) -> None:
+    parent_run_id = ", ".join(parent_run_ids)
     lines = [
         "# Benchmark 汇总说明",
         "",
@@ -342,7 +353,7 @@ def main() -> None:
     parser.add_argument(
         "--parent-run-id",
         default="",
-        help="Optional parent_run_id filter. Defaults to the latest Track A parent run when present.",
+        help="Optional comma-separated parent_run_id filter. Defaults to the latest Track A parent run when present.",
     )
     args = parser.parse_args()
 
@@ -352,12 +363,12 @@ def main() -> None:
     if not rows:
         raise SystemExit(f"No CSV files found under {input_root}")
 
-    parent_run_id = _resolve_parent_run_id(
+    parent_run_ids = _resolve_parent_run_ids(
         rows,
         execution_mode=args.track_a_execution_mode,
         explicit_parent_run_id=args.parent_run_id,
     )
-    track_a_rows = _track_a_rows(rows, execution_mode=args.track_a_execution_mode, parent_run_id=parent_run_id)
+    track_a_rows = _track_a_rows(rows, execution_mode=args.track_a_execution_mode, parent_run_ids=parent_run_ids)
     summary = _aggregate(track_a_rows, ["track", "method", "task"])
     by_condition = _aggregate(track_a_rows, ["track", "method", "task", "condition"])
     by_object_group = _aggregate(track_a_rows, ["track", "method", "task", "object_group"])
@@ -378,14 +389,14 @@ def main() -> None:
         by_object_group,
         taxonomy,
         track_b_reference,
-        parent_run_id=parent_run_id,
+        parent_run_ids=parent_run_ids,
     )
     _write_teacher_summary(
         output_dir / "teacher_summary_zh.md",
         summary,
         by_condition,
         track_b_reference,
-        parent_run_id=parent_run_id,
+        parent_run_ids=parent_run_ids,
     )
     (output_dir / "report.json").write_text(
         json.dumps(
@@ -397,7 +408,7 @@ def main() -> None:
                 "failure_taxonomy": taxonomy,
                 "track_b_reference": track_b_reference,
                 "track_a_execution_mode": args.track_a_execution_mode,
-                "parent_run_id": parent_run_id,
+                "parent_run_ids": parent_run_ids,
             },
             indent=2,
         ),
