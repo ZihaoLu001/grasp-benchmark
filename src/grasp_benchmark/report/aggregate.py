@@ -85,7 +85,16 @@ def _aggregate(rows: list[dict[str, object]], group_keys: list[str]) -> list[dic
 
 
 def _failure_taxonomy(rows: list[dict[str, object]]) -> list[dict[str, object]]:
-    counter = Counter((row["track"], row["method"], row["failure_stage"], row["failure_reason"]) for row in rows)
+    counter = Counter()
+    for row in rows:
+        stage = str(row.get("failure_stage", "")).strip()
+        reason = str(row.get("failure_reason", "")).strip()
+        success = int(row.get("success", 0))
+        if success and not stage and not reason:
+            continue
+        if not stage and not reason:
+            continue
+        counter[(row["track"], row["method"], stage, reason)] += 1
     taxonomy = []
     for (track, method, stage, reason), count in sorted(counter.items()):
         taxonomy.append(
@@ -195,10 +204,13 @@ def _write_markdown(
         )
     )
     lines.extend(["", "## Failure Taxonomy", ""])
-    for row in taxonomy[:20]:
-        lines.append(
-            f"- {row['track']} / {row['method']}: {row['failure_stage']} / {row['failure_reason']} ({row['count']})"
-        )
+    if taxonomy:
+        for row in taxonomy[:20]:
+            lines.append(
+                f"- {row['track']} / {row['method']}: {row['failure_stage']} / {row['failure_reason']} ({row['count']})"
+            )
+    else:
+        lines.append("_No failures recorded._")
     output.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 

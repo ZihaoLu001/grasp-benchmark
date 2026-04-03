@@ -97,6 +97,7 @@ class ReportTest(unittest.TestCase):
             self.assertIn("## Track A Shared Benchmark", report_text)
             self.assertIn("## Track B Native Deployment Reference", report_text)
             self.assertIn("track_b_native", report_text)
+            self.assertIn("_No failures recorded._", report_text)
 
 
 if __name__ == "__main__":
