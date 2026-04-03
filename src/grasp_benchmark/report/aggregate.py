@@ -283,7 +283,7 @@ def _write_teacher_summary(
             "",
         ]
     )
-    output.write_text("\n".join(lines), encoding="utf-8")
+    output.write_text("\n".join(lines), encoding="utf-8-sig")
 
 
 def main() -> None:

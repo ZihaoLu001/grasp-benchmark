@@ -119,6 +119,8 @@ powershell -ExecutionPolicy Bypass -File .\scripts\run_official_graspvla_sim.ps1
 - Official runbook: `docs/runbooks/graspvla_official_runbook.md`
 - Official sim report:
   `docs/reports/graspvla_official_sim_complete_20260402.md`
+- Track A shared-sim report:
+  `docs/reports/graspvla_track_a_shared_sim_complete_20260403.md`
 - Setting freeze note:
   `docs/reports/benchmark_setting_freeze_v1_20260402.md`
 - Track-split aggregate example:
@@ -129,6 +131,8 @@ powershell -ExecutionPolicy Bypass -File .\scripts\run_official_graspvla_sim.ps1
   `artifacts/official/20260402_194109_em14_graspvla_checks/offline_test_visualization.png`
 - Latest official full simulation artifact:
   `artifacts/official_sim/20260402_231726_em14_full/summary.json`
+- Latest Track A shared-sim aggregate:
+  `artifacts/reports/graspvla_track_a_real_latest/report.md`
 
 ## Notes
 
