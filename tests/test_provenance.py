@@ -28,6 +28,18 @@ class ProvenanceTest(unittest.TestCase):
             )
             self.assertEqual(resolve_commit(project_root), "cafebabe")
 
+    def test_load_sync_metadata_returns_empty_dict_for_blank_file(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            project_root = Path(tmp_dir)
+            sync_metadata_path(project_root).write_text("", encoding="utf-8")
+            self.assertEqual(load_sync_metadata(project_root), {})
+
+    def test_load_sync_metadata_returns_empty_dict_for_invalid_json(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            project_root = Path(tmp_dir)
+            sync_metadata_path(project_root).write_text("{not-json", encoding="utf-8")
+            self.assertEqual(load_sync_metadata(project_root), {})
+
 
 if __name__ == "__main__":
     unittest.main()

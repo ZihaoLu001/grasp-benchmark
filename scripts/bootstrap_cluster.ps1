@@ -21,7 +21,8 @@ $metadata = @{
     synced_at = (Get-Date).ToUniversalTime().ToString("o")
     sync_source = "git_archive"
 }
-$metadata | ConvertTo-Json | Set-Content -Path $metadataPath -Encoding utf8
+$metadataJson = $metadata | ConvertTo-Json -Depth 4
+[System.IO.File]::WriteAllText($metadataPath, $metadataJson, [System.Text.UTF8Encoding]::new($false))
 
 git -C $repoRoot archive --format=tar -o $archivePath HEAD
 scp $archivePath "${Node}:$remoteArchive"

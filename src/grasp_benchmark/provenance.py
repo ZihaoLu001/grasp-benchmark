@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from json import JSONDecodeError
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -30,8 +31,13 @@ def load_sync_metadata(project_root: Path = PROJECT_ROOT) -> dict[str, Any]:
     path = sync_metadata_path(project_root)
     if not path.exists():
         return {}
-    with path.open("r", encoding="utf-8-sig") as handle:
-        data = json.load(handle)
+    raw = path.read_text(encoding="utf-8-sig").strip()
+    if not raw:
+        return {}
+    try:
+        data = json.loads(raw)
+    except JSONDecodeError:
+        return {}
     return data if isinstance(data, dict) else {}
 
 
