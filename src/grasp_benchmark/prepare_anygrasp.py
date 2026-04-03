@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import base64
 import json
+import re
 from datetime import datetime, timezone
 
 from grasp_benchmark.config import load_named_config
@@ -49,8 +50,8 @@ def _decode_b64(value: str) -> str:
 
 
 def _extract_feature_id(output: str) -> str:
-    digits = "".join(ch for ch in output if ch.isdigit())
-    return digits
+    candidates = re.findall(r"\b\d{8,}\b", output)
+    return candidates[-1] if candidates else ""
 
 
 def main() -> None:

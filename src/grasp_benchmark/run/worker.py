@@ -45,6 +45,10 @@ def _filter_scene_ids(task_specs: list, scene_ids: str) -> list:
     return [task_spec for task_spec in task_specs if task_spec.scene_id in allowed]
 
 
+def _is_shared_track_a_execution_mode(execution_mode: str) -> bool:
+    return execution_mode == "shared_track_a_sim" or execution_mode.startswith("track_a_diag_")
+
+
 def _shared_protocol(sensor_config: dict) -> dict:
     return {
         "track": sensor_config.get("track", ""),
@@ -184,7 +188,7 @@ def main() -> None:
     try:
         runtime_config = _runtime_config(method_config, cluster_config)
         runtime_config["gpu_id"] = args.gpu_id
-        if args.execution_mode == "shared_track_a_sim":
+        if _is_shared_track_a_execution_mode(args.execution_mode):
             results, scene_metadata = run_shared_track_a_suite(
                 method_name=args.method,
                 method_config=method_config,
