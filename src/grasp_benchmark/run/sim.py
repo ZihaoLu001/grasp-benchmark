@@ -169,6 +169,18 @@ def _gpu_slots_for_host(record: dict) -> list[str]:
     return [str(index) for index, _name in enumerate(record.get("gpu_names", []))]
 
 
+def _interleaved_gpu_slots(selected_hosts: list[str], records: dict[str, dict]) -> list[tuple[str, str]]:
+    slots_by_host = {host: _gpu_slots_for_host(records[host]) for host in selected_hosts}
+    max_slots = max((len(slots) for slots in slots_by_host.values()), default=0)
+    ordered: list[tuple[str, str]] = []
+    for slot_index in range(max_slots):
+        for host in selected_hosts:
+            slots = slots_by_host[host]
+            if slot_index < len(slots):
+                ordered.append((host, slots[slot_index]))
+    return ordered
+
+
 def _build_matrix_shards(
     *,
     method_name: str,
@@ -196,10 +208,7 @@ def _build_matrix_shards(
     if task_count == 0:
         raise RuntimeError("Resolved zero tasks for this matrix dispatch.")
 
-    slots: list[tuple[str, str]] = []
-    for host in selected_hosts:
-        for gpu_id in _gpu_slots_for_host(records[host]):
-            slots.append((host, gpu_id))
+    slots = _interleaved_gpu_slots(selected_hosts, records)
     if not slots:
         raise RuntimeError("Matrix dispatch could not find any visible GPU slots.")
 
