@@ -65,7 +65,7 @@ def _shared_protocol(sensor_config: dict) -> dict:
 
 def _sanitize_reason(exc: BaseException) -> str:
     message = f"{type(exc).__name__}: {exc}"
-    return " ".join(message.split())[:200]
+    return " ".join(message.split())[:4000]
 
 
 def _setup_failure_results(

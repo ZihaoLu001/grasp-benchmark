@@ -65,7 +65,7 @@ def build_mock_observation(
 def _sanitize_reason(exc: BaseException) -> str:
     message = f"{type(exc).__name__}: {exc}"
     message = " ".join(message.split())
-    return message[:200]
+    return message[:4000]
 
 
 def _write_attempt_artifact(

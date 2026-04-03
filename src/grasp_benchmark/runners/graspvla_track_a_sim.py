@@ -752,7 +752,7 @@ def _attempt_payload(
     parent_run_id: str = "",
     shard_id: str = "",
     gpu_id: str = "",
-) -> dict[str, Any]:
+    ) -> dict[str, Any]:
     return {
         "scene_id": trial.scene_id,
         "task": trial.task,
@@ -776,6 +776,21 @@ def _attempt_payload(
         "gpu_id": gpu_id,
         "step_trace": list(step_trace or []),
     }
+
+
+def _json_safe(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {str(key): _json_safe(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(item) for item in value]
+    if hasattr(value, "tolist"):
+        try:
+            return _json_safe(value.tolist())
+        except Exception:
+            pass
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    return str(value)
 
 
 def _target_instance_for_trial(recipe: SceneRecipe, trial: TrialSpec) -> str:
@@ -830,12 +845,12 @@ def _step_trace_entry(
         "step_index": step_index,
         "ee_pose": [round(float(value), 6) for value in ee_pose],
         "gripper_command": round(float(action[6]), 6),
-        "bbox": bbox,
+        "bbox": _json_safe(bbox),
         "target_z": round(float(target_z), 6),
         "max_lift_cm": round(float(max_lift_cm), 6),
         "contact": bool(contact),
         "slip": bool(slip),
-        "debug": dict(debug or {}),
+        "debug": _json_safe(dict(debug or {})),
     }
 
 
@@ -1124,7 +1139,7 @@ def _run_shared_track_a_suite_once(
                             gpu_id=gpu_id,
                         )
                 except Exception as exc:
-                    failure_reason = " ".join(f"{type(exc).__name__}: {exc}".split())[:200]
+                    failure_reason = " ".join(f"{type(exc).__name__}: {exc}".split())[:4000]
                     failure_stage = exc.failure_stage if isinstance(exc, AdapterExecutionError) else "scene_execution"
                     video_path = ""
                     if video_logger is not None:
