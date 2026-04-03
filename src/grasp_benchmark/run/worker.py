@@ -30,6 +30,21 @@ def _runtime_config(method_config: dict, cluster_config: dict) -> dict:
     return runtime
 
 
+def _shard_task_specs(task_specs: list, shard_index: int, shard_count: int) -> list:
+    if shard_count <= 1:
+        return list(task_specs)
+    if shard_index < 0 or shard_index >= shard_count:
+        raise ValueError(f"Invalid shard index {shard_index} for shard count {shard_count}.")
+    return [task_spec for index, task_spec in enumerate(task_specs) if index % shard_count == shard_index]
+
+
+def _filter_scene_ids(task_specs: list, scene_ids: str) -> list:
+    if not scene_ids.strip():
+        return list(task_specs)
+    allowed = {item.strip() for item in scene_ids.split(",") if item.strip()}
+    return [task_spec for task_spec in task_specs if task_spec.scene_id in allowed]
+
+
 def _shared_protocol(sensor_config: dict) -> dict:
     return {
         "track": sensor_config.get("track", ""),
@@ -58,6 +73,9 @@ def _setup_failure_results(
     commit: str,
     execution_mode: str,
     exc: BaseException,
+    parent_run_id: str = "",
+    shard_id: str = "",
+    gpu_id: str = "",
 ) -> list[EpisodeResult]:
     failure_stage = exc.failure_stage if isinstance(exc, AdapterExecutionError) else "adapter_setup"
     failure_reason = _sanitize_reason(exc)
@@ -88,6 +106,9 @@ def _setup_failure_results(
                 video_path="",
                 node=node,
                 commit=commit,
+                parent_run_id=parent_run_id,
+                shard_id=shard_id,
+                gpu_id=gpu_id,
             )
         )
     return results
@@ -102,6 +123,15 @@ def main() -> None:
     parser.add_argument("--smoke-only", action="store_true")
     parser.add_argument("--max-trials", type=int, default=0, help="Optional cap on expanded trial count.")
     parser.add_argument("--execution-mode", default="integration_fixture")
+    parser.add_argument("--shard-index", type=int, default=0)
+    parser.add_argument("--shard-count", type=int, default=1)
+    parser.add_argument("--gpu-id", default="")
+    parser.add_argument("--parent-run-id", default="")
+    parser.add_argument("--scene-ids", default="")
+    parser.add_argument("--robot-config-override", default="")
+    parser.add_argument("--lift-threshold-cm", type=float, default=-1.0)
+    parser.add_argument("--hold-steps", type=int, default=-1)
+    parser.add_argument("--trace-steps", action="store_true")
     args = parser.parse_args()
 
     cluster_config = load_named_config("cluster", "default")
@@ -125,6 +155,16 @@ def main() -> None:
         "task_groups": task_config.get("task_groups", []),
         "adapter_input_policy": adapter.input_policy(),
         "shared_protocol": _shared_protocol(sensor_config),
+        "parent_run_id": args.parent_run_id,
+        "shard_index": args.shard_index,
+        "shard_count": args.shard_count,
+        "shard_id": f"shard_{args.shard_index:03d}",
+        "gpu_id": args.gpu_id,
+        "scene_ids_filter": args.scene_ids,
+        "robot_config_override": args.robot_config_override,
+        "lift_threshold_cm_override": args.lift_threshold_cm,
+        "hold_steps_override": args.hold_steps,
+        "trace_steps": args.trace_steps,
     }
 
     if args.smoke_only:
@@ -133,19 +173,20 @@ def main() -> None:
         return
 
     max_trials = args.max_trials or None
-    task_specs = expand_task_set(task_config, max_trials=max_trials)
+    all_task_specs = expand_task_set(task_config, max_trials=max_trials)
+    task_specs = _shard_task_specs(all_task_specs, args.shard_index, args.shard_count)
+    task_specs = _filter_scene_ids(task_specs, args.scene_ids)
+    payload["expanded_trial_count"] = len(all_task_specs)
     payload["trial_count"] = len(task_specs)
     payload["task_specs"] = [task_spec.to_task_spec() for task_spec in task_specs]
     (output_dir / "run_metadata.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
     try:
         runtime_config = _runtime_config(method_config, cluster_config)
+        runtime_config["gpu_id"] = args.gpu_id
         if args.execution_mode == "shared_track_a_sim":
-            if args.method != "graspvla":
-                raise RuntimeError(
-                    f"Execution mode {args.execution_mode} is currently implemented only for GraspVLA."
-                )
             results, scene_metadata = run_shared_track_a_suite(
+                method_name=args.method,
                 method_config=method_config,
                 sensor_config=sensor_config,
                 task_specs=task_specs,
@@ -154,6 +195,13 @@ def main() -> None:
                 commit=payload["commit"],
                 runtime_config=runtime_config,
                 execution_mode=args.execution_mode,
+                parent_run_id=args.parent_run_id,
+                shard_id=payload["shard_id"],
+                gpu_id=args.gpu_id,
+                robot_config_override=args.robot_config_override,
+                lift_threshold_cm_override=args.lift_threshold_cm if args.lift_threshold_cm > 0 else None,
+                hold_steps_override=args.hold_steps if args.hold_steps > 0 else None,
+                trace_steps=args.trace_steps,
             )
             payload.update(scene_metadata)
             (output_dir / "run_metadata.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
@@ -179,6 +227,9 @@ def main() -> None:
             commit=payload["commit"],
             execution_mode=args.execution_mode,
             exc=exc,
+            parent_run_id=args.parent_run_id,
+            shard_id=payload["shard_id"],
+            gpu_id=args.gpu_id,
         )
     finally:
         adapter.close()

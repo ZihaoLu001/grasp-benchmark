@@ -37,6 +37,9 @@ class TypesTest(unittest.TestCase):
             video_path="",
             node="em14",
             commit="deadbeef",
+            parent_run_id="parent_001",
+            shard_id="shard_000",
+            gpu_id="0",
         )
         with tempfile.TemporaryDirectory() as tmp_dir:
             path = Path(tmp_dir) / "results.csv"
@@ -45,6 +48,9 @@ class TypesTest(unittest.TestCase):
             self.assertIn("graspvla", text)
             self.assertIn("scene_001", text)
             self.assertIn("shared_track_a_sim", text)
+            self.assertIn("parent_001", text)
+            self.assertIn("shard_000", text)
+            self.assertIn(",0", text)
 
 
 if __name__ == "__main__":

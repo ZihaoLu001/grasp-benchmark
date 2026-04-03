@@ -10,7 +10,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from grasp_benchmark.adapters.base import AdapterExecutionError
+from grasp_benchmark.adapters import build_adapter
+from grasp_benchmark.adapters.base import AdapterExecutionError, AgentAdapter
 from grasp_benchmark.config import load_named_config
 from grasp_benchmark.paths import PROJECT_ROOT, ensure_dir
 from grasp_benchmark.task_specs import TrialSpec
@@ -455,8 +456,11 @@ class SharedTrackARemoteAgent:
         self._socket.setsockopt(zmq.SNDTIMEO, 10000)
         self._socket.connect(f"tcp://{host}:{port}")
 
-    def reset(self, instruction: str) -> None:
-        self._instruction = instruction
+    def reset(self, instruction: str | dict[str, Any]) -> None:
+        if isinstance(instruction, dict):
+            self._instruction = str(instruction.get("instruction", self._instruction))
+        else:
+            self._instruction = instruction
         self._last_gripper = self.GRIPPER_OPEN
         self._proprio_history = []
         self._pred_actions = []
@@ -558,7 +562,7 @@ class SharedTrackARemoteAgent:
         action[-1] = -1.0
         return action
 
-    def step(self, obs: dict[str, Any], camera_meta: dict[str, Any]) -> tuple[Any, Any]:
+    def step(self, obs: dict[str, Any], camera_meta: dict[str, Any]) -> tuple[Any, Any, dict[str, Any]]:
         observation = self._build_observation(obs, camera_meta)
         if not self._pred_actions:
             self._post_and_get(observation)
@@ -569,11 +573,108 @@ class SharedTrackARemoteAgent:
             self._last_gripper = -1.0
         elif action[6] > 0:
             self._last_gripper = 1.0
-        return action, bbox
+        return action, bbox, {"bbox": bbox, "policy": "graspvla_remote_sequence"}
 
     def close(self) -> None:
         self._socket.close(linger=0)
         self._context.term()
+
+
+class SharedTrackAAdapterAgent:
+    PROPRIO_HISTORY_SIZE = 4
+    GRIPPER_OPEN = 1.0
+
+    def __init__(
+        self,
+        *,
+        adapter: AgentAdapter,
+        instruction: str,
+        kinematics: SharedFrankaKinematics,
+        runtime_config: dict[str, Any],
+    ) -> None:
+        import numpy as np
+
+        self._adapter = adapter
+        self._instruction = instruction
+        self._kinematics = kinematics
+        self._np = np
+        self._last_gripper = self.GRIPPER_OPEN
+        self._proprio_history: list[np.ndarray] = []
+        self._request_latencies_ms: list[float] = []
+        self._adapter.setup(runtime_config)
+
+    def reset(self, task_spec: dict[str, Any]) -> None:
+        self._instruction = str(task_spec.get("instruction", self._instruction))
+        self._last_gripper = self.GRIPPER_OPEN
+        self._proprio_history = []
+        self._request_latencies_ms = []
+        self._adapter.reset(task_spec)
+
+    @property
+    def mean_inference_ms(self) -> float:
+        if not self._request_latencies_ms:
+            return 0.0
+        return round(sum(self._request_latencies_ms) / len(self._request_latencies_ms), 4)
+
+    def _current_proprio(self, obs: dict[str, Any]) -> np.ndarray:
+        current_joint_pos = self._np.asarray(obs["robot0_joint_pos"], dtype=self._np.float32)
+        position, quaternion = self._kinematics.fk(current_joint_pos)
+        import transforms3d as t3d
+
+        euler = self._np.asarray(t3d.euler.quat2euler(quaternion, axes="sxyz"), dtype=self._np.float32)
+        return self._np.concatenate(
+            [
+                position.astype(self._np.float32),
+                euler,
+                self._np.array([self._last_gripper], dtype=self._np.float32),
+            ]
+        )
+
+    def _build_observation(self, obs: dict[str, Any], camera_meta: dict[str, Any]) -> Observation:
+        current_proprio = self._current_proprio(obs)
+        self._proprio_history.append(current_proprio)
+        while len(self._proprio_history) < self.PROPRIO_HISTORY_SIZE:
+            self._proprio_history.append(self._proprio_history[-1].copy())
+        self._proprio_history = self._proprio_history[-self.PROPRIO_HISTORY_SIZE :]
+        return Observation(
+            rgb_front=self._np.asarray(obs["front_view_image"][::-1]).copy(),
+            rgb_side=self._np.asarray(obs["side_view_image"][::-1]).copy(),
+            depth_front=self._np.asarray(obs["front_view_depth"][::-1]).squeeze(-1).copy(),
+            depth_side=self._np.asarray(obs["side_view_depth"][::-1]).squeeze(-1).copy(),
+            intrinsics_front=dict(camera_meta["intrinsics_front"]),
+            intrinsics_side=dict(camera_meta["intrinsics_side"]),
+            extrinsics_front=dict(camera_meta["extrinsics_front"]),
+            extrinsics_side=dict(camera_meta["extrinsics_side"]),
+            proprio={
+                "state": self._proprio_history[-1].tolist(),
+                "history": [item.tolist() for item in self._proprio_history],
+                "gripper": int(self._last_gripper),
+            },
+            instruction=self._instruction,
+            timestamp=time.time(),
+        )
+
+    def current_open_action(self, obs: dict[str, Any]) -> Any:
+        proprio = self._current_proprio(obs)
+        action = proprio.copy()
+        action[-1] = -1.0
+        return action
+
+    def step(self, obs: dict[str, Any], camera_meta: dict[str, Any]) -> tuple[Any, Any, dict[str, Any]]:
+        observation = self._build_observation(obs, camera_meta)
+        current_pose = self._np.asarray(observation.proprio["history"][-1][:6], dtype=self._np.float32)
+        start = time.perf_counter()
+        action = self._adapter.step(observation)
+        self._request_latencies_ms.append((time.perf_counter() - start) * 1000.0)
+        abs_action = self._np.concatenate([current_pose + self._np.asarray(action.ee_delta, dtype=self._np.float32), [float(action.gripper)]])
+        if abs_action[6] < 0:
+            self._last_gripper = -1.0
+        elif abs_action[6] > 0:
+            self._last_gripper = 1.0
+        return abs_action, None, {"policy": self._adapter.name, "gripper_command": int(action.gripper)}
+
+    def close(self) -> None:
+        self._adapter.close()
 
 
 def _camera_metadata(env: Any, scene_config: dict[str, Any]) -> dict[str, Any]:
@@ -645,6 +746,12 @@ def _attempt_payload(
     alias_map: dict[str, dict[str, Any]],
     failure_stage: str = "",
     failure_reason: str = "",
+    step_trace: list[dict[str, Any]] | None = None,
+    execution_mode: str = "shared_track_a_sim",
+    shared_success_definition: dict[str, Any] | None = None,
+    parent_run_id: str = "",
+    shard_id: str = "",
+    gpu_id: str = "",
 ) -> dict[str, Any]:
     return {
         "scene_id": trial.scene_id,
@@ -662,11 +769,79 @@ def _attempt_payload(
         "failure_reason": failure_reason,
         "scene_recipe": recipe.to_json(),
         "alias_map": alias_map,
+        "execution_mode": execution_mode,
+        "shared_success_definition": dict(shared_success_definition or {}),
+        "parent_run_id": parent_run_id,
+        "shard_id": shard_id,
+        "gpu_id": gpu_id,
+        "step_trace": list(step_trace or []),
     }
 
 
-def run_shared_track_a_suite(
+def _target_instance_for_trial(recipe: SceneRecipe, trial: TrialSpec) -> str:
+    if trial.task == "arbitrary_grasping_transparent":
+        return recipe.success_instance_names[0]
+    return recipe.target_instance_names[0]
+
+
+def _build_shared_agent(
     *,
+    method_name: str,
+    method_config: dict[str, Any],
+    sensor_config: dict[str, Any],
+    trial: TrialSpec,
+    kinematics: SharedFrankaKinematics,
+    runtime_config: dict[str, Any],
+) -> Any:
+    if method_name == "graspvla":
+        agent = SharedTrackARemoteAgent(
+            instruction=trial.instruction,
+            host=str(runtime_config["host"]),
+            port=int(runtime_config["port"]),
+            kinematics=kinematics,
+        )
+        agent.reset(trial.to_task_spec())
+        return agent
+
+    adapter = build_adapter(method_name, method_config, sensor_config)
+    agent = SharedTrackAAdapterAgent(
+        adapter=adapter,
+        instruction=trial.instruction,
+        kinematics=kinematics,
+        runtime_config=runtime_config,
+    )
+    agent.reset(trial.to_task_spec())
+    return agent
+
+
+def _step_trace_entry(
+    *,
+    step_index: int,
+    action: Any,
+    bbox: Any,
+    debug: dict[str, Any],
+    ee_pose: Any,
+    target_z: float,
+    max_lift_cm: float,
+    contact: bool,
+    slip: bool,
+) -> dict[str, Any]:
+    return {
+        "step_index": step_index,
+        "ee_pose": [round(float(value), 6) for value in ee_pose],
+        "gripper_command": round(float(action[6]), 6),
+        "bbox": bbox,
+        "target_z": round(float(target_z), 6),
+        "max_lift_cm": round(float(max_lift_cm), 6),
+        "contact": bool(contact),
+        "slip": bool(slip),
+        "debug": dict(debug or {}),
+    }
+
+
+def _run_shared_track_a_suite_once(
+    *,
+    method_name: str,
     method_config: dict[str, Any],
     sensor_config: dict[str, Any],
     task_specs: list[TrialSpec],
@@ -675,6 +850,13 @@ def run_shared_track_a_suite(
     commit: str,
     runtime_config: dict[str, Any],
     execution_mode: str = "shared_track_a_sim",
+    parent_run_id: str = "",
+    shard_id: str = "",
+    gpu_id: str = "",
+    robot_config_override: str = "",
+    lift_threshold_cm_override: float | None = None,
+    hold_steps_override: int | None = None,
+    trace_steps: bool = False,
 ) -> tuple[list[EpisodeResult], dict[str, Any]]:
     import numpy as np
 
@@ -694,15 +876,31 @@ def run_shared_track_a_suite(
             runtime_root=ensure_dir(artifact_dir / "runtime_assets"),
         )
         metadata["execution_mode"] = execution_mode
+        metadata["method"] = method_name
+        metadata["parent_run_id"] = parent_run_id
+        metadata["shard_id"] = shard_id
+        metadata["gpu_id"] = gpu_id
         (artifact_dir / "scene_catalog_resolved.json").write_text(json.dumps(metadata, indent=2), encoding="utf-8")
         bddl_root = ensure_dir(artifact_dir / "bddl")
         episodes_dir = ensure_dir(artifact_dir / "episodes")
         videos_dir = ensure_dir(artifact_dir / "videos")
-        robot_config_path = PROJECT_ROOT / str(scene_config["robot_config_relpath"])
-        lift_threshold_m = float(sensor_config["success_definition"]["lift_cm_min"]) / 100.0
-        hold_steps_required = int(scene_config["hold_steps"])
+        if robot_config_override:
+            robot_config_path = PROJECT_ROOT / robot_config_override
+        else:
+            robot_config_path = PROJECT_ROOT / str(scene_config["robot_config_relpath"])
+        lift_threshold_m = (
+            float(lift_threshold_cm_override) / 100.0
+            if lift_threshold_cm_override is not None
+            else float(sensor_config["success_definition"]["lift_cm_min"]) / 100.0
+        )
+        hold_steps_required = int(hold_steps_override) if hold_steps_override is not None else int(scene_config["hold_steps"])
         results: list[EpisodeResult] = []
         control_freq = int(method_config.get("sim", {}).get("control_freq", 5))
+        shared_success_definition = {
+            "lift_cm_min": round(lift_threshold_m * 100.0, 4),
+            "hold_steps": hold_steps_required,
+            "hold_s_min": round(hold_steps_required / control_freq, 4),
+        }
 
         for trial in task_specs:
             recipe = recipes[trial.scene_id]
@@ -713,6 +911,7 @@ def run_shared_track_a_suite(
                 env = None
                 agent = None
                 video_logger = None
+                step_trace: list[dict[str, Any]] = []
                 try:
                     bddl_path = bddl_root / f"{trial.scene_id}_attempt{attempt:02d}.bddl"
                     write_bddl_for_recipe(recipe, scene_config, bddl_path)
@@ -732,13 +931,14 @@ def run_shared_track_a_suite(
                     kinematics = SharedFrankaKinematics(robot_config_path)
                     env.robots[0].IK_solver = kinematics
                     camera_meta = _camera_metadata(env, scene_config)
-                    agent = SharedTrackARemoteAgent(
-                        instruction=trial.instruction,
-                        host=str(runtime_config["host"]),
-                        port=int(runtime_config["port"]),
+                    agent = _build_shared_agent(
+                        method_name=method_name,
+                        method_config=method_config,
+                        sensor_config=sensor_config,
+                        trial=trial,
                         kinematics=kinematics,
+                        runtime_config=runtime_config,
                     )
-                    agent.reset(trial.instruction)
                     obs = _stabilize_scene(env, agent, obs, recipe.stabilization_steps)
                     if recipe.height_offset_cm > 0:
                         obs = _apply_height_offset(env, recipe.target_instance_names[0], recipe.height_offset_cm)
@@ -747,6 +947,7 @@ def run_shared_track_a_suite(
                         for instance_name in recipe.success_instance_names
                     }
                     final_z = dict(baseline_z)
+                    target_instance_name = _target_instance_for_trial(recipe, trial)
                     hold_counts = {instance_name: 0 for instance_name in recipe.success_instance_names}
                     video_logger = VideoLogger(str(videos_dir))
                     video_logger.start_recording(
@@ -755,9 +956,10 @@ def run_shared_track_a_suite(
                         trial.object_id,
                         recipe.seed,
                     )
+                    max_lift_cm_so_far = 0.0
 
                     for _step in range(recipe.max_steps):
-                        action, bbox = agent.step(obs, camera_meta)
+                        action, bbox, debug = agent.step(obs, camera_meta)
                         obs, _reward, _done, _info = env.step(action)
                         video_logger.log_frame(obs, bbox)
                         winner = ""
@@ -771,6 +973,29 @@ def run_shared_track_a_suite(
                                     break
                             else:
                                 hold_counts[instance_name] = 0
+                        target_z = float(np.asarray(obs[f"{target_instance_name}_pos"])[2])
+                        target_lift_cm = (target_z - baseline_z[target_instance_name]) * 100.0
+                        max_lift_cm_so_far = max(max_lift_cm_so_far, target_lift_cm)
+                        if trace_steps:
+                            ee_position, ee_quaternion = kinematics.fk(np.asarray(obs["robot0_joint_pos"], dtype=np.float32))
+                            import transforms3d as t3d
+
+                            ee_euler = np.asarray(t3d.euler.quat2euler(ee_quaternion, axes="sxyz"), dtype=np.float32)
+                            current_contacts = int(getattr(env.sim.data, "ncon", 0))
+                            slip = target_lift_cm + 0.5 < max_lift_cm_so_far
+                            step_trace.append(
+                                _step_trace_entry(
+                                    step_index=_step,
+                                    action=action,
+                                    bbox=bbox,
+                                    debug=debug,
+                                    ee_pose=np.concatenate([ee_position, ee_euler]),
+                                    target_z=target_z,
+                                    max_lift_cm=max_lift_cm_so_far,
+                                    contact=current_contacts > 0,
+                                    slip=slip,
+                                )
+                            )
                         if winner:
                             video_logger.stop_recording(success=True)
                             video_path = str(Path(video_logger.new_video_name).relative_to(artifact_dir))
@@ -790,13 +1015,19 @@ def run_shared_track_a_suite(
                                         mean_inference_ms=agent.mean_inference_ms,
                                         video_path=video_path,
                                         alias_map=alias_map,
+                                        step_trace=step_trace if trace_steps else None,
+                                        execution_mode=execution_mode,
+                                        shared_success_definition=shared_success_definition,
+                                        parent_run_id=parent_run_id,
+                                        shard_id=shard_id,
+                                        gpu_id=gpu_id,
                                     ),
                                     indent=2,
                                 ),
                                 encoding="utf-8",
                             )
                             result = EpisodeResult(
-                                method="graspvla",
+                                method=method_name,
                                 track=trial.track,
                                 execution_mode=execution_mode,
                                 task=trial.task,
@@ -819,6 +1050,9 @@ def run_shared_track_a_suite(
                                 video_path=video_path,
                                 node=node,
                                 commit=commit,
+                                parent_run_id=parent_run_id,
+                                shard_id=shard_id,
+                                gpu_id=gpu_id,
                             )
                             break
 
@@ -849,6 +1083,12 @@ def run_shared_track_a_suite(
                                 alias_map=alias_map,
                                 failure_stage="task_failure",
                                 failure_reason="Shared success criterion was not met within the Track A step budget.",
+                                step_trace=step_trace if trace_steps else None,
+                                execution_mode=execution_mode,
+                                shared_success_definition=shared_success_definition,
+                                parent_run_id=parent_run_id,
+                                shard_id=shard_id,
+                                gpu_id=gpu_id,
                             ),
                             indent=2,
                         ),
@@ -856,7 +1096,7 @@ def run_shared_track_a_suite(
                     )
                     if attempt == trial.attempts_per_trial:
                         result = EpisodeResult(
-                            method="graspvla",
+                            method=method_name,
                             track=trial.track,
                             execution_mode=execution_mode,
                             task=trial.task,
@@ -879,6 +1119,9 @@ def run_shared_track_a_suite(
                             video_path=video_path,
                             node=node,
                             commit=commit,
+                            parent_run_id=parent_run_id,
+                            shard_id=shard_id,
+                            gpu_id=gpu_id,
                         )
                 except Exception as exc:
                     failure_reason = " ".join(f"{type(exc).__name__}: {exc}".split())[:200]
@@ -903,6 +1146,11 @@ def run_shared_track_a_suite(
                                 alias_map=alias_map,
                                 failure_stage=failure_stage,
                                 failure_reason=failure_reason,
+                                execution_mode=execution_mode,
+                                shared_success_definition=shared_success_definition,
+                                parent_run_id=parent_run_id,
+                                shard_id=shard_id,
+                                gpu_id=gpu_id,
                             ),
                             indent=2,
                         ),
@@ -910,7 +1158,7 @@ def run_shared_track_a_suite(
                     )
                     if attempt == trial.attempts_per_trial:
                         result = EpisodeResult(
-                            method="graspvla",
+                            method=method_name,
                             track=trial.track,
                             execution_mode=execution_mode,
                             task=trial.task,
@@ -933,6 +1181,9 @@ def run_shared_track_a_suite(
                             video_path=video_path,
                             node=node,
                             commit=commit,
+                            parent_run_id=parent_run_id,
+                            shard_id=shard_id,
+                            gpu_id=gpu_id,
                         )
                 finally:
                     if agent is not None:
@@ -947,3 +1198,42 @@ def run_shared_track_a_suite(
         return results, metadata
     finally:
         os.chdir(previous_cwd)
+
+
+def run_shared_track_a_suite(
+    *,
+    method_name: str,
+    method_config: dict[str, Any],
+    sensor_config: dict[str, Any],
+    task_specs: list[TrialSpec],
+    artifact_dir: Path,
+    node: str,
+    commit: str,
+    runtime_config: dict[str, Any],
+    execution_mode: str = "shared_track_a_sim",
+    parent_run_id: str = "",
+    shard_id: str = "",
+    gpu_id: str = "",
+    robot_config_override: str = "",
+    lift_threshold_cm_override: float | None = None,
+    hold_steps_override: int | None = None,
+    trace_steps: bool = False,
+) -> tuple[list[EpisodeResult], dict[str, Any]]:
+    return _run_shared_track_a_suite_once(
+        method_name=method_name,
+        method_config=method_config,
+        sensor_config=sensor_config,
+        task_specs=task_specs,
+        artifact_dir=artifact_dir,
+        node=node,
+        commit=commit,
+        runtime_config=runtime_config,
+        execution_mode=execution_mode,
+        parent_run_id=parent_run_id,
+        shard_id=shard_id,
+        gpu_id=gpu_id,
+        robot_config_override=robot_config_override,
+        lift_threshold_cm_override=lift_threshold_cm_override,
+        hold_steps_override=hold_steps_override,
+        trace_steps=trace_steps,
+    )

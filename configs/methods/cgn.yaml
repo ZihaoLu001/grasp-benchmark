@@ -12,6 +12,22 @@ upstreams:
 sim:
   runner: benchmark_wrapper
   uses_depth: true
+  execution_mode: shared_track_a_sim
+track_a_input_policy:
+  observation_contract: shared_observation
+  consumes:
+    - rgb_front
+    - depth_front
+    - intrinsics_front
+    - extrinsics_front
+    - proprio
+    - instruction
+  ignores:
+    - rgb_side
+    - depth_side
+    - intrinsics_side
+    - extrinsics_side
+  scene_edit_policy: shared_only
 legacy_env_name: gb-cgn-tf22
 checkpoint_relpath: checkpoints/scene_test_2048_bs3_hor_sigma_001
 smoke_downsample_stride: 4

@@ -60,7 +60,7 @@ def _mean(values: list[float]) -> float:
 def _aggregate(rows: list[dict[str, object]], group_keys: list[str]) -> list[dict[str, object]]:
     grouped: dict[tuple[object, ...], list[dict[str, object]]] = defaultdict(list)
     for row in rows:
-        grouped[tuple(row[key] for key in group_keys)].append(row)
+        grouped[tuple(row.get(key, "") for key in group_keys)].append(row)
 
     summary_rows: list[dict[str, object]] = []
     for key, group in sorted(grouped.items()):
@@ -87,8 +87,6 @@ def _aggregate(rows: list[dict[str, object]], group_keys: list[str]) -> list[dic
 def _failure_taxonomy(rows: list[dict[str, object]]) -> list[dict[str, object]]:
     counter = Counter()
     for row in rows:
-        if str(row.get("execution_mode", "")) != "shared_track_a_sim":
-            continue
         stage = str(row.get("failure_stage", "")).strip()
         reason = str(row.get("failure_reason", "")).strip()
         success = int(row.get("success", 0))
@@ -97,6 +95,7 @@ def _failure_taxonomy(rows: list[dict[str, object]]) -> list[dict[str, object]]:
         if not stage and not reason:
             continue
         counter[(row["track"], row["method"], stage, reason)] += 1
+
     taxonomy = []
     for (track, method, stage, reason), count in sorted(counter.items()):
         taxonomy.append(
@@ -111,12 +110,40 @@ def _failure_taxonomy(rows: list[dict[str, object]]) -> list[dict[str, object]]:
     return taxonomy
 
 
-def _track_a_rows(rows: list[dict[str, object]], execution_mode: str) -> list[dict[str, object]]:
-    return [
+def _resolve_parent_run_id(
+    rows: list[dict[str, object]],
+    *,
+    execution_mode: str,
+    explicit_parent_run_id: str,
+) -> str:
+    if explicit_parent_run_id:
+        return explicit_parent_run_id
+    latest = ""
+    for row in rows:
+        candidate = str(row.get("parent_run_id", "")).strip()
+        if (
+            candidate
+            and str(row.get("track", "")).startswith("track_a")
+            and str(row.get("execution_mode", "")) == execution_mode
+        ):
+            latest = candidate
+    return latest
+
+
+def _track_a_rows(rows: list[dict[str, object]], *, execution_mode: str, parent_run_id: str = "") -> list[dict[str, object]]:
+    filtered = [
         row
         for row in rows
         if str(row.get("track", "")).startswith("track_a") and str(row.get("execution_mode", "")) == execution_mode
     ]
+    if not parent_run_id:
+        return filtered
+    return [row for row in filtered if str(row.get("parent_run_id", "")).strip() == parent_run_id]
+
+
+def _by_shard(rows: list[dict[str, object]]) -> list[dict[str, object]]:
+    shard_rows = [row for row in rows if str(row.get("shard_id", "")).strip()]
+    return _aggregate(shard_rows, ["track", "method", "parent_run_id", "shard_id", "node", "gpu_id"])
 
 
 def _parse_track_b_reference(summary_path: Path) -> list[dict[str, object]]:
@@ -183,6 +210,8 @@ def _write_markdown(
     object_groups: list[dict[str, object]],
     taxonomy: list[dict[str, object]],
     track_b_reference: list[dict[str, object]],
+    *,
+    parent_run_id: str,
 ) -> None:
     lines = [
         "# Aggregate Report",
@@ -190,6 +219,8 @@ def _write_markdown(
         "## Track A Shared Benchmark",
         "",
     ]
+    if parent_run_id:
+        lines.extend([f"_Filtered to parent_run_id `{parent_run_id}`._", ""])
     lines.extend(
         _markdown_table(
             ["track", "method", "task", "trials", "success_rate", "mean_spl", "mean_attempts", "mean_inference_ms", "mean_cycle_time_s"],
@@ -233,22 +264,26 @@ def _write_teacher_summary(
     summary: list[dict[str, object]],
     by_condition: list[dict[str, object]],
     track_b_reference: list[dict[str, object]],
+    *,
+    parent_run_id: str,
 ) -> None:
     lines = [
-        "# GraspVLA Simulation Summary",
+        "# Benchmark 汇总说明",
         "",
-        "这页只汇报两套互相分开的结果：",
-        "- `Track A shared benchmark`：统一 benchmark setting 下的正式 GraspVLA simulation 结果。",
-        "- `Track B native deployment reference`：官方 release / 官方仿真协议结果，只作为 native reference，不和 Track A 混算。",
-        "",
-        "## Track A Shared Benchmark",
+        "这一页只汇报两套严格分开的结果：",
+        "- `Track A shared benchmark`：统一 benchmark setting 下的正式仿真结果。",
+        "- `Track B native deployment reference`：官方 release / 官方原生协议下的参考结果，只作为 native reference，不与 Track A 混算。",
         "",
     ]
+    if parent_run_id:
+        lines.extend([f"- 当前 Track A 汇总的 `parent_run_id`：`{parent_run_id}`", ""])
+
+    lines.extend(["## Track A Shared Benchmark", ""])
     if summary:
         for row in summary:
             lines.append(
                 "- "
-                f"{row['task']}: success_rate={row['success_rate']}, trials={row['trials']}, "
+                f"{row['method']} / {row['task']}: success_rate={row['success_rate']}, trials={row['trials']}, "
                 f"mean_attempts={row['mean_attempts']}, mean_inference_ms={row['mean_inference_ms']}, "
                 f"mean_cycle_time_s={row['mean_cycle_time_s']}"
             )
@@ -259,10 +294,10 @@ def _write_teacher_summary(
     if by_condition:
         for row in by_condition:
             lines.append(
-                f"- {row['task']} / {row['condition']}: success_rate={row['success_rate']}, trials={row['trials']}"
+                f"- {row['method']} / {row['task']} / {row['condition']}: success_rate={row['success_rate']}, trials={row['trials']}"
             )
     else:
-        lines.append("- 暂无 condition 维度数据。")
+        lines.append("- 暂无按 condition 切分的数据。")
 
     lines.extend(["", "## Track B Native Reference", ""])
     if track_b_reference:
@@ -276,14 +311,14 @@ def _write_teacher_summary(
     lines.extend(
         [
             "",
-            "## Interpretation",
+            "## 解释口径",
             "",
             "- Track A 才是 benchmark setting 下可用于公平比较的正式分数。",
-            "- Track B 只用于说明 GraspVLA 在作者原生/官方协议下的表现，不用于最终公平 claim。",
+            "- Track B 只用于说明方法在作者原生 / 官方协议下的表现，不用于最终公平 claim。",
             "",
         ]
     )
-    output.write_text("\n".join(lines), encoding="utf-8-sig")
+    output.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def main() -> None:
@@ -304,6 +339,11 @@ def main() -> None:
         default="shared_track_a_sim",
         help="Only Track A rows with this execution_mode are treated as formal benchmark results.",
     )
+    parser.add_argument(
+        "--parent-run-id",
+        default="",
+        help="Optional parent_run_id filter. Defaults to the latest Track A parent run when present.",
+    )
     args = parser.parse_args()
 
     input_root = Path(args.input)
@@ -312,29 +352,52 @@ def main() -> None:
     if not rows:
         raise SystemExit(f"No CSV files found under {input_root}")
 
-    track_a_rows = _track_a_rows(rows, execution_mode=args.track_a_execution_mode)
+    parent_run_id = _resolve_parent_run_id(
+        rows,
+        execution_mode=args.track_a_execution_mode,
+        explicit_parent_run_id=args.parent_run_id,
+    )
+    track_a_rows = _track_a_rows(rows, execution_mode=args.track_a_execution_mode, parent_run_id=parent_run_id)
     summary = _aggregate(track_a_rows, ["track", "method", "task"])
     by_condition = _aggregate(track_a_rows, ["track", "method", "task", "condition"])
     by_object_group = _aggregate(track_a_rows, ["track", "method", "task", "object_group"])
+    by_shard = _by_shard(track_a_rows)
     taxonomy = _failure_taxonomy(track_a_rows)
     track_b_reference = _parse_track_b_reference(Path(args.track_b_reference)) if args.track_b_reference else []
 
     _write_csv(output_dir / "summary.csv", summary)
     _write_csv(output_dir / "by_condition.csv", by_condition)
     _write_csv(output_dir / "by_object_group.csv", by_object_group)
+    _write_csv(output_dir / "by_shard.csv", by_shard)
     _write_csv(output_dir / "failure_taxonomy.csv", taxonomy)
     _write_csv(output_dir / "track_b_reference.csv", track_b_reference)
-    _write_markdown(output_dir / "report.md", summary, by_condition, by_object_group, taxonomy, track_b_reference)
-    _write_teacher_summary(output_dir / "teacher_summary_zh.md", summary, by_condition, track_b_reference)
+    _write_markdown(
+        output_dir / "report.md",
+        summary,
+        by_condition,
+        by_object_group,
+        taxonomy,
+        track_b_reference,
+        parent_run_id=parent_run_id,
+    )
+    _write_teacher_summary(
+        output_dir / "teacher_summary_zh.md",
+        summary,
+        by_condition,
+        track_b_reference,
+        parent_run_id=parent_run_id,
+    )
     (output_dir / "report.json").write_text(
         json.dumps(
             {
                 "summary": summary,
                 "by_condition": by_condition,
                 "by_object_group": by_object_group,
+                "by_shard": by_shard,
                 "failure_taxonomy": taxonomy,
                 "track_b_reference": track_b_reference,
                 "track_a_execution_mode": args.track_a_execution_mode,
+                "parent_run_id": parent_run_id,
             },
             indent=2,
         ),

@@ -27,6 +27,16 @@ class WorkerMetadataTest(unittest.TestCase):
         self.assertIn("depth_front", policy["ignores"])
         self.assertEqual(policy["scene_edit_policy"], "shared_only")
 
+    def test_cgn_adapter_exposes_shared_track_a_input_policy(self) -> None:
+        method_config = load_named_config("methods", "cgn")
+        sensor_config = load_named_config("sensors", "track_a_dual_realsense")
+        adapter = build_adapter("cgn", method_config, sensor_config)
+        policy = adapter.input_policy()
+        self.assertEqual(policy["observation_contract"], "shared_observation")
+        self.assertIn("depth_front", policy["consumes"])
+        self.assertIn("rgb_side", policy["ignores"])
+        self.assertEqual(policy["scene_edit_policy"], "shared_only")
+
 
 if __name__ == "__main__":
     unittest.main()

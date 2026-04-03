@@ -58,6 +58,9 @@ class EpisodeResult:
     video_path: str
     node: str
     commit: str
+    parent_run_id: str = ""
+    shard_id: str = ""
+    gpu_id: str = ""
 
     @classmethod
     def fieldnames(cls) -> list[str]:
@@ -85,6 +88,9 @@ class EpisodeResult:
             "video_path",
             "node",
             "commit",
+            "parent_run_id",
+            "shard_id",
+            "gpu_id",
         ]
 
     def to_row(self) -> dict[str, Any]:

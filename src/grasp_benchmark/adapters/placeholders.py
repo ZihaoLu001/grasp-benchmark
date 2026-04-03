@@ -304,10 +304,88 @@ class ContactGraspNetAdapter(AgentAdapter):
         self._z_min = float(config.get("z_min", 0.2))
         self._z_max = float(config.get("z_max", 1.1))
         self._downsample_stride = max(int(self.method_config.get("smoke_downsample_stride", 1)), 1)
+        self._gpu_id = str(config.get("gpu_id", "0") or "0")
+        self._pending_actions: list[Action] = []
 
     def reset(self, task_spec: dict[str, Any]) -> None:
         self.task_spec = task_spec
         self._instruction = str(task_spec.get("instruction", "")).strip()
+        self._pending_actions = []
+
+    def _current_pose(self, obs: Observation) -> Any:
+        state = obs.proprio.get("state")
+        if state is None:
+            history = obs.proprio.get("history")
+            if isinstance(history, list) and history:
+                state = history[-1]
+        if state is None:
+            raise AdapterExecutionError(
+                "Contact-GraspNet requires proprio state for shared Track A execution.",
+                failure_stage="observation",
+            )
+        state_array = self._np.asarray(state, dtype=self._np.float32)
+        if state_array.shape[0] < 6:
+            raise AdapterExecutionError(
+                "Contact-GraspNet proprio state must include at least 6 end-effector values.",
+                failure_stage="observation",
+            )
+        return state_array[:6]
+
+    def _camera_target_in_world(self, obs: Observation, translation: Any) -> Any | None:
+        matrix = obs.extrinsics_front.get("matrix")
+        if matrix is None:
+            return None
+        extrinsic = self._np.asarray(matrix, dtype=self._np.float32)
+        if extrinsic.shape != (4, 4):
+            return None
+        point = self._np.asarray([translation[0], translation[1], translation[2], 1.0], dtype=self._np.float32)
+        return (extrinsic @ point)[:3]
+
+    def _chunk_delta_actions(self, start_xyz: Any, goal_xyz: Any, *, gripper: int) -> list[Action]:
+        delta = self._np.asarray(goal_xyz, dtype=self._np.float32) - self._np.asarray(start_xyz, dtype=self._np.float32)
+        max_component = float(self._np.max(self._np.abs(delta)))
+        chunk_size = 0.04
+        chunks = max(1, int(self._np.ceil(max_component / chunk_size)))
+        if chunks == 0:
+            chunks = 1
+        step_delta = delta / float(chunks)
+        return [
+            Action(
+                ee_delta=(
+                    float(step_delta[0]),
+                    float(step_delta[1]),
+                    float(step_delta[2]),
+                    0.0,
+                    0.0,
+                    0.0,
+                ),
+                gripper=gripper,
+            )
+            for _ in range(chunks)
+        ]
+
+    def _build_plan(self, obs: Observation, payload: dict[str, Any]) -> list[Action]:
+        current_pose = self._current_pose(obs)
+        translation = self._np.asarray(payload.get("best_translation", [0.0, 0.0, 0.2]), dtype=self._np.float32)
+        target_world = self._camera_target_in_world(obs, translation)
+        if target_world is None:
+            return [Action(ee_delta=_conservative_delta_from_points(translation.reshape(1, 3), self._np), gripper=1)]
+
+        current_xyz = current_pose[:3]
+        approach_xyz = target_world.copy()
+        approach_xyz[2] = max(float(current_xyz[2]), float(target_world[2]) + 0.08)
+        grasp_xyz = target_world.copy()
+        grasp_xyz[2] = max(0.02, float(target_world[2]) + 0.015)
+        lift_xyz = grasp_xyz.copy()
+        lift_xyz[2] = grasp_xyz[2] + 0.18
+
+        plan: list[Action] = []
+        plan.extend(self._chunk_delta_actions(current_xyz, approach_xyz, gripper=1))
+        plan.extend(self._chunk_delta_actions(approach_xyz, grasp_xyz, gripper=1))
+        plan.append(Action(ee_delta=(0.0, 0.0, 0.0, 0.0, 0.0, 0.0), gripper=-1))
+        plan.append(Action(ee_delta=(0.0, 0.0, 0.0, 0.0, 0.0, 0.0), gripper=-1))
+        plan.extend(self._chunk_delta_actions(grasp_xyz, lift_xyz, gripper=-1))
+        return plan
 
     def step(self, obs: Observation) -> Action:
         if os.name == "nt":
@@ -315,6 +393,8 @@ class ContactGraspNetAdapter(AgentAdapter):
                 "Contact-GraspNet legacy-env execution is only supported on the Linux cluster nodes.",
                 failure_stage="legacy_runtime",
             )
+        if self._pending_actions:
+            return self._pending_actions.pop(0)
 
         depth = self._np.asarray(obs.depth_front, dtype=self._np.float32)
         rgb = self._np.asarray(obs.rgb_front, dtype=self._np.uint8)
@@ -351,7 +431,7 @@ class ContactGraspNetAdapter(AgentAdapter):
                 (
                     f'source "{self._miniforge_root}/etc/profile.d/conda.sh" && '
                     f'PYTHONPATH="{_project_root(self.runtime_config) / "src"}" '
-                    f'CUDA_VISIBLE_DEVICES=0 conda run -p "{self._legacy_env_prefix}" python -m grasp_benchmark.runners.contact_graspnet '
+                    f'CUDA_VISIBLE_DEVICES={self._gpu_id} conda run -p "{self._legacy_env_prefix}" python -m grasp_benchmark.runners.contact_graspnet '
                     f'--input "{input_path}" '
                     f'--output "{output_path}" '
                     f'--upstream-root "{self._upstream_root}" '
@@ -359,7 +439,7 @@ class ContactGraspNetAdapter(AgentAdapter):
                     f'--forward-passes {self._forward_passes} '
                     f'--z-min {self._z_min} '
                     f'--z-max {self._z_max} '
-                    f'--cuda-visible-devices 0'
+                    f'--cuda-visible-devices {self._gpu_id}'
                 ),
             ]
             completed = subprocess.run(
@@ -387,11 +467,13 @@ class ContactGraspNetAdapter(AgentAdapter):
                     str(payload.get("failure_reason", "Contact-GraspNet produced no valid grasp.")),
                     failure_stage=str(payload.get("failure_stage", "grasp_proposal")),
                 )
-            translation = self._np.asarray(payload.get("best_translation", [0.0, 0.0, 0.2]), dtype=self._np.float32)
-            return Action(
-                ee_delta=_conservative_delta_from_points(translation.reshape(1, 3), self._np),
-                gripper=1,
-            )
+            self._pending_actions = self._build_plan(obs, payload)
+            if not self._pending_actions:
+                raise AdapterExecutionError(
+                    "Contact-GraspNet planner failed to produce any executable actions.",
+                    failure_stage="planner_failure",
+                )
+            return self._pending_actions.pop(0)
 
     def close(self) -> None:
         return None
