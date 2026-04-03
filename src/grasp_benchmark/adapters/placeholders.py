@@ -431,6 +431,7 @@ class ContactGraspNetAdapter(AgentAdapter):
                 (
                     f'source "{self._miniforge_root}/etc/profile.d/conda.sh" && '
                     f'PYTHONPATH="{_project_root(self.runtime_config) / "src"}" '
+                    f'LD_LIBRARY_PATH="/usr/lib/x86_64-linux-gnu${{LD_LIBRARY_PATH:+:${{LD_LIBRARY_PATH}}}}" '
                     f'CUDA_VISIBLE_DEVICES={self._gpu_id} conda run -p "{self._legacy_env_prefix}" python -m grasp_benchmark.runners.contact_graspnet '
                     f'--input "{input_path}" '
                     f'--output "{output_path}" '
