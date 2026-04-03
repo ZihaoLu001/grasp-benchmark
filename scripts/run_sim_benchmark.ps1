@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory = $true)][string]$Method,
-    [string]$TaskSet = "track_a_v1",
+    [string]$TaskSet = "track_a_cal_v1",
     [switch]$DryRun,
     [switch]$SmokeOnly
 )
@@ -13,4 +13,3 @@ if ($SmokeOnly) {
     $args += "--smoke-only"
 }
 python @args
-

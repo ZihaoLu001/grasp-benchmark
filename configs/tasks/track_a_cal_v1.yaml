@@ -1,0 +1,58 @@
+name: track_a_cal_v1
+track: track_a_cal
+scene_catalog: graspvla_track_a_playground_cal_v1
+catalog:
+  native_opaque_cal:
+    - id: banana
+      label: banana
+    - id: ceramic_bowl
+      label: ceramic bowl
+    - id: power_drill
+      label: power drill
+    - id: carrot
+      label: carrot
+    - id: watermelon
+      label: watermelon
+task_groups:
+  - name: language_conditioned_single_target_pick
+    object_group: native_opaque_cal
+    object_ids:
+      - banana
+      - ceramic_bowl
+      - power_drill
+      - carrot
+      - watermelon
+    instruction_template: "pick up {object}"
+    attempts_per_trial: 3
+    conditions:
+      - basic
+      - distractors_light
+  - name: arbitrary_grasping_common_opaque
+    object_group: native_opaque_cal
+    object_ids:
+      - banana
+      - ceramic_bowl
+      - power_drill
+      - carrot
+      - watermelon
+    instruction_template: "pick up any object"
+    attempts_per_trial: 3
+    conditions:
+      - opaque_basic
+object_groups:
+  - native_opaque_cal
+metrics:
+  - task_success
+  - spl
+  - attempts_to_success
+  - inference_latency
+  - cycle_time
+failure_taxonomy:
+  - grounding_error
+  - segmentation_error
+  - bad_grasp_proposal
+  - planner_failure
+  - collision
+  - slip
+  - occlusion
+  - ambiguous_language

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -23,7 +24,7 @@ class ReportTest(unittest.TestCase):
                 "\n".join(
                     [
                         self.HEADER,
-                        "graspvla,track_a,shared_track_a_sim,language_conditioned_single_target_pick,scene_1,obj_1,ycb_core,basic,pick up the mug,dual_fixed_realsense_rgbd,1,1,20,2.0,1.0,120,4.0,,,0,,em14,deadbeef,parent_run_a,shard_000,0",
+                        "graspvla,track_a_cal,shared_track_a_sim,language_conditioned_single_target_pick,scene_1,obj_1,native_opaque_cal,basic,pick up the banana,dual_fixed_realsense_rgbd,1,1,20,2.0,1.0,120,4.0,,,0,,em14,deadbeef,parent_run_a,shard_000,0",
                     ]
                 )
                 + "\n",
@@ -51,7 +52,7 @@ class ReportTest(unittest.TestCase):
             self.assertTrue((output_dir / "teacher_summary_zh.md").exists())
             teacher_text = (output_dir / "teacher_summary_zh.md").read_text(encoding="utf-8")
             self.assertIn("# Benchmark 汇总说明", teacher_text)
-            self.assertIn("Track A 才是 benchmark setting 下可用于公平比较的正式分数。", teacher_text)
+            self.assertIn("`Track A-Cal` 才是 benchmark setting 下用于公平比较的主榜单。", teacher_text)
 
     def test_aggregate_writes_track_b_reference_section(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -62,7 +63,7 @@ class ReportTest(unittest.TestCase):
                 "\n".join(
                     [
                         self.HEADER,
-                        "graspvla,track_a,shared_track_a_sim,language_conditioned_single_target_pick,scene_1,obj_1,ycb_core,basic,pick up the mug,dual_fixed_realsense_rgbd,1,1,20,2.0,1.0,120,4.0,,,0,,em14,deadbeef,parent_run_a,shard_000,0",
+                        "graspvla,track_a_cal,shared_track_a_sim,language_conditioned_single_target_pick,scene_1,obj_1,native_opaque_cal,basic,pick up the banana,dual_fixed_realsense_rgbd,1,1,20,2.0,1.0,120,4.0,,,0,,em14,deadbeef,parent_run_a,shard_000,0",
                     ]
                 )
                 + "\n",
@@ -104,7 +105,7 @@ class ReportTest(unittest.TestCase):
 
             report_text = (output_dir / "report.md").read_text(encoding="utf-8")
             self.assertTrue((output_dir / "track_b_reference.csv").exists())
-            self.assertIn("## Track A Shared Benchmark", report_text)
+            self.assertIn("## Track A-Cal Shared Benchmark", report_text)
             self.assertIn("## Track B Native Deployment Reference", report_text)
             self.assertIn("track_b_native", report_text)
             self.assertIn("_No failures recorded._", report_text)
@@ -118,7 +119,7 @@ class ReportTest(unittest.TestCase):
                 "\n".join(
                     [
                         self.HEADER,
-                        "graspvla,track_a,shared_track_a_sim,language_conditioned_single_target_pick,scene_1,obj_1,ycb_core,basic,pick up the mug,dual_fixed_realsense_rgbd,1,0,0,0.0,0.0,120,4.0,task_failure,not_met,0,,em14,deadbeef,parent_run_a,shard_000,0",
+                        "graspvla,track_a_cal,shared_track_a_sim,language_conditioned_single_target_pick,scene_1,obj_1,native_opaque_cal,basic,pick up the banana,dual_fixed_realsense_rgbd,1,0,0,0.0,0.0,120,4.0,task_failure,not_met,0,,em14,deadbeef,parent_run_a,shard_000,0",
                     ]
                 )
                 + "\n",
@@ -166,6 +167,66 @@ class ReportTest(unittest.TestCase):
             self.assertIn("- The gap is not mainly a threshold artifact.", teacher_text)
             self.assertIn("diagnostic_note", report_json)
 
+    def test_aggregate_embeds_track_a_stress_reference(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            runs_dir = root / "runs" / "sample"
+            runs_dir.mkdir(parents=True)
+            (runs_dir / "results.csv").write_text(
+                "\n".join(
+                    [
+                        self.HEADER,
+                        "graspvla,track_a_cal,shared_track_a_sim,language_conditioned_single_target_pick,scene_1,obj_1,native_opaque_cal,basic,pick up the banana,dual_fixed_realsense_rgbd,1,1,18,2.0,1.0,120,4.0,,,0,,em14,deadbeef,parent_cal,shard_000,0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            stress_report = root / "stress_report.json"
+            stress_report.write_text(
+                json.dumps(
+                    {
+                        "summary": [
+                            {
+                                "track": "track_a",
+                                "method": "graspvla",
+                                "task": "language_conditioned_single_target_pick",
+                                "trials": 25,
+                                "success_rate": 0.0,
+                                "mean_attempts": 3.0,
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            output_dir = root / "report"
+
+            import sys
+
+            argv = sys.argv
+            try:
+                sys.argv = [
+                    "aggregate.py",
+                    "--input",
+                    str(root / "runs"),
+                    "--output-dir",
+                    str(output_dir),
+                    "--track-a-stress-reference",
+                    str(stress_report),
+                ]
+                aggregate_main()
+            finally:
+                sys.argv = argv
+
+            report_text = (output_dir / "report.md").read_text(encoding="utf-8")
+            teacher_text = (output_dir / "teacher_summary_zh.md").read_text(encoding="utf-8")
+            report_json = (output_dir / "report.json").read_text(encoding="utf-8")
+            self.assertIn("## Track A-Stress Shared Stress Test", report_text)
+            self.assertIn("stress_report.json", report_text)
+            self.assertIn("Track A-Stress", teacher_text)
+            self.assertIn("track_a_stress_reference", report_json)
+
     def test_aggregate_ignores_integration_fixture_rows_for_track_a_summary(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
@@ -175,8 +236,8 @@ class ReportTest(unittest.TestCase):
                 "\n".join(
                     [
                         self.HEADER,
-                        "graspvla,track_a,integration_fixture,language_conditioned_single_target_pick,scene_fixture,obj_1,ycb_core,basic,pick up the mug,dual_fixed_realsense_rgbd,1,1,20,2.0,1.0,120,4.0,,,0,,em14,deadbeef,parent_fixture,,",
-                        "graspvla,track_a,shared_track_a_sim,language_conditioned_single_target_pick,scene_real,obj_1,ycb_core,basic,pick up the mug,dual_fixed_realsense_rgbd,2,0,0,0.0,0.0,220,14.0,task_failure,not_met,0,,em14,deadbeef,parent_real,shard_000,0",
+                        "graspvla,track_a_cal,integration_fixture,language_conditioned_single_target_pick,scene_fixture,obj_1,native_opaque_cal,basic,pick up the banana,dual_fixed_realsense_rgbd,1,1,20,2.0,1.0,120,4.0,,,0,,em14,deadbeef,parent_fixture,,",
+                        "graspvla,track_a_cal,shared_track_a_sim,language_conditioned_single_target_pick,scene_real,obj_1,native_opaque_cal,basic,pick up the banana,dual_fixed_realsense_rgbd,2,0,0,0.0,0.0,220,14.0,task_failure,not_met,0,,em14,deadbeef,parent_real,shard_000,0",
                     ]
                 )
                 + "\n",
@@ -214,8 +275,8 @@ class ReportTest(unittest.TestCase):
                 "\n".join(
                     [
                         self.HEADER,
-                        "graspvla,track_a,shared_track_a_sim,language_conditioned_single_target_pick,scene_old,obj_1,ycb_core,basic,pick up the mug,dual_fixed_realsense_rgbd,1,1,20,2.0,1.0,120,4.0,,,0,,em14,deadbeef,20260403_old,shard_000,0",
-                        "cgn,track_a,shared_track_a_sim,language_conditioned_single_target_pick,scene_new,obj_1,ycb_core,basic,pick up the mug,dual_fixed_realsense_rgbd,2,0,0,0.0,0.0,220,14.0,task_failure,not_met,0,,rll_6000_1,deadbeef,20260403_new,shard_001,1",
+                        "graspvla,track_a_cal,shared_track_a_sim,language_conditioned_single_target_pick,scene_old,obj_1,native_opaque_cal,basic,pick up the banana,dual_fixed_realsense_rgbd,1,1,20,2.0,1.0,120,4.0,,,0,,em14,deadbeef,20260403_old,shard_000,0",
+                        "cgn,track_a_cal,shared_track_a_sim,language_conditioned_single_target_pick,scene_new,obj_1,native_opaque_cal,basic,pick up the banana,dual_fixed_realsense_rgbd,2,0,0,0.0,0.0,220,14.0,task_failure,not_met,0,,rll_6000_1,deadbeef,20260403_new,shard_001,1",
                     ]
                 )
                 + "\n",
@@ -254,7 +315,7 @@ class ReportTest(unittest.TestCase):
                 "\n".join(
                     [
                         self.HEADER,
-                        "graspvla,track_a,shared_track_a_sim,language_conditioned_single_target_pick,scene_old,obj_1,ycb_core,basic,pick up the mug,dual_fixed_realsense_rgbd,1,1,20,2.0,1.0,120,4.0,,,0,,em14,deadbeef,,,",
+                        "graspvla,track_a_cal,shared_track_a_sim,language_conditioned_single_target_pick,scene_old,obj_1,native_opaque_cal,basic,pick up the banana,dual_fixed_realsense_rgbd,1,1,20,2.0,1.0,120,4.0,,,0,,em14,deadbeef,,,",
                     ]
                 )
                 + "\n",

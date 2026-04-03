@@ -6,6 +6,7 @@ import json
 import re
 from collections import Counter, defaultdict
 from pathlib import Path
+from typing import Any
 
 from grasp_benchmark.paths import ARTIFACTS_DIR, ensure_dir
 
@@ -20,6 +21,13 @@ NUMERIC_FIELDS = {
     "cycle_time_s": float,
     "collision": int,
 }
+
+PRIMARY_TITLE = "Track A-Cal Shared Benchmark"
+PRIMARY_BY_CONDITION_TITLE = "Track A-Cal By Condition"
+PRIMARY_BY_OBJECT_GROUP_TITLE = "Track A-Cal By Object Group"
+STRESS_TITLE = "Track A-Stress Shared Stress Test"
+DIAGNOSTIC_TITLE = "GraspVLA Diagnostic Note"
+TRACK_B_TITLE = "Track B Native Deployment Reference"
 
 
 def _coerce_row(row: dict[str, str]) -> dict[str, object]:
@@ -110,7 +118,7 @@ def _failure_taxonomy(rows: list[dict[str, object]]) -> list[dict[str, object]]:
             continue
         counter[(row["track"], row["method"], stage, reason)] += 1
 
-    taxonomy = []
+    taxonomy: list[dict[str, object]] = []
     for (track, method, stage, reason), count in sorted(counter.items()):
         taxonomy.append(
             {
@@ -248,6 +256,15 @@ def _load_diagnostic_note(report_path: Path | None) -> list[str]:
     return note_lines
 
 
+def _load_reference_report(path: Path | None) -> dict[str, Any]:
+    if path is None or not path.exists():
+        return {}
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        return {}
+    return payload
+
+
 def _write_markdown(
     output: Path,
     summary: list[dict[str, object]],
@@ -258,11 +275,13 @@ def _write_markdown(
     *,
     parent_run_ids: list[str],
     diagnostic_note: list[str],
+    stress_reference: dict[str, Any],
+    stress_reference_path: str,
 ) -> None:
     lines = [
         "# Aggregate Report",
         "",
-        "## Track A Shared Benchmark",
+        f"## {PRIMARY_TITLE}",
         "",
     ]
     if parent_run_ids:
@@ -273,32 +292,47 @@ def _write_markdown(
             summary,
         )
     )
-    lines.extend(["", "## Track A By Condition", ""])
+    lines.extend(["", f"## {PRIMARY_BY_CONDITION_TITLE}", ""])
     lines.extend(
         _markdown_table(
             ["track", "method", "task", "condition", "trials", "success_rate", "mean_attempts"],
             conditions,
         )
     )
-    lines.extend(["", "## Track A By Object Group", ""])
+    lines.extend(["", f"## {PRIMARY_BY_OBJECT_GROUP_TITLE}", ""])
     lines.extend(
         _markdown_table(
             ["track", "method", "task", "object_group", "trials", "success_rate", "mean_attempts"],
             object_groups,
         )
     )
-    lines.extend(["", "## GraspVLA Diagnostic Note", ""])
+
+    lines.extend(["", f"## {STRESS_TITLE}", ""])
+    if stress_reference_path:
+        lines.append(f"_Stress reference loaded from `{stress_reference_path}`._")
+        lines.append("")
+    stress_summary = list(stress_reference.get("summary") or [])
+    lines.extend(
+        _markdown_table(
+            ["track", "method", "task", "trials", "success_rate", "mean_attempts"],
+            stress_summary,
+        )
+    )
+
+    lines.extend(["", f"## {DIAGNOSTIC_TITLE}", ""])
     if diagnostic_note:
         lines.extend(diagnostic_note)
     else:
         lines.append("_No diagnostic note provided._")
-    lines.extend(["", "## Track B Native Deployment Reference", ""])
+
+    lines.extend(["", f"## {TRACK_B_TITLE}", ""])
     lines.extend(
         _markdown_table(
             ["track", "method", "benchmark", "trials", "successes", "success_rate", "reference_type"],
             track_b_reference,
         )
     )
+
     lines.extend(["", "## Failure Taxonomy", ""])
     if taxonomy:
         for row in taxonomy[:20]:
@@ -314,24 +348,28 @@ def _write_teacher_summary(
     output: Path,
     summary: list[dict[str, object]],
     by_condition: list[dict[str, object]],
+    by_object_group: list[dict[str, object]],
     track_b_reference: list[dict[str, object]],
     *,
     parent_run_ids: list[str],
     diagnostic_note: list[str],
+    stress_reference: dict[str, Any],
+    stress_reference_path: str,
 ) -> None:
     parent_run_id = ", ".join(parent_run_ids)
     lines = [
         "# Benchmark 汇总说明",
         "",
-        "这一页只汇报两套严格分开的结果：",
-        "- `Track A shared benchmark`：统一 benchmark setting 下的正式仿真结果。",
-        "- `Track B native deployment reference`：官方 release / 官方原生协议下的参考结果，只作为 native reference，不与 Track A 混算。",
+        "这份总结把三层结果严格分开：",
+        "- `Track A-Cal`：共享 benchmark setting 下的主公平结论。",
+        "- `Track A-Stress`：共享协议下的压力测试结果，只做 stress / appendix，不作为第一页 headline claim。",
+        "- `Track B`：官方 native reference，只做工程参考，不参与最终公平结论。",
         "",
     ]
     if parent_run_id:
-        lines.extend([f"- 当前 Track A 汇总的 `parent_run_id`：`{parent_run_id}`", ""])
+        lines.extend([f"- 当前 `Track A-Cal` 汇总的 `parent_run_id`：`{parent_run_id}`", ""])
 
-    lines.extend(["## Track A Shared Benchmark", ""])
+    lines.extend([f"## {PRIMARY_TITLE}", ""])
     if summary:
         for row in summary:
             lines.append(
@@ -341,9 +379,9 @@ def _write_teacher_summary(
                 f"mean_cycle_time_s={row['mean_cycle_time_s']}"
             )
     else:
-        lines.append("- 没有找到符合 `shared_track_a_sim` 的正式 Track A 结果。")
+        lines.append("- 没有找到符合 `shared_track_a_sim` 的正式 `Track A-Cal` 结果。")
 
-    lines.extend(["", "## Track A By Condition", ""])
+    lines.extend(["", f"## {PRIMARY_BY_CONDITION_TITLE}", ""])
     if by_condition:
         for row in by_condition:
             lines.append(
@@ -352,28 +390,52 @@ def _write_teacher_summary(
     else:
         lines.append("- 暂无按 condition 切分的数据。")
 
-    lines.extend(["", "## GraspVLA Diagnostic Note", ""])
+    lines.extend(["", f"## {PRIMARY_BY_OBJECT_GROUP_TITLE}", ""])
+    if by_object_group:
+        for row in by_object_group:
+            lines.append(
+                f"- {row['method']} / {row['task']} / {row['object_group']}: success_rate={row['success_rate']}, trials={row['trials']}"
+            )
+    else:
+        lines.append("- 暂无按 object group 切分的数据。")
+
+    lines.extend(["", f"## {STRESS_TITLE}", ""])
+    if stress_reference_path:
+        lines.append(f"- Stress reference source: `{stress_reference_path}`")
+    stress_summary = list(stress_reference.get("summary") or [])
+    if stress_summary:
+        for row in stress_summary:
+            lines.append(
+                f"- {row['method']} / {row['task']}: success_rate={row['success_rate']}, trials={row['trials']}, "
+                f"mean_attempts={row.get('mean_attempts', '')}"
+            )
+    else:
+        lines.append("- 未提供 `Track A-Stress` 历史参考结果。")
+
+    lines.extend(["", f"## {DIAGNOSTIC_TITLE}", ""])
     if diagnostic_note:
         lines.extend(diagnostic_note)
     else:
         lines.append("- 暂无诊断说明。")
 
-    lines.extend(["", "## Track B Native Reference", ""])
+    lines.extend(["", f"## {TRACK_B_TITLE}", ""])
     if track_b_reference:
         for row in track_b_reference:
             lines.append(
                 f"- {row['benchmark']}: success_rate={row['success_rate']}, trials={row['trials']}, source={row['source_artifact']}"
             )
     else:
-        lines.append("- 未提供 Track B 官方 reference。")
+        lines.append("- 未提供 `Track B` 官方 reference。")
 
     lines.extend(
         [
             "",
             "## 解释口径",
             "",
-            "- Track A 才是 benchmark setting 下可用于公平比较的正式分数。",
-            "- Track B 只用于说明方法在作者原生 / 官方协议下的表现，不用于最终公平 claim。",
+            "- `Track A-Cal` 才是 benchmark setting 下用于公平比较的主榜单。",
+            "- `Track A-Stress` 继续保留，但它代表共享协议下的压力测试，不再承担第一页 headline table 的职责。",
+            "- `Track B` 只说明方法在作者原生 / 官方协议下的表现，不用于最终公平 claim。",
+            "- 如果 `Track A-Cal` 再次出现所有方法全 0，就先审计 shared runner 与 released distribution 的对齐，而不是继续扩 benchmark 范围。",
             "",
         ]
     )
@@ -392,6 +454,11 @@ def main() -> None:
         "--track-b-reference",
         default="",
         help="Optional path to an official GraspVLA simulation summary.json to render as Track B native reference.",
+    )
+    parser.add_argument(
+        "--track-a-stress-reference",
+        default="",
+        help="Optional path to a prior aggregate report.json used as the Track A-Stress reference section.",
     )
     parser.add_argument(
         "--track-a-execution-mode",
@@ -430,6 +497,8 @@ def main() -> None:
     track_b_reference = _parse_track_b_reference(Path(args.track_b_reference)) if args.track_b_reference else []
     diagnostic_report = Path(args.diagnostic_report) if args.diagnostic_report else None
     diagnostic_note = _load_diagnostic_note(diagnostic_report)
+    stress_reference_path = str(Path(args.track_a_stress_reference)) if args.track_a_stress_reference else ""
+    stress_reference = _load_reference_report(Path(args.track_a_stress_reference)) if args.track_a_stress_reference else {}
 
     _write_csv(output_dir / "summary.csv", summary)
     _write_csv(output_dir / "by_condition.csv", by_condition)
@@ -446,14 +515,19 @@ def main() -> None:
         track_b_reference,
         parent_run_ids=parent_run_ids,
         diagnostic_note=diagnostic_note,
+        stress_reference=stress_reference,
+        stress_reference_path=stress_reference_path,
     )
     _write_teacher_summary(
         output_dir / "teacher_summary_zh.md",
         summary,
         by_condition,
+        by_object_group,
         track_b_reference,
         parent_run_ids=parent_run_ids,
         diagnostic_note=diagnostic_note,
+        stress_reference=stress_reference,
+        stress_reference_path=stress_reference_path,
     )
     (output_dir / "report.json").write_text(
         json.dumps(
@@ -464,10 +538,15 @@ def main() -> None:
                 "by_shard": by_shard,
                 "failure_taxonomy": taxonomy,
                 "track_b_reference": track_b_reference,
+                "track_a_stress_reference": stress_reference,
+                "track_a_stress_reference_path": stress_reference_path,
                 "diagnostic_report": str(diagnostic_report) if diagnostic_report else "",
                 "diagnostic_note": diagnostic_note,
                 "track_a_execution_mode": args.track_a_execution_mode,
                 "parent_run_ids": parent_run_ids,
+                "primary_title": PRIMARY_TITLE,
+                "stress_title": STRESS_TITLE,
+                "track_b_title": TRACK_B_TITLE,
             },
             indent=2,
         ),
