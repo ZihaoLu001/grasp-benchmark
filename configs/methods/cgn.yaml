@@ -13,6 +13,9 @@ sim:
   runner: benchmark_wrapper
   uses_depth: true
   execution_mode: shared_track_a_sim
+  scene_catalog: graspvla_track_a_playground_v1
+  scene_catalog_by_task_set:
+    track_a_v2: graspvla_track_a_playground_v2
 track_a_input_policy:
   observation_contract: shared_observation
   consumes:
@@ -30,4 +33,5 @@ track_a_input_policy:
   scene_edit_policy: shared_only
 legacy_env_name: gb-cgn-tf22
 checkpoint_relpath: checkpoints/scene_test_2048_bs3_hor_sigma_001
+formal_downsample_stride: 1
 smoke_downsample_stride: 4

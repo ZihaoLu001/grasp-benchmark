@@ -33,12 +33,26 @@ def _coerce_row(row: dict[str, str]) -> dict[str, object]:
     return output
 
 
+def _infer_parent_run_id(path: Path) -> str:
+    if path.name != "results.csv":
+        return ""
+    parent = path.parent
+    if parent.parent.name == "shards":
+        return parent.parent.parent.name
+    return parent.name
+
+
 def _iter_csv_rows(root: Path) -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
     for path in sorted(root.rglob("*.csv")):
+        inferred_parent_run_id = _infer_parent_run_id(path)
         with path.open("r", encoding="utf-8", newline="") as handle:
             reader = csv.DictReader(handle)
-            rows.extend(_coerce_row(row) for row in reader)
+            for row in reader:
+                coerced = _coerce_row(row)
+                if inferred_parent_run_id and not str(coerced.get("parent_run_id", "")).strip():
+                    coerced["parent_run_id"] = inferred_parent_run_id
+                rows.append(coerced)
     return rows
 
 

@@ -303,8 +303,13 @@ class ContactGraspNetAdapter(AgentAdapter):
         self._forward_passes = int(config.get("forward_passes", 1))
         self._z_min = float(config.get("z_min", 0.2))
         self._z_max = float(config.get("z_max", 1.1))
-        self._downsample_stride = max(int(self.method_config.get("smoke_downsample_stride", 1)), 1)
+        execution_mode = str(config.get("execution_mode", ""))
+        is_formal_track_a = execution_mode == "shared_track_a_sim" or execution_mode.startswith("track_a_diag_")
+        stride_key = "formal_downsample_stride" if is_formal_track_a else "smoke_downsample_stride"
+        self._downsample_stride = max(int(self.method_config.get(stride_key, 1)), 1)
         self._gpu_id = str(config.get("gpu_id", "0") or "0")
+        debug_dump_dir = str(config.get("debug_dump_dir", "")).strip()
+        self._debug_dump_dir = Path(debug_dump_dir) if debug_dump_dir else None
         self._pending_actions: list[Action] = []
 
     def reset(self, task_spec: dict[str, Any]) -> None:
@@ -510,6 +515,17 @@ class ContactGraspNetAdapter(AgentAdapter):
 
             payload = json.loads(output_path.read_text(encoding="utf-8"))
             if not payload.get("ok"):
+                if self._debug_dump_dir is not None:
+                    self._debug_dump_dir.mkdir(parents=True, exist_ok=True)
+                    with tempfile.NamedTemporaryFile(
+                        mode="w",
+                        delete=False,
+                        encoding="utf-8",
+                        dir=self._debug_dump_dir,
+                        prefix="cgn_payload_",
+                        suffix=".json",
+                    ) as handle:
+                        json.dump(payload, handle, indent=2)
                 raise AdapterExecutionError(
                     str(payload.get("failure_reason", "Contact-GraspNet produced no valid grasp.")),
                     failure_stage=str(payload.get("failure_stage", "grasp_proposal")),

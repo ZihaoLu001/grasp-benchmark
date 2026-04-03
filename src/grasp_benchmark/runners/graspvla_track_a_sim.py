@@ -93,8 +93,14 @@ def _ensure_playground_imports(playground_root: Path) -> None:
         sys.path.insert(0, playground_path)
 
 
-def _load_scene_config(method_config: dict[str, Any]) -> dict[str, Any]:
-    scene_name = str(method_config.get("sim", {}).get("scene_catalog", "graspvla_track_a_playground_v1"))
+def _load_scene_config(method_config: dict[str, Any], task_config: dict[str, Any] | None = None) -> dict[str, Any]:
+    task_name = str((task_config or {}).get("name", ""))
+    scene_catalog_overrides = method_config.get("sim", {}).get("scene_catalog_by_task_set", {})
+    scene_name = str(
+        (task_config or {}).get("scene_catalog")
+        or scene_catalog_overrides.get(task_name)
+        or method_config.get("sim", {}).get("scene_catalog", "graspvla_track_a_playground_v1")
+    )
     return load_named_config("scenes", scene_name)
 
 
@@ -140,6 +146,33 @@ def _build_transparent_scene_objects(scene_config: dict[str, Any], focus_object_
     return tuple(objects)
 
 
+def _build_opaque_scene_objects(scene_config: dict[str, Any], focus_object_id: str) -> tuple[SceneObject, ...]:
+    ordered = [focus_object_id] + [
+        item for item in scene_config.get("opaque_distractor_priority", scene_config.get("distractor_priority", []))
+        if item != focus_object_id
+    ]
+    ordered = ordered[:4]
+    region_names = ["target_center", "clutter_left", "clutter_right", "clutter_back"]
+    objects: list[SceneObject] = []
+    for index, object_id in enumerate(ordered):
+        spec = _asset_key(object_id, "arbitrary_grasping_common_opaque", scene_config)
+        objects.append(
+            SceneObject(
+                object_id=object_id,
+                object_label=object_id.replace("_", " "),
+                category_name=str(spec["category_name"]),
+                source_family=str(spec["source_family"]),
+                source_asset=str(spec["source_asset"]),
+                instance_name=f"{object_id}_1",
+                region_name=region_names[index],
+                rotation_axis=str(spec["rotation_axis"]),
+                rotation=(float(spec["rotation"][0]), float(spec["rotation"][1])),
+                material_override=dict(spec.get("material_override") or {}),
+            )
+        )
+    return tuple(objects)
+
+
 def build_scene_catalog(task_specs: list[TrialSpec], scene_config: dict[str, Any]) -> dict[str, SceneRecipe]:
     recipes: dict[str, SceneRecipe] = {}
     for index, trial in enumerate(task_specs, start=1):
@@ -157,6 +190,24 @@ def build_scene_catalog(task_specs: list[TrialSpec], scene_config: dict[str, Any
                 target_instance_names=(objects[0].instance_name,),
                 success_instance_names=tuple(obj.instance_name for obj in objects),
                 height_offset_cm=float(transparent_scene.get("height_offset_cm", 0.0)),
+                max_steps=int(scene_config["max_steps"]),
+                stabilization_steps=int(scene_config["stabilization_steps"]),
+                hold_steps=int(scene_config["hold_steps"]),
+            )
+        elif trial.task == "arbitrary_grasping_common_opaque":
+            objects = _build_opaque_scene_objects(scene_config, trial.object_id)
+            opaque_scene = scene_config["opaque_scene"]
+            recipe = SceneRecipe(
+                scene_id=trial.scene_id,
+                task=trial.task,
+                condition=trial.condition,
+                seed=_seed_for_trial(scene_config, trial, index),
+                instruction=trial.instruction,
+                scene_properties=dict(opaque_scene["scene_properties"]),
+                objects=objects,
+                target_instance_names=(objects[0].instance_name,),
+                success_instance_names=tuple(obj.instance_name for obj in objects),
+                height_offset_cm=float(opaque_scene.get("height_offset_cm", 0.0)),
                 max_steps=int(scene_config["max_steps"]),
                 stabilization_steps=int(scene_config["stabilization_steps"]),
                 hold_steps=int(scene_config["hold_steps"]),
@@ -313,10 +364,11 @@ def prepare_runtime_assets(
 def build_scene_catalog_metadata(
     *,
     method_config: dict[str, Any],
+    task_config: dict[str, Any] | None,
     task_specs: list[TrialSpec],
     runtime_root: Path,
 ) -> tuple[dict[str, SceneRecipe], dict[str, dict[str, Any]], dict[str, Any]]:
-    scene_config = _load_scene_config(method_config)
+    scene_config = _load_scene_config(method_config, task_config)
     playground_root = _playground_root()
     _ensure_playground_imports(playground_root)
     recipes = build_scene_catalog(task_specs, scene_config)
@@ -493,8 +545,8 @@ class SharedTrackARemoteAgent:
         return Observation(
             rgb_front=self._np.asarray(obs["front_view_image"][::-1]).copy(),
             rgb_side=self._np.asarray(obs["side_view_image"][::-1]).copy(),
-            depth_front=self._np.asarray(obs["front_view_depth"][::-1]).squeeze(-1).copy(),
-            depth_side=self._np.asarray(obs["side_view_depth"][::-1]).squeeze(-1).copy(),
+            depth_front=_depth_to_metric(self._np.asarray(obs["front_view_depth"][::-1]).squeeze(-1), camera_meta, self._np),
+            depth_side=_depth_to_metric(self._np.asarray(obs["side_view_depth"][::-1]).squeeze(-1), camera_meta, self._np),
             intrinsics_front=dict(camera_meta["intrinsics_front"]),
             intrinsics_side=dict(camera_meta["intrinsics_side"]),
             extrinsics_front=dict(camera_meta["extrinsics_front"]),
@@ -639,8 +691,8 @@ class SharedTrackAAdapterAgent:
         return Observation(
             rgb_front=self._np.asarray(obs["front_view_image"][::-1]).copy(),
             rgb_side=self._np.asarray(obs["side_view_image"][::-1]).copy(),
-            depth_front=self._np.asarray(obs["front_view_depth"][::-1]).squeeze(-1).copy(),
-            depth_side=self._np.asarray(obs["side_view_depth"][::-1]).squeeze(-1).copy(),
+            depth_front=_depth_to_metric(self._np.asarray(obs["front_view_depth"][::-1]).squeeze(-1), camera_meta, self._np),
+            depth_side=_depth_to_metric(self._np.asarray(obs["side_view_depth"][::-1]).squeeze(-1), camera_meta, self._np),
             intrinsics_front=dict(camera_meta["intrinsics_front"]),
             intrinsics_side=dict(camera_meta["intrinsics_side"]),
             extrinsics_front=dict(camera_meta["extrinsics_front"]),
@@ -686,6 +738,9 @@ def _camera_metadata(env: Any, scene_config: dict[str, Any]) -> dict[str, Any]:
     width = 256
     front_K = get_camera_intrinsic_matrix(env.sim, front_name, height, width)
     side_K = get_camera_intrinsic_matrix(env.sim, side_name, height, width)
+    extent = float(env.sim.model.stat.extent)
+    far = float(env.sim.model.vis.map.zfar) * extent
+    near = float(env.sim.model.vis.map.znear) * extent
     return {
         "intrinsics_front": {
             "fx": float(front_K[0, 0]),
@@ -703,7 +758,24 @@ def _camera_metadata(env: Any, scene_config: dict[str, Any]) -> dict[str, Any]:
         },
         "extrinsics_front": {"matrix": get_camera_extrinsic_matrix(env.sim, front_name).tolist()},
         "extrinsics_side": {"matrix": get_camera_extrinsic_matrix(env.sim, side_name).tolist()},
+        "depth_near_m": near,
+        "depth_far_m": far,
     }
+
+
+def _depth_to_metric(depth_map: Any, camera_meta: dict[str, Any], np_module: Any) -> Any:
+    depth = np_module.asarray(depth_map, dtype=np_module.float32).copy()
+    if depth.size == 0:
+        return depth
+    min_depth = float(np_module.min(depth))
+    max_depth = float(np_module.max(depth))
+    if min_depth < 0.0 or max_depth > 1.0 + 1e-6:
+        return depth
+    near = float(camera_meta.get("depth_near_m", 0.0))
+    far = float(camera_meta.get("depth_far_m", 0.0))
+    if near <= 0.0 or far <= near:
+        return depth
+    return near / (1.0 - depth * (1.0 - near / far))
 
 
 def _refresh_obs(env: Any) -> dict[str, Any]:
@@ -794,7 +866,7 @@ def _json_safe(value: Any) -> Any:
 
 
 def _target_instance_for_trial(recipe: SceneRecipe, trial: TrialSpec) -> str:
-    if trial.task == "arbitrary_grasping_transparent":
+    if trial.task in {"arbitrary_grasping_transparent", "arbitrary_grasping_common_opaque"}:
         return recipe.success_instance_names[0]
     return recipe.target_instance_names[0]
 
@@ -858,6 +930,7 @@ def _run_shared_track_a_suite_once(
     *,
     method_name: str,
     method_config: dict[str, Any],
+    task_config: dict[str, Any] | None,
     sensor_config: dict[str, Any],
     task_specs: list[TrialSpec],
     artifact_dir: Path,
@@ -884,9 +957,10 @@ def _run_shared_track_a_suite_once(
         from libero.libero.envs import OffScreenRenderEnv
         from misc.logger import VideoLogger
 
-        scene_config = _load_scene_config(method_config)
+        scene_config = _load_scene_config(method_config, task_config)
         recipes, alias_map, metadata = build_scene_catalog_metadata(
             method_config=method_config,
+            task_config=task_config,
             task_specs=task_specs,
             runtime_root=ensure_dir(artifact_dir / "runtime_assets"),
         )
@@ -1219,6 +1293,7 @@ def run_shared_track_a_suite(
     *,
     method_name: str,
     method_config: dict[str, Any],
+    task_config: dict[str, Any] | None,
     sensor_config: dict[str, Any],
     task_specs: list[TrialSpec],
     artifact_dir: Path,
@@ -1237,6 +1312,7 @@ def run_shared_track_a_suite(
     return _run_shared_track_a_suite_once(
         method_name=method_name,
         method_config=method_config,
+        task_config=task_config,
         sensor_config=sensor_config,
         task_specs=task_specs,
         artifact_dir=artifact_dir,

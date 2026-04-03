@@ -21,6 +21,32 @@ class TrackASceneCatalogTest(unittest.TestCase):
         self.assertEqual(catalog["language_conditioned_single_target_pick__basic__001"].condition, "basic")
         self.assertEqual(catalog["arbitrary_grasping_transparent__transparent__004"].condition, "transparent")
 
+    def test_scene_catalog_covers_all_track_a_v2_trials(self) -> None:
+        method_config = load_named_config("methods", "graspvla")
+        task_config = load_named_config("tasks", "track_a_v2")
+        scene_config = load_named_config("scenes", task_config["scene_catalog"])
+        trials = expand_task_set(task_config)
+
+        catalog = build_scene_catalog(trials, scene_config)
+
+        self.assertEqual(len(trials), 34)
+        self.assertEqual(set(catalog), {trial.scene_id for trial in trials})
+        self.assertEqual(catalog["arbitrary_grasping_common_opaque__opaque__005"].condition, "opaque")
+        self.assertEqual(len(catalog["arbitrary_grasping_common_opaque__opaque__001"].success_instance_names), 4)
+
+    def test_track_a_v2_scene_catalog_covers_common_opaque_group(self) -> None:
+        method_config = load_named_config("methods", "graspvla")
+        task_config = load_named_config("tasks", "track_a_v2")
+        scene_config = load_named_config("scenes", task_config["scene_catalog"])
+        trials = expand_task_set(task_config)
+
+        catalog = build_scene_catalog(trials, scene_config)
+
+        self.assertEqual(len(trials), 34)
+        self.assertEqual(set(catalog), {trial.scene_id for trial in trials})
+        self.assertEqual(catalog["arbitrary_grasping_common_opaque__opaque__001"].condition, "opaque")
+        self.assertEqual(len(catalog["arbitrary_grasping_common_opaque__opaque__001"].success_instance_names), 4)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -188,10 +188,14 @@ def main() -> None:
     try:
         runtime_config = _runtime_config(method_config, cluster_config)
         runtime_config["gpu_id"] = args.gpu_id
+        runtime_config["execution_mode"] = args.execution_mode
+        runtime_config["smoke_only"] = args.smoke_only
+        runtime_config["debug_dump_dir"] = str(output_dir / "debug")
         if _is_shared_track_a_execution_mode(args.execution_mode):
             results, scene_metadata = run_shared_track_a_suite(
                 method_name=args.method,
                 method_config=method_config,
+                task_config=task_config,
                 sensor_config=sensor_config,
                 task_specs=task_specs,
                 artifact_dir=output_dir,

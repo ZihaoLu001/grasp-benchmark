@@ -24,6 +24,25 @@ class TaskSpecTest(unittest.TestCase):
         trials = expand_task_set(task_config, max_trials=3)
         self.assertEqual(len(trials), 3)
 
+    def test_expand_track_a_v2_adds_common_opaque_group(self) -> None:
+        task_config = load_named_config("tasks", "track_a_v2")
+        trials = expand_task_set(task_config)
+
+        self.assertEqual(len(trials), 34)
+        self.assertEqual(task_config["scene_catalog"], "graspvla_track_a_playground_v2")
+        self.assertEqual(trials[-1].task, "arbitrary_grasping_common_opaque")
+        self.assertEqual(trials[-1].condition, "opaque")
+        self.assertEqual(sum(1 for trial in trials if trial.task == "arbitrary_grasping_common_opaque"), 5)
+
+    def test_track_a_v2_adds_common_opaque_trials_without_mutating_v1(self) -> None:
+        v1_trials = expand_task_set(load_named_config("tasks", "track_a_v1"))
+        v2_trials = expand_task_set(load_named_config("tasks", "track_a_v2"))
+        self.assertEqual(len(v1_trials), 29)
+        self.assertEqual(len(v2_trials), 34)
+        opaque_trials = [trial for trial in v2_trials if trial.task == "arbitrary_grasping_common_opaque"]
+        self.assertEqual(len(opaque_trials), 5)
+        self.assertTrue(all(trial.condition == "opaque" for trial in opaque_trials))
+
 
 if __name__ == "__main__":
     unittest.main()

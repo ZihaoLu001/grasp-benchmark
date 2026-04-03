@@ -185,6 +185,45 @@ class ReportTest(unittest.TestCase):
             shard_text = (output_dir / "by_shard.csv").read_text(encoding="utf-8")
             self.assertIn("shard_001", shard_text)
 
+    def test_aggregate_infers_parent_run_id_from_results_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            runs_dir = root / "runs" / "20260403_legacy_graspvla"
+            runs_dir.mkdir(parents=True)
+            (runs_dir / "results.csv").write_text(
+                "\n".join(
+                    [
+                        self.HEADER,
+                        "graspvla,track_a,shared_track_a_sim,language_conditioned_single_target_pick,scene_old,obj_1,ycb_core,basic,pick up the mug,dual_fixed_realsense_rgbd,1,1,20,2.0,1.0,120,4.0,,,0,,em14,deadbeef,,,",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            output_dir = root / "report"
+
+            import sys
+
+            argv = sys.argv
+            try:
+                sys.argv = [
+                    "aggregate.py",
+                    "--input",
+                    str(root / "runs"),
+                    "--output-dir",
+                    str(output_dir),
+                    "--parent-run-id",
+                    "20260403_legacy_graspvla",
+                ]
+                aggregate_main()
+            finally:
+                sys.argv = argv
+
+            summary_text = (output_dir / "summary.csv").read_text(encoding="utf-8")
+            report_json = (output_dir / "report.json").read_text(encoding="utf-8")
+            self.assertIn("graspvla", summary_text)
+            self.assertIn("20260403_legacy_graspvla", report_json)
+
 
 if __name__ == "__main__":
     unittest.main()

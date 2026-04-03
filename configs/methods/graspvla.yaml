@@ -35,5 +35,7 @@ sim:
   runner: benchmark_wrapper
   execution_mode: shared_track_a_sim
   scene_catalog: graspvla_track_a_playground_v1
+  scene_catalog_by_task_set:
+    track_a_v2: graspvla_track_a_playground_v2
   control_freq: 5
   stabilization_steps: 10

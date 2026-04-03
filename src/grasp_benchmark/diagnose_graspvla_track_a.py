@@ -120,6 +120,22 @@ def _attempt_payloads(variant_dir: Path) -> list[dict]:
     return payloads
 
 
+def _has_bbox(step: dict) -> bool:
+    bbox = step.get("bbox")
+    if bbox is None or bbox == "":
+        return False
+    if isinstance(bbox, list):
+        return len(bbox) > 0
+    return True
+
+
+def _attempt_peak_lift(item: dict) -> float:
+    peak = float(item.get("lift_cm", 0.0))
+    for step in item.get("step_trace", []):
+        peak = max(peak, float(step.get("max_lift_cm", 0.0)))
+    return peak
+
+
 def _summarize_variant(variant: DiagnosticVariant, variant_dir: Path) -> tuple[list[dict[str, object]], dict[str, object]]:
     rows = _read_results_csv(variant_dir / "results.csv")
     attempts = _attempt_payloads(variant_dir)
@@ -128,12 +144,12 @@ def _summarize_variant(variant: DiagnosticVariant, variant_dir: Path) -> tuple[l
     max_lifts: list[float] = []
     for row in rows:
         scene_attempts = [item for item in attempts if item.get("scene_id") == row["scene_id"]]
-        best_lift = max((float(item.get("lift_cm", 0.0)) for item in scene_attempts), default=float(row["lift_cm"]))
+        best_lift = max((_attempt_peak_lift(item) for item in scene_attempts), default=float(row["lift_cm"]))
         bbox_steps = sum(
             1
             for item in scene_attempts
             for step in item.get("step_trace", [])
-            if step.get("bbox") not in {None, "", []}
+            if _has_bbox(step)
         )
         contact_steps = sum(
             1
@@ -190,10 +206,19 @@ def _interpret(overall_rows: list[dict[str, object]]) -> list[str]:
     a1 = by_name.get("A1_extended_finger")
     a2 = by_name.get("A2_extended_finger_official_success")
     notes: list[str] = []
-    if a0 and a1 and float(a1["mean_best_lift_cm"]) > float(a0["mean_best_lift_cm"]) + 1.0:
-        notes.append("Extended finger increases lift noticeably, so embodiment / gripper mismatch is a real factor.")
-    if a1 and a2 and float(a2["success_rate"]) > float(a1["success_rate"]):
-        notes.append("Official success rule is easier than the shared Track A rule, so some gap comes from evaluation definition.")
+    if a0 and a1:
+        lift_delta = float(a1["mean_best_lift_cm"]) - float(a0["mean_best_lift_cm"])
+        if lift_delta > 1.0:
+            notes.append("Extended finger increases lift noticeably, so embodiment / gripper mismatch is a real factor.")
+        elif abs(lift_delta) < 0.25:
+            notes.append("Switching back to the extended finger changes mean best lift only marginally, so the Track A failure is not explained by the gripper alone.")
+    if a1 and a2:
+        success_delta = float(a2["success_rate"]) - float(a1["success_rate"])
+        lift_delta = float(a2["mean_best_lift_cm"]) - float(a1["mean_best_lift_cm"])
+        if success_delta > 0:
+            notes.append("Official success rule is easier than the shared Track A rule, so some gap comes from evaluation definition.")
+        elif abs(lift_delta) < 0.25:
+            notes.append("Relaxing to the official success rule still does not recover any success on the diagnostic set, so the gap is not mainly a threshold artifact.")
     if not notes:
         notes.append("Most of the gap remains even after the ablations, which points to object / scene distribution and control mismatch.")
     return notes
