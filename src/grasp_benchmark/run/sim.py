@@ -66,6 +66,7 @@ def _build_remote_command(
         f'source "{miniforge_root}/etc/profile.d/conda.sh" && '
         f'conda activate "{env_prefix}" && '
         f'cd "{remote_root}" && '
+        f'export PYTHONPATH="{remote_root}/src${{PYTHONPATH:+:${{PYTHONPATH}}}}" && '
         f'python -m grasp_benchmark.run.worker '
         f'--method "{method_config["name"]}" '
         f'--task-set "{task_set}" '
