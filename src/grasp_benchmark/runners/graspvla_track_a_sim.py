@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import sys
 import time
@@ -84,12 +85,9 @@ def _playground_root() -> Path:
 
 def _ensure_playground_imports(playground_root: Path) -> None:
     playground_path = str(playground_root)
-    libero_path = str(playground_root / "libero")
     robosuite_path = str(playground_root / "third_party" / "robosuite")
     if robosuite_path not in sys.path:
         sys.path.insert(0, robosuite_path)
-    if libero_path not in sys.path:
-        sys.path.insert(0, libero_path)
     if playground_path not in sys.path:
         sys.path.insert(0, playground_path)
 
@@ -678,116 +676,185 @@ def run_shared_track_a_suite(
     runtime_config: dict[str, Any],
     execution_mode: str = "shared_track_a_sim",
 ) -> tuple[list[EpisodeResult], dict[str, Any]]:
-    from libero.libero.envs import OffScreenRenderEnv
-    from misc.logger import VideoLogger
-    from grasp_benchmark.types import EpisodeResult
     import numpy as np
 
     playground_root = _playground_root()
     _ensure_playground_imports(playground_root)
-    scene_config = _load_scene_config(method_config)
-    recipes, alias_map, metadata = build_scene_catalog_metadata(
-        method_config=method_config,
-        task_specs=task_specs,
-        runtime_root=ensure_dir(artifact_dir / "runtime_assets"),
-    )
-    metadata["execution_mode"] = execution_mode
-    (artifact_dir / "scene_catalog_resolved.json").write_text(json.dumps(metadata, indent=2), encoding="utf-8")
-    bddl_root = ensure_dir(artifact_dir / "bddl")
-    episodes_dir = ensure_dir(artifact_dir / "episodes")
-    videos_dir = ensure_dir(artifact_dir / "videos")
-    robot_config_path = PROJECT_ROOT / str(scene_config["robot_config_relpath"])
-    lift_threshold_m = float(sensor_config["success_definition"]["lift_cm_min"]) / 100.0
-    hold_steps_required = int(scene_config["hold_steps"])
-    results: list[EpisodeResult] = []
-    control_freq = int(method_config.get("sim", {}).get("control_freq", 5))
+    previous_cwd = Path.cwd()
+    os.chdir(playground_root)
+    try:
+        from grasp_benchmark.types import EpisodeResult
+        from libero.libero.envs import OffScreenRenderEnv
+        from misc.logger import VideoLogger
 
-    for trial in task_specs:
-        recipe = recipes[trial.scene_id]
-        cycle_start = time.perf_counter()
-        result = None
+        scene_config = _load_scene_config(method_config)
+        recipes, alias_map, metadata = build_scene_catalog_metadata(
+            method_config=method_config,
+            task_specs=task_specs,
+            runtime_root=ensure_dir(artifact_dir / "runtime_assets"),
+        )
+        metadata["execution_mode"] = execution_mode
+        (artifact_dir / "scene_catalog_resolved.json").write_text(json.dumps(metadata, indent=2), encoding="utf-8")
+        bddl_root = ensure_dir(artifact_dir / "bddl")
+        episodes_dir = ensure_dir(artifact_dir / "episodes")
+        videos_dir = ensure_dir(artifact_dir / "videos")
+        robot_config_path = PROJECT_ROOT / str(scene_config["robot_config_relpath"])
+        lift_threshold_m = float(sensor_config["success_definition"]["lift_cm_min"]) / 100.0
+        hold_steps_required = int(scene_config["hold_steps"])
+        results: list[EpisodeResult] = []
+        control_freq = int(method_config.get("sim", {}).get("control_freq", 5))
 
-        for attempt in range(1, trial.attempts_per_trial + 1):
-            env = None
-            agent = None
-            video_logger = None
-            try:
-                bddl_path = bddl_root / f"{trial.scene_id}_attempt{attempt:02d}.bddl"
-                write_bddl_for_recipe(recipe, scene_config, bddl_path)
-                env = OffScreenRenderEnv(
-                    bddl_file_name=str(bddl_path),
-                    camera_names=[scene_config["camera_names"]["front"], scene_config["camera_names"]["side"]],
-                    camera_heights=256,
-                    camera_widths=256,
-                    camera_depths=True,
-                    control_freq=control_freq,
-                    controller="IK_POSE",
-                    ignore_done=True,
-                    scene_properties=recipe.scene_properties,
-                )
-                env.seed(recipe.seed)
-                obs = env.reset()
-                kinematics = SharedFrankaKinematics(robot_config_path)
-                env.robots[0].IK_solver = kinematics
-                camera_meta = _camera_metadata(env, scene_config)
-                agent = SharedTrackARemoteAgent(
-                    instruction=trial.instruction,
-                    host=str(runtime_config["host"]),
-                    port=int(runtime_config["port"]),
-                    kinematics=kinematics,
-                )
-                agent.reset(trial.instruction)
-                obs = _stabilize_scene(env, agent, obs, recipe.stabilization_steps)
-                if recipe.height_offset_cm > 0:
-                    obs = _apply_height_offset(env, recipe.target_instance_names[0], recipe.height_offset_cm)
-                baseline_z = {
-                    instance_name: float(np.asarray(obs[f"{instance_name}_pos"])[2])
-                    for instance_name in recipe.success_instance_names
-                }
-                final_z = dict(baseline_z)
-                hold_counts = {instance_name: 0 for instance_name in recipe.success_instance_names}
-                video_logger = VideoLogger(str(videos_dir))
-                video_logger.start_recording(trial.task, f"{trial.scene_id}_attempt{attempt:02d}", trial.object_id, recipe.seed)
+        for trial in task_specs:
+            recipe = recipes[trial.scene_id]
+            cycle_start = time.perf_counter()
+            result = None
 
-                for _step in range(recipe.max_steps):
-                    action, bbox = agent.step(obs, camera_meta)
-                    obs, _reward, _done, _info = env.step(action)
-                    video_logger.log_frame(obs, bbox)
-                    winner = ""
-                    for instance_name in recipe.success_instance_names:
-                        current_z = float(np.asarray(obs[f"{instance_name}_pos"])[2])
-                        final_z[instance_name] = current_z
-                        if current_z - baseline_z[instance_name] >= lift_threshold_m:
-                            hold_counts[instance_name] += 1
-                            if hold_counts[instance_name] >= hold_steps_required:
-                                winner = instance_name
-                                break
-                        else:
-                            hold_counts[instance_name] = 0
-                    if winner:
-                        video_logger.stop_recording(success=True)
-                        video_path = str(Path(video_logger.new_video_name).relative_to(artifact_dir))
-                        lift_cm = round((final_z[winner] - baseline_z[winner]) * 100.0, 4)
-                        hold_s = round(hold_counts[winner] / 5.0, 4)
-                        (episodes_dir / f"{trial.scene_id}_attempt{attempt:02d}.json").write_text(
-                            json.dumps(
-                                _attempt_payload(
-                                    trial=trial,
-                                    recipe=recipe,
-                                    attempt=attempt,
-                                    success=True,
-                                    baseline_z=baseline_z,
-                                    final_z=final_z,
-                                    lift_cm=lift_cm,
-                                    hold_steps_reached=hold_counts[winner],
-                                    mean_inference_ms=agent.mean_inference_ms,
-                                    video_path=video_path,
-                                    alias_map=alias_map,
+            for attempt in range(1, trial.attempts_per_trial + 1):
+                env = None
+                agent = None
+                video_logger = None
+                try:
+                    bddl_path = bddl_root / f"{trial.scene_id}_attempt{attempt:02d}.bddl"
+                    write_bddl_for_recipe(recipe, scene_config, bddl_path)
+                    env = OffScreenRenderEnv(
+                        bddl_file_name=str(bddl_path),
+                        camera_names=[scene_config["camera_names"]["front"], scene_config["camera_names"]["side"]],
+                        camera_heights=256,
+                        camera_widths=256,
+                        camera_depths=True,
+                        control_freq=control_freq,
+                        controller="IK_POSE",
+                        ignore_done=True,
+                        scene_properties=recipe.scene_properties,
+                    )
+                    env.seed(recipe.seed)
+                    obs = env.reset()
+                    kinematics = SharedFrankaKinematics(robot_config_path)
+                    env.robots[0].IK_solver = kinematics
+                    camera_meta = _camera_metadata(env, scene_config)
+                    agent = SharedTrackARemoteAgent(
+                        instruction=trial.instruction,
+                        host=str(runtime_config["host"]),
+                        port=int(runtime_config["port"]),
+                        kinematics=kinematics,
+                    )
+                    agent.reset(trial.instruction)
+                    obs = _stabilize_scene(env, agent, obs, recipe.stabilization_steps)
+                    if recipe.height_offset_cm > 0:
+                        obs = _apply_height_offset(env, recipe.target_instance_names[0], recipe.height_offset_cm)
+                    baseline_z = {
+                        instance_name: float(np.asarray(obs[f"{instance_name}_pos"])[2])
+                        for instance_name in recipe.success_instance_names
+                    }
+                    final_z = dict(baseline_z)
+                    hold_counts = {instance_name: 0 for instance_name in recipe.success_instance_names}
+                    video_logger = VideoLogger(str(videos_dir))
+                    video_logger.start_recording(
+                        trial.task,
+                        f"{trial.scene_id}_attempt{attempt:02d}",
+                        trial.object_id,
+                        recipe.seed,
+                    )
+
+                    for _step in range(recipe.max_steps):
+                        action, bbox = agent.step(obs, camera_meta)
+                        obs, _reward, _done, _info = env.step(action)
+                        video_logger.log_frame(obs, bbox)
+                        winner = ""
+                        for instance_name in recipe.success_instance_names:
+                            current_z = float(np.asarray(obs[f"{instance_name}_pos"])[2])
+                            final_z[instance_name] = current_z
+                            if current_z - baseline_z[instance_name] >= lift_threshold_m:
+                                hold_counts[instance_name] += 1
+                                if hold_counts[instance_name] >= hold_steps_required:
+                                    winner = instance_name
+                                    break
+                            else:
+                                hold_counts[instance_name] = 0
+                        if winner:
+                            video_logger.stop_recording(success=True)
+                            video_path = str(Path(video_logger.new_video_name).relative_to(artifact_dir))
+                            lift_cm = round((final_z[winner] - baseline_z[winner]) * 100.0, 4)
+                            hold_s = round(hold_counts[winner] / control_freq, 4)
+                            (episodes_dir / f"{trial.scene_id}_attempt{attempt:02d}.json").write_text(
+                                json.dumps(
+                                    _attempt_payload(
+                                        trial=trial,
+                                        recipe=recipe,
+                                        attempt=attempt,
+                                        success=True,
+                                        baseline_z=baseline_z,
+                                        final_z=final_z,
+                                        lift_cm=lift_cm,
+                                        hold_steps_reached=hold_counts[winner],
+                                        mean_inference_ms=agent.mean_inference_ms,
+                                        video_path=video_path,
+                                        alias_map=alias_map,
+                                    ),
+                                    indent=2,
                                 ),
-                                indent=2,
+                                encoding="utf-8",
+                            )
+                            result = EpisodeResult(
+                                method="graspvla",
+                                track=trial.track,
+                                execution_mode=execution_mode,
+                                task=trial.task,
+                                scene_id=trial.scene_id,
+                                object_id=trial.object_id,
+                                object_group=trial.object_group,
+                                condition=trial.condition,
+                                instruction=trial.instruction,
+                                sensor_stack=str(sensor_config["sensor_stack"]),
+                                attempts=attempt,
+                                success=True,
+                                lift_cm=lift_cm,
+                                hold_s=hold_s,
+                                spl=round(1.0 / attempt, 4),
+                                inference_ms=agent.mean_inference_ms,
+                                cycle_time_s=round(time.perf_counter() - cycle_start, 4),
+                                failure_stage="",
+                                failure_reason="",
+                                collision=False,
+                                video_path=video_path,
+                                node=node,
+                                commit=commit,
+                            )
+                            break
+
+                    if result is not None:
+                        break
+
+                    video_path = ""
+                    if video_logger is not None:
+                        video_logger.stop_recording(success=False)
+                        video_path = str(Path(video_logger.new_video_name).relative_to(artifact_dir))
+                    max_lift_cm = round(
+                        max((final_z[name] - baseline_z[name]) * 100.0 for name in recipe.success_instance_names),
+                        4,
+                    )
+                    (episodes_dir / f"{trial.scene_id}_attempt{attempt:02d}.json").write_text(
+                        json.dumps(
+                            _attempt_payload(
+                                trial=trial,
+                                recipe=recipe,
+                                attempt=attempt,
+                                success=False,
+                                baseline_z=baseline_z,
+                                final_z=final_z,
+                                lift_cm=max_lift_cm,
+                                hold_steps_reached=max(hold_counts.values(), default=0),
+                                mean_inference_ms=0.0 if agent is None else agent.mean_inference_ms,
+                                video_path=video_path,
+                                alias_map=alias_map,
+                                failure_stage="task_failure",
+                                failure_reason="Shared success criterion was not met within the Track A step budget.",
                             ),
-                            encoding="utf-8",
-                        )
+                            indent=2,
+                        ),
+                        encoding="utf-8",
+                    )
+                    if attempt == trial.attempts_per_trial:
                         result = EpisodeResult(
                             method="graspvla",
                             track=trial.track,
@@ -800,141 +867,83 @@ def run_shared_track_a_suite(
                             instruction=trial.instruction,
                             sensor_stack=str(sensor_config["sensor_stack"]),
                             attempts=attempt,
-                            success=True,
-                            lift_cm=lift_cm,
-                            hold_s=hold_s,
-                            spl=round(1.0 / attempt, 4),
-                            inference_ms=agent.mean_inference_ms,
+                            success=False,
+                            lift_cm=max_lift_cm,
+                            hold_s=round(max(hold_counts.values(), default=0) / control_freq, 4),
+                            spl=0.0,
+                            inference_ms=0.0 if agent is None else agent.mean_inference_ms,
                             cycle_time_s=round(time.perf_counter() - cycle_start, 4),
-                            failure_stage="",
-                            failure_reason="",
+                            failure_stage="task_failure",
+                            failure_reason="Shared success criterion was not met within the Track A step budget.",
                             collision=False,
                             video_path=video_path,
                             node=node,
                             commit=commit,
                         )
-                        break
-
-                if result is not None:
-                    break
-
-                video_path = ""
-                if video_logger is not None:
-                    video_logger.stop_recording(success=False)
-                    video_path = str(Path(video_logger.new_video_name).relative_to(artifact_dir))
-                max_lift_cm = round(
-                    max((final_z[name] - baseline_z[name]) * 100.0 for name in recipe.success_instance_names),
-                    4,
-                )
-                (episodes_dir / f"{trial.scene_id}_attempt{attempt:02d}.json").write_text(
-                    json.dumps(
-                        _attempt_payload(
-                            trial=trial,
-                            recipe=recipe,
-                            attempt=attempt,
-                            success=False,
-                            baseline_z=baseline_z,
-                            final_z=final_z,
-                            lift_cm=max_lift_cm,
-                            hold_steps_reached=max(hold_counts.values(), default=0),
-                            mean_inference_ms=0.0 if agent is None else agent.mean_inference_ms,
-                            video_path=video_path,
-                            alias_map=alias_map,
-                            failure_stage="task_failure",
-                            failure_reason="Shared success criterion was not met within the Track A step budget.",
+                except Exception as exc:
+                    failure_reason = " ".join(f"{type(exc).__name__}: {exc}".split())[:200]
+                    failure_stage = exc.failure_stage if isinstance(exc, AdapterExecutionError) else "scene_execution"
+                    video_path = ""
+                    if video_logger is not None:
+                        video_logger.stop_recording(success=False)
+                        video_path = str(Path(video_logger.new_video_name).relative_to(artifact_dir))
+                    (episodes_dir / f"{trial.scene_id}_attempt{attempt:02d}.json").write_text(
+                        json.dumps(
+                            _attempt_payload(
+                                trial=trial,
+                                recipe=recipe,
+                                attempt=attempt,
+                                success=False,
+                                baseline_z={},
+                                final_z={},
+                                lift_cm=0.0,
+                                hold_steps_reached=0,
+                                mean_inference_ms=0.0 if agent is None else agent.mean_inference_ms,
+                                video_path=video_path,
+                                alias_map=alias_map,
+                                failure_stage=failure_stage,
+                                failure_reason=failure_reason,
+                            ),
+                            indent=2,
                         ),
-                        indent=2,
-                    ),
-                    encoding="utf-8",
-                )
-                if attempt == trial.attempts_per_trial:
-                    result = EpisodeResult(
-                        method="graspvla",
-                        track=trial.track,
-                        execution_mode=execution_mode,
-                        task=trial.task,
-                        scene_id=trial.scene_id,
-                        object_id=trial.object_id,
-                        object_group=trial.object_group,
-                        condition=trial.condition,
-                        instruction=trial.instruction,
-                        sensor_stack=str(sensor_config["sensor_stack"]),
-                        attempts=attempt,
-                        success=False,
-                        lift_cm=max_lift_cm,
-                        hold_s=round(max(hold_counts.values(), default=0) / control_freq, 4),
-                        spl=0.0,
-                        inference_ms=0.0 if agent is None else agent.mean_inference_ms,
-                        cycle_time_s=round(time.perf_counter() - cycle_start, 4),
-                        failure_stage="task_failure",
-                        failure_reason="Shared success criterion was not met within the Track A step budget.",
-                        collision=False,
-                        video_path=video_path,
-                        node=node,
-                        commit=commit,
+                        encoding="utf-8",
                     )
-            except Exception as exc:
-                failure_reason = " ".join(f"{type(exc).__name__}: {exc}".split())[:200]
-                failure_stage = exc.failure_stage if isinstance(exc, AdapterExecutionError) else "scene_execution"
-                video_path = ""
-                if video_logger is not None:
-                    video_logger.stop_recording(success=False)
-                    video_path = str(Path(video_logger.new_video_name).relative_to(artifact_dir))
-                (episodes_dir / f"{trial.scene_id}_attempt{attempt:02d}.json").write_text(
-                    json.dumps(
-                        _attempt_payload(
-                            trial=trial,
-                            recipe=recipe,
-                            attempt=attempt,
+                    if attempt == trial.attempts_per_trial:
+                        result = EpisodeResult(
+                            method="graspvla",
+                            track=trial.track,
+                            execution_mode=execution_mode,
+                            task=trial.task,
+                            scene_id=trial.scene_id,
+                            object_id=trial.object_id,
+                            object_group=trial.object_group,
+                            condition=trial.condition,
+                            instruction=trial.instruction,
+                            sensor_stack=str(sensor_config["sensor_stack"]),
+                            attempts=attempt,
                             success=False,
-                            baseline_z={},
-                            final_z={},
                             lift_cm=0.0,
-                            hold_steps_reached=0,
-                            mean_inference_ms=0.0 if agent is None else agent.mean_inference_ms,
-                            video_path=video_path,
-                            alias_map=alias_map,
+                            hold_s=0.0,
+                            spl=0.0,
+                            inference_ms=0.0 if agent is None else agent.mean_inference_ms,
+                            cycle_time_s=round(time.perf_counter() - cycle_start, 4),
                             failure_stage=failure_stage,
                             failure_reason=failure_reason,
-                        ),
-                        indent=2,
-                    ),
-                    encoding="utf-8",
-                )
-                if attempt == trial.attempts_per_trial:
-                    result = EpisodeResult(
-                        method="graspvla",
-                        track=trial.track,
-                        execution_mode=execution_mode,
-                        task=trial.task,
-                        scene_id=trial.scene_id,
-                        object_id=trial.object_id,
-                        object_group=trial.object_group,
-                        condition=trial.condition,
-                        instruction=trial.instruction,
-                        sensor_stack=str(sensor_config["sensor_stack"]),
-                        attempts=attempt,
-                        success=False,
-                        lift_cm=0.0,
-                        hold_s=0.0,
-                        spl=0.0,
-                        inference_ms=0.0 if agent is None else agent.mean_inference_ms,
-                        cycle_time_s=round(time.perf_counter() - cycle_start, 4),
-                        failure_stage=failure_stage,
-                        failure_reason=failure_reason,
-                        collision=False,
-                        video_path=video_path,
-                        node=node,
-                        commit=commit,
-                    )
-            finally:
-                if agent is not None:
-                    agent.close()
-                if env is not None:
-                    env.close()
+                            collision=False,
+                            video_path=video_path,
+                            node=node,
+                            commit=commit,
+                        )
+                finally:
+                    if agent is not None:
+                        agent.close()
+                    if env is not None:
+                        env.close()
 
-        if result is None:
-            raise RuntimeError(f"Missing final result for Track A scene {trial.scene_id}.")
-        results.append(result)
+            if result is None:
+                raise RuntimeError(f"Missing final result for Track A scene {trial.scene_id}.")
+            results.append(result)
 
-    return results, metadata
+        return results, metadata
+    finally:
+        os.chdir(previous_cwd)
