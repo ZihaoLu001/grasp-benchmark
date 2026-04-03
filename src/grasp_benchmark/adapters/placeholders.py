@@ -445,10 +445,32 @@ class ContactGraspNetAdapter(AgentAdapter):
                     f'--cuda-visible-devices {self._gpu_id}'
                 ),
             ]
+            child_env = {
+                key: value
+                for key, value in os.environ.items()
+                if key
+                not in {
+                    "CC",
+                    "CXX",
+                    "CUDAHOSTCXX",
+                    "CONDA_DEFAULT_ENV",
+                    "CONDA_PREFIX",
+                    "CONDA_PROMPT_MODIFIER",
+                    "CONDA_SHLVL",
+                    "CONDA_EXE",
+                    "CONDA_PYTHON_EXE",
+                    "PYTHONPATH",
+                    "LD_LIBRARY_PATH",
+                    "LD_PRELOAD",
+                    "CUDA_VISIBLE_DEVICES",
+                }
+            }
+            child_env["PATH"] = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
             completed = subprocess.run(
                 runner_cmd,
                 capture_output=True,
                 text=True,
+                env=child_env,
                 timeout=max(int(self.runtime_config.get("timeout_ms", 10000)), 300000),
                 check=False,
             )
