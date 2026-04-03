@@ -49,6 +49,9 @@ class ReportTest(unittest.TestCase):
             self.assertTrue((output_dir / "summary.csv").exists())
             self.assertTrue((output_dir / "report.md").exists())
             self.assertTrue((output_dir / "teacher_summary_zh.md").exists())
+            teacher_text = (output_dir / "teacher_summary_zh.md").read_text(encoding="utf-8")
+            self.assertIn("# Benchmark 汇总说明", teacher_text)
+            self.assertIn("Track A 才是 benchmark setting 下可用于公平比较的正式分数。", teacher_text)
 
     def test_aggregate_writes_track_b_reference_section(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -105,6 +108,63 @@ class ReportTest(unittest.TestCase):
             self.assertIn("## Track B Native Deployment Reference", report_text)
             self.assertIn("track_b_native", report_text)
             self.assertIn("_No failures recorded._", report_text)
+
+    def test_aggregate_embeds_diagnostic_note(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            runs_dir = root / "runs" / "sample"
+            runs_dir.mkdir(parents=True)
+            (runs_dir / "results.csv").write_text(
+                "\n".join(
+                    [
+                        self.HEADER,
+                        "graspvla,track_a,shared_track_a_sim,language_conditioned_single_target_pick,scene_1,obj_1,ycb_core,basic,pick up the mug,dual_fixed_realsense_rgbd,1,0,0,0.0,0.0,120,4.0,task_failure,not_met,0,,em14,deadbeef,parent_run_a,shard_000,0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            diagnostic_report = root / "diagnostic_report.md"
+            diagnostic_report.write_text(
+                "\n".join(
+                    [
+                        "# GraspVLA Track A Diagnostic Report",
+                        "",
+                        "## Diagnostic Note",
+                        "",
+                        "- Gripper mismatch is not the main factor.",
+                        "- The gap is not mainly a threshold artifact.",
+                        "",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            output_dir = root / "report"
+
+            import sys
+
+            argv = sys.argv
+            try:
+                sys.argv = [
+                    "aggregate.py",
+                    "--input",
+                    str(root / "runs"),
+                    "--output-dir",
+                    str(output_dir),
+                    "--diagnostic-report",
+                    str(diagnostic_report),
+                ]
+                aggregate_main()
+            finally:
+                sys.argv = argv
+
+            report_text = (output_dir / "report.md").read_text(encoding="utf-8")
+            teacher_text = (output_dir / "teacher_summary_zh.md").read_text(encoding="utf-8")
+            report_json = (output_dir / "report.json").read_text(encoding="utf-8")
+            self.assertIn("## GraspVLA Diagnostic Note", report_text)
+            self.assertIn("- Gripper mismatch is not the main factor.", report_text)
+            self.assertIn("- The gap is not mainly a threshold artifact.", teacher_text)
+            self.assertIn("diagnostic_note", report_json)
 
     def test_aggregate_ignores_integration_fixture_rows_for_track_a_summary(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

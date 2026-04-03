@@ -125,6 +125,10 @@ powershell -ExecutionPolicy Bypass -File .\scripts\run_official_graspvla_sim.ps1
   `docs/reports/benchmark_setting_freeze_v1_20260402.md`
 - Track-split aggregate example:
   `artifacts/reports/track_split_latest/report.md`
+- Latest Track A v2 compare report:
+  `artifacts/reports/track_a_compare_graspvla_cgn_v2_latest/report.md`
+- Latest Track A v2 teacher summary:
+  `artifacts/reports/track_a_compare_graspvla_cgn_v2_latest/teacher_summary_zh.md`
 - Latest official validation artifact:
   `artifacts/official/20260402_211510_em14_graspvla_checks/summary.json`
 - Latest official offline visualization:
@@ -133,6 +137,8 @@ powershell -ExecutionPolicy Bypass -File .\scripts\run_official_graspvla_sim.ps1
   `artifacts/official_sim/20260402_231726_em14_full/summary.json`
 - Latest Track A shared-sim aggregate:
   `artifacts/reports/graspvla_track_a_real_latest/report.md`
+- Track A v2 compare note:
+  `docs/reports/track_a_compare_graspvla_cgn_v2_20260403.md`
 
 ## Notes
 

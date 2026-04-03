@@ -227,6 +227,27 @@ def _markdown_table(headers: list[str], rows: list[dict[str, object]]) -> list[s
     return [header_line, separator, *body]
 
 
+def _load_diagnostic_note(report_path: Path | None) -> list[str]:
+    if report_path is None or not report_path.exists():
+        return []
+    lines = report_path.read_text(encoding="utf-8").splitlines()
+    start_index = None
+    for index, line in enumerate(lines):
+        if line.strip() == "## Diagnostic Note":
+            start_index = index + 1
+            break
+    if start_index is None:
+        return []
+    note_lines: list[str] = []
+    for line in lines[start_index:]:
+        stripped = line.strip()
+        if stripped.startswith("## "):
+            break
+        if stripped:
+            note_lines.append(stripped)
+    return note_lines
+
+
 def _write_markdown(
     output: Path,
     summary: list[dict[str, object]],
@@ -236,6 +257,7 @@ def _write_markdown(
     track_b_reference: list[dict[str, object]],
     *,
     parent_run_ids: list[str],
+    diagnostic_note: list[str],
 ) -> None:
     lines = [
         "# Aggregate Report",
@@ -265,6 +287,11 @@ def _write_markdown(
             object_groups,
         )
     )
+    lines.extend(["", "## GraspVLA Diagnostic Note", ""])
+    if diagnostic_note:
+        lines.extend(diagnostic_note)
+    else:
+        lines.append("_No diagnostic note provided._")
     lines.extend(["", "## Track B Native Deployment Reference", ""])
     lines.extend(
         _markdown_table(
@@ -290,6 +317,7 @@ def _write_teacher_summary(
     track_b_reference: list[dict[str, object]],
     *,
     parent_run_ids: list[str],
+    diagnostic_note: list[str],
 ) -> None:
     parent_run_id = ", ".join(parent_run_ids)
     lines = [
@@ -323,6 +351,12 @@ def _write_teacher_summary(
             )
     else:
         lines.append("- 暂无按 condition 切分的数据。")
+
+    lines.extend(["", "## GraspVLA Diagnostic Note", ""])
+    if diagnostic_note:
+        lines.extend(diagnostic_note)
+    else:
+        lines.append("- 暂无诊断说明。")
 
     lines.extend(["", "## Track B Native Reference", ""])
     if track_b_reference:
@@ -369,6 +403,11 @@ def main() -> None:
         default="",
         help="Optional comma-separated parent_run_id filter. Defaults to the latest Track A parent run when present.",
     )
+    parser.add_argument(
+        "--diagnostic-report",
+        default="",
+        help="Optional path to a GraspVLA diagnostic report.md whose note section should be included in the aggregate output.",
+    )
     args = parser.parse_args()
 
     input_root = Path(args.input)
@@ -389,6 +428,8 @@ def main() -> None:
     by_shard = _by_shard(track_a_rows)
     taxonomy = _failure_taxonomy(track_a_rows)
     track_b_reference = _parse_track_b_reference(Path(args.track_b_reference)) if args.track_b_reference else []
+    diagnostic_report = Path(args.diagnostic_report) if args.diagnostic_report else None
+    diagnostic_note = _load_diagnostic_note(diagnostic_report)
 
     _write_csv(output_dir / "summary.csv", summary)
     _write_csv(output_dir / "by_condition.csv", by_condition)
@@ -404,6 +445,7 @@ def main() -> None:
         taxonomy,
         track_b_reference,
         parent_run_ids=parent_run_ids,
+        diagnostic_note=diagnostic_note,
     )
     _write_teacher_summary(
         output_dir / "teacher_summary_zh.md",
@@ -411,6 +453,7 @@ def main() -> None:
         by_condition,
         track_b_reference,
         parent_run_ids=parent_run_ids,
+        diagnostic_note=diagnostic_note,
     )
     (output_dir / "report.json").write_text(
         json.dumps(
@@ -421,6 +464,8 @@ def main() -> None:
                 "by_shard": by_shard,
                 "failure_taxonomy": taxonomy,
                 "track_b_reference": track_b_reference,
+                "diagnostic_report": str(diagnostic_report) if diagnostic_report else "",
+                "diagnostic_note": diagnostic_note,
                 "track_a_execution_mode": args.track_a_execution_mode,
                 "parent_run_ids": parent_run_ids,
             },
