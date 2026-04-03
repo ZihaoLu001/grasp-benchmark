@@ -430,6 +430,7 @@ class ContactGraspNetAdapter(AgentAdapter):
                 "-lc",
                 (
                     f'source "{self._miniforge_root}/etc/profile.d/conda.sh" && '
+                    'env -u CC -u CXX -u CUDAHOSTCXX '
                     f'PYTHONPATH="{_project_root(self.runtime_config) / "src"}" '
                     'LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libstdc++.so.6" '
                     f'LD_LIBRARY_PATH="/usr/lib/x86_64-linux-gnu${{LD_LIBRARY_PATH:+:${{LD_LIBRARY_PATH}}}}" '
@@ -452,9 +453,32 @@ class ContactGraspNetAdapter(AgentAdapter):
                 check=False,
             )
             if completed.returncode != 0:
-                stderr = (completed.stderr or completed.stdout).strip()
+                stdout = (completed.stdout or "").strip()
+                stderr = (completed.stderr or "").strip()
+                details = stderr if stderr else stdout
+                if stdout and stderr:
+                    details = f"STDOUT:\n{stdout}\n\nSTDERR:\n{stderr}"
+                if not details:
+                    details = "Runner exited non-zero without stdout/stderr output."
+                debug_dir = _project_root(self.runtime_config) / "artifacts" / "debug" / "cgn_legacy_runtime"
+                debug_dir.mkdir(parents=True, exist_ok=True)
+                with tempfile.NamedTemporaryFile(
+                    mode="w",
+                    delete=False,
+                    encoding="utf-8",
+                    dir=debug_dir,
+                    prefix="cgn_legacy_",
+                    suffix=".log",
+                ) as handle:
+                    handle.write("COMMAND:\n")
+                    handle.write(" ".join(runner_cmd))
+                    handle.write("\n\nSTDOUT:\n")
+                    handle.write(completed.stdout or "")
+                    handle.write("\n\nSTDERR:\n")
+                    handle.write(completed.stderr or "")
+                    debug_log_path = Path(handle.name)
                 raise AdapterExecutionError(
-                    f"Contact-GraspNet runner failed: {stderr[:200]}",
+                    f"Contact-GraspNet runner failed (exit={completed.returncode}); see {debug_log_path}: {details[-4000:]}",
                     failure_stage="legacy_runtime",
                 )
             if not output_path.exists():
