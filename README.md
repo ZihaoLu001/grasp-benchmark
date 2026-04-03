@@ -88,6 +88,12 @@ python -m grasp_benchmark.run.sim --method graspvla --task-set track_a_v1 --node
 python -m grasp_benchmark.report.aggregate --input artifacts\runs
 ```
 
+To render the shared Track A table together with the native GraspVLA reference:
+
+```powershell
+python -m grasp_benchmark.report.aggregate --input artifacts\runs\20260403_033238_graspvla_track_a_v1 --output-dir artifacts\reports\track_split_latest --track-b-reference artifacts\official_sim\20260402_231726_em14_full\summary.json
+```
+
 10. Run the official GraspVLA validation entrypoints and pull the outputs back to `artifacts/official/...`:
 
 ```powershell
@@ -115,6 +121,8 @@ powershell -ExecutionPolicy Bypass -File .\scripts\run_official_graspvla_sim.ps1
   `docs/reports/graspvla_official_sim_complete_20260402.md`
 - Setting freeze note:
   `docs/reports/benchmark_setting_freeze_v1_20260402.md`
+- Track-split aggregate example:
+  `artifacts/reports/track_split_latest/report.md`
 - Latest official validation artifact:
   `artifacts/official/20260402_211510_em14_graspvla_checks/summary.json`
 - Latest official offline visualization:
@@ -129,8 +137,10 @@ powershell -ExecutionPolicy Bypass -File .\scripts\run_official_graspvla_sim.ps1
 - Remote environments are rooted at `/datasets/ss/current/zihao/miniforge3`, with env packages stored under `/datasets/ss/current/zihao/conda`.
 - The official GraspVLA simulation stack now runs in a dedicated env at `/datasets/ss/current/zihao/conda/envs/gb-graspvla-sim` so the `gb-core` server runtime stays stable.
 - The official complete GraspVLA batch now runs through the same wrapper with `ParallelEnvNum=5`, which is enough to finish the public `playground + LIBERO` release on `em14` in one reproducible batch.
+- Official GraspVLA simulation artifacts should be treated as `track_b_native` method-native references, while benchmark wrapper outputs under `artifacts/runs/...` remain the source of truth for `track_a`.
 - Archive-based cluster sync now preserves remote `artifacts/` and `third_party/upstreams/` directories and writes `.grasp-benchmark-sync.json` for commit provenance.
 - `run.worker` now executes an integration-fixture backend that writes benchmark-shaped `results.csv` plus per-attempt artifacts under `episodes/`. This is the common adapter/logging layer that will later be swapped under real simulation or robot controllers.
+- `run.worker` now records the Track A shared protocol and each adapter's declared input policy into `run_metadata.json`, so Track A runs explicitly document the frozen camera / embodiment / success contract.
 - `python -m grasp_benchmark.install_remote --method anygrasp` now installs GroundingDINO in CPU-only mode and prepares the version-matched SDK binaries, but AnyGrasp still needs MinkowskiEngine and a real license file.
 - `python -m grasp_benchmark.prepare_anygrasp --node em14` writes an artifact with the machine feature id plus current import/license status to help the license request flow.
 - `python -m grasp_benchmark.install_remote --method cgn` installs shared detector dependencies only; `python -m grasp_benchmark.prepare_cgn --node em14 --bootstrap-legacy-env` prepares and probes the separate legacy TensorFlow runtime that Contact-GraspNet still needs.

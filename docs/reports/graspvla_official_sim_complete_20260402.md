@@ -2,6 +2,7 @@
 
 ## Batch Summary
 
+- Reporting role: `Track B / native best-case reference`
 - Node: `em14`
 - Server: `127.0.0.1:6666`
 - Mode: `full`
@@ -43,6 +44,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\run_official_graspvla_sim.ps1
 
 ## Important Notes
 
+- This artifact is a method-native GraspVLA reference and should not be merged into Track A benchmark summaries.
 - The `libero_10` denominator is `350`, not `500`, because this public release currently exposes `7` tasks for `libero_10` in `third_party/upstreams/GraspVLA-playground/libero/libero/benchmark/libero_suite_task_map.py`.
 - The `libero_goal` denominator is also `350` because task ids `0`, `5`, and `7` resolve to `Instruction: invalid` in the official runner and are skipped.
 - This means the run is complete with respect to the currently released public simulation stack, not incomplete.

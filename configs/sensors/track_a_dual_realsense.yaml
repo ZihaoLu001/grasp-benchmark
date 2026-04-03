@@ -1,10 +1,15 @@
 track: track_a
 sensor_stack: dual_fixed_realsense_rgbd
 control_mode: blocking
+scene_edit_policy: shared_only
+logging_contract: episode_result_v1
 workspace_cm:
   x: 40
   y: 50
   z: 20
+embodiment:
+  robot: franka
+  gripper: shared_track_a_gripper
 cameras:
   front:
     modality:
@@ -26,4 +31,3 @@ success_definition:
   lift_cm_min: 15
   hold_s_min: 2
 attempts_per_trial: 3
-

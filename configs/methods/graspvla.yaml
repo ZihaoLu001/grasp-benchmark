@@ -15,6 +15,22 @@ server:
   port: 6666
   compile: true
 official_sim_env_name: gb-graspvla-sim
+track_a_input_policy:
+  observation_contract: shared_observation
+  consumes:
+    - rgb_front
+    - rgb_side
+    - proprio
+    - instruction
+  ignores:
+    - depth_front
+    - depth_side
+    - intrinsics_front
+    - intrinsics_side
+    - extrinsics_front
+    - extrinsics_side
+  scene_edit_policy: shared_only
+  native_reference_track: track_b_native
 sim:
   runner: benchmark_wrapper
   control_freq: 5

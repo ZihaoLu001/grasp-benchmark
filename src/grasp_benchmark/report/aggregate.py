@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import re
 from collections import Counter, defaultdict
 from pathlib import Path
 
@@ -84,11 +85,12 @@ def _aggregate(rows: list[dict[str, object]], group_keys: list[str]) -> list[dic
 
 
 def _failure_taxonomy(rows: list[dict[str, object]]) -> list[dict[str, object]]:
-    counter = Counter((row["method"], row["failure_stage"], row["failure_reason"]) for row in rows)
+    counter = Counter((row["track"], row["method"], row["failure_stage"], row["failure_reason"]) for row in rows)
     taxonomy = []
-    for (method, stage, reason), count in sorted(counter.items()):
+    for (track, method, stage, reason), count in sorted(counter.items()):
         taxonomy.append(
             {
+                "track": track,
                 "method": method,
                 "failure_stage": stage,
                 "failure_reason": reason,
@@ -98,34 +100,104 @@ def _failure_taxonomy(rows: list[dict[str, object]]) -> list[dict[str, object]]:
     return taxonomy
 
 
+def _track_a_rows(rows: list[dict[str, object]]) -> list[dict[str, object]]:
+    return [row for row in rows if str(row.get("track", "")).startswith("track_a")]
+
+
+def _parse_track_b_reference(summary_path: Path) -> list[dict[str, object]]:
+    payload = json.loads(summary_path.read_text(encoding="utf-8"))
+    artifact_root = summary_path.parent
+    method = str(payload.get("method", "graspvla"))
+    track = str(payload.get("track", "track_b_native"))
+    rows: list[dict[str, object]] = []
+
+    playground_dir = artifact_root / "playground_data" / "videos"
+    if playground_dir.exists():
+        video_names = [path.name for path in playground_dir.iterdir() if path.is_file()]
+        successes = sum(1 for name in video_names if "success" in name)
+        trials = sum(1 for name in video_names if "success" in name or "fail" in name)
+        if trials:
+            rows.append(
+                {
+                    "track": track,
+                    "method": method,
+                    "reference_type": "native_best_case",
+                    "benchmark": "playground",
+                    "trials": trials,
+                    "successes": successes,
+                    "success_rate": _mean([1.0] * successes + [0.0] * (trials - successes)),
+                    "source_artifact": str(summary_path),
+                }
+            )
+
+    pattern = re.compile(r"^(?P<benchmark>[\w_]+): (?P<success>\d+)/(?P<trials>\d+) = (?P<rate>\d+\.\d+)$")
+    for line in str(payload.get("statistics_text", "")).splitlines():
+        match = pattern.match(line.strip())
+        if not match:
+            continue
+        rows.append(
+            {
+                "track": track,
+                "method": method,
+                "reference_type": "native_best_case",
+                "benchmark": match.group("benchmark"),
+                "trials": int(match.group("trials")),
+                "successes": int(match.group("success")),
+                "success_rate": float(match.group("rate")),
+                "source_artifact": str(summary_path),
+            }
+        )
+    return rows
+
+
+def _markdown_table(headers: list[str], rows: list[dict[str, object]]) -> list[str]:
+    if not rows:
+        return ["_No rows._"]
+    header_line = "| " + " | ".join(headers) + " |"
+    separator = "| " + " | ".join(["---"] * len(headers)) + " |"
+    body = []
+    for row in rows:
+        body.append("| " + " | ".join(str(row.get(header, "")) for header in headers) + " |")
+    return [header_line, separator, *body]
+
+
 def _write_markdown(
     output: Path,
     summary: list[dict[str, object]],
     conditions: list[dict[str, object]],
     taxonomy: list[dict[str, object]],
+    track_b_reference: list[dict[str, object]],
 ) -> None:
     lines = [
         "# Aggregate Report",
         "",
-        "## Summary",
+        "## Track A Shared Benchmark",
         "",
     ]
-    for row in summary:
-        lines.append(
-            f"- {row['method']} / {row['task']}: "
-            f"success={row['success_rate']:.4f}, spl={row['mean_spl']:.4f}, "
-            f"inference_ms={row['mean_inference_ms']:.4f}, cycle_s={row['mean_cycle_time_s']:.4f}"
+    lines.extend(
+        _markdown_table(
+            ["track", "method", "task", "trials", "success_rate", "mean_spl", "mean_attempts", "mean_inference_ms", "mean_cycle_time_s"],
+            summary,
         )
-    lines.extend(["", "## By Condition", ""])
-    for row in conditions:
-        lines.append(
-            f"- {row['method']} / {row['task']} / {row['condition']}: "
-            f"success={row['success_rate']:.4f}, attempts={row['mean_attempts']:.4f}"
+    )
+    lines.extend(["", "## Track A By Condition", ""])
+    lines.extend(
+        _markdown_table(
+            ["track", "method", "task", "condition", "trials", "success_rate", "mean_attempts"],
+            conditions,
         )
+    )
+    lines.extend(["", "## Track B Native Deployment Reference", ""])
+    lines.extend(
+        _markdown_table(
+            ["track", "method", "benchmark", "trials", "successes", "success_rate", "reference_type"],
+            track_b_reference,
+        )
+    )
     lines.extend(["", "## Failure Taxonomy", ""])
     for row in taxonomy[:20]:
         lines.append(
-            f"- {row['method']}: {row['failure_stage']} / {row['failure_reason']} ({row['count']})"
+            f"- {row['track']} / {row['method']}: {row['failure_stage']} / {row['failure_reason']} ({row['count']})"
         )
     output.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
@@ -138,6 +210,11 @@ def main() -> None:
         default=str(ARTIFACTS_DIR / "reports" / "latest"),
         help="Directory for summary outputs.",
     )
+    parser.add_argument(
+        "--track-b-reference",
+        default="",
+        help="Optional path to an official GraspVLA simulation summary.json to render as Track B native reference.",
+    )
     args = parser.parse_args()
 
     input_root = Path(args.input)
@@ -146,16 +223,19 @@ def main() -> None:
     if not rows:
         raise SystemExit(f"No CSV files found under {input_root}")
 
-    summary = _aggregate(rows, ["method", "task"])
-    by_condition = _aggregate(rows, ["method", "task", "condition"])
-    by_object_group = _aggregate(rows, ["method", "task", "object_group"])
+    track_a_rows = _track_a_rows(rows)
+    summary = _aggregate(track_a_rows, ["track", "method", "task"])
+    by_condition = _aggregate(track_a_rows, ["track", "method", "task", "condition"])
+    by_object_group = _aggregate(track_a_rows, ["track", "method", "task", "object_group"])
     taxonomy = _failure_taxonomy(rows)
+    track_b_reference = _parse_track_b_reference(Path(args.track_b_reference)) if args.track_b_reference else []
 
     _write_csv(output_dir / "summary.csv", summary)
     _write_csv(output_dir / "by_condition.csv", by_condition)
     _write_csv(output_dir / "by_object_group.csv", by_object_group)
     _write_csv(output_dir / "failure_taxonomy.csv", taxonomy)
-    _write_markdown(output_dir / "report.md", summary, by_condition, taxonomy)
+    _write_csv(output_dir / "track_b_reference.csv", track_b_reference)
+    _write_markdown(output_dir / "report.md", summary, by_condition, taxonomy, track_b_reference)
     (output_dir / "report.json").write_text(
         json.dumps(
             {
@@ -163,6 +243,7 @@ def main() -> None:
                 "by_condition": by_condition,
                 "by_object_group": by_object_group,
                 "failure_taxonomy": taxonomy,
+                "track_b_reference": track_b_reference,
             },
             indent=2,
         ),

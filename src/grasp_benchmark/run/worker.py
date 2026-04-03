@@ -29,6 +29,20 @@ def _runtime_config(method_config: dict, cluster_config: dict) -> dict:
     return runtime
 
 
+def _shared_protocol(sensor_config: dict) -> dict:
+    return {
+        "track": sensor_config.get("track", ""),
+        "sensor_stack": sensor_config.get("sensor_stack", ""),
+        "control_mode": sensor_config.get("control_mode", ""),
+        "workspace_cm": dict(sensor_config.get("workspace_cm", {})),
+        "success_definition": dict(sensor_config.get("success_definition", {})),
+        "attempts_per_trial": int(sensor_config.get("attempts_per_trial", 0)),
+        "embodiment": dict(sensor_config.get("embodiment", {})),
+        "scene_edit_policy": str(sensor_config.get("scene_edit_policy", "")),
+        "logging_contract": str(sensor_config.get("logging_contract", "")),
+    }
+
+
 def _sanitize_reason(exc: BaseException) -> str:
     message = f"{type(exc).__name__}: {exc}"
     return " ".join(message.split())[:200]
@@ -104,6 +118,8 @@ def main() -> None:
         "required_upstreams": adapter.required_upstreams(),
         "missing_upstreams": adapter.validate_project_root(PROJECT_ROOT),
         "task_groups": task_config.get("task_groups", []),
+        "adapter_input_policy": adapter.input_policy(),
+        "shared_protocol": _shared_protocol(sensor_config),
     }
 
     if args.smoke_only:

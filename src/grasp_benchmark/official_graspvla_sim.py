@@ -267,6 +267,9 @@ def main() -> None:
     statistics_text = _read_optional_text(local_run_dir / "libero_statistics.txt")
     artifact = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
+        "method": "graspvla",
+        "track": "track_b_native",
+        "reference_type": "native_best_case",
         "node": args.node,
         "mode": args.mode,
         "ok": checks_ok,

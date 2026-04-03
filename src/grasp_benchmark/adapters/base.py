@@ -33,6 +33,10 @@ class AgentAdapter(ABC):
                 missing.append(str(path))
         return missing
 
+    def input_policy(self) -> dict[str, Any]:
+        policy = self.method_config.get("track_a_input_policy", {})
+        return dict(policy) if isinstance(policy, dict) else {}
+
     @abstractmethod
     def setup(self, config: dict[str, Any]) -> None:
         raise NotImplementedError

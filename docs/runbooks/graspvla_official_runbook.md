@@ -9,6 +9,11 @@ This runbook is the shortest path from our current cluster setup to something we
 - the official offline test can produce a visualization
 - our benchmark wrapper can compare GraspVLA against modular baselines on the same Track A interface
 
+Important reporting rule:
+
+- official GraspVLA simulation artifacts are `Track B / native best-case`
+- benchmark-wrapper Track A runs are the only artifacts that should support the final fairness claim
+
 ## Public Repositories
 
 - `third_party/upstreams/GraspVLA`
@@ -75,6 +80,8 @@ This writes a visualization under `third_party/upstreams/GraspVLA/visualization/
 python -m grasp_benchmark.run.sim --method graspvla --task-set track_a_v1 --node em14 --max-trials 1
 ```
 
+This path is the shared Track A benchmark wrapper, not the official method-native simulation runner.
+
 ### Dedicated official simulation environment
 
 ```powershell
@@ -125,6 +132,8 @@ If AnyGrasp still fails, check whether `license/licenseCfg.json` is present unde
   - `libero_object: 482/500 = 0.964`
   - `libero_10: 325/350 = 0.929`
   - `libero_goal: 336/350 = 0.960`
+- The official full simulation artifact should be tagged as `track_b_native`.
+- Shared benchmark-wrapper runs under `artifacts/runs/...` should be tagged as `track_a`.
 - The lower denominators for `libero_10` and `libero_goal` are expected in this public release:
   - `libero_10` only exposes `7` tasks in `libero_suite_task_map.py`
   - `libero_goal` includes `3` tasks whose instruction resolves to `invalid`, so the official runner skips them
@@ -142,6 +151,8 @@ If AnyGrasp still fails, check whether `license/licenseCfg.json` is present unde
   `artifacts/official_sim/20260402_231726_em14_full/summary.json`
 - Human-readable report:
   `docs/reports/graspvla_official_sim_complete_20260402.md`
+- Setting freeze note:
+  `docs/reports/benchmark_setting_freeze_v1_20260402.md`
 
 ## Next Week Plan
 
