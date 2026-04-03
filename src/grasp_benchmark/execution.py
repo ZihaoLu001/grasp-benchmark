@@ -88,6 +88,7 @@ def execute_integration_trial(
     artifact_dir: Path,
     node: str,
     commit: str,
+    execution_mode: str = "integration_fixture",
 ) -> EpisodeResult:
     last_failure = ""
     last_stage = ""
@@ -116,6 +117,7 @@ def execute_integration_trial(
             return EpisodeResult(
                 method=adapter.name,
                 track=trial.track,
+                execution_mode=execution_mode,
                 task=trial.task,
                 scene_id=trial.scene_id,
                 object_id=trial.object_id,
@@ -178,6 +180,7 @@ def execute_integration_trial(
     return EpisodeResult(
         method=adapter.name,
         track=trial.track,
+        execution_mode=execution_mode,
         task=trial.task,
         scene_id=trial.scene_id,
         object_id=trial.object_id,
@@ -208,6 +211,7 @@ def run_integration_suite(
     artifact_dir: Path,
     node: str,
     commit: str,
+    execution_mode: str = "integration_fixture",
 ) -> list[EpisodeResult]:
     success_definition = sensor_config["success_definition"]
     results: list[EpisodeResult] = []
@@ -222,6 +226,7 @@ def run_integration_suite(
                 artifact_dir=artifact_dir,
                 node=node,
                 commit=commit,
+                execution_mode=execution_mode,
             )
         )
     return results

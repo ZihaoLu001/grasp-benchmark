@@ -16,6 +16,7 @@ class TypesTest(unittest.TestCase):
         result = EpisodeResult(
             method="graspvla",
             track="track_a",
+            execution_mode="shared_track_a_sim",
             task="language_conditioned_single_target_pick",
             scene_id="scene_001",
             object_id="mug_001",
@@ -43,8 +44,8 @@ class TypesTest(unittest.TestCase):
             text = path.read_text(encoding="utf-8")
             self.assertIn("graspvla", text)
             self.assertIn("scene_001", text)
+            self.assertIn("shared_track_a_sim", text)
 
 
 if __name__ == "__main__":
     unittest.main()
-

@@ -30,18 +30,36 @@ def _pick_node(method_config: dict, cluster_config: dict, available_nodes: dict,
     raise RuntimeError("No runnable dispatch hosts found. Run preflight first.")
 
 
+def _resolve_execution_mode(method_config: dict, explicit_mode: str) -> str:
+    if explicit_mode:
+        return explicit_mode
+    return str(method_config.get("sim", {}).get("execution_mode", "integration_fixture"))
+
+
+def _remote_env_name(method_config: dict, execution_mode: str) -> str:
+    if execution_mode == "shared_track_a_sim":
+        return str(method_config.get("official_sim_env_name", method_config["env_name"]))
+    return str(method_config["env_name"])
+
+
+def _run_dir_name(timestamp: str, method: str, task_set: str, execution_mode: str) -> str:
+    suffix = "shared_sim" if execution_mode == "shared_track_a_sim" else execution_mode
+    return f"{timestamp}_{method}_{task_set}_{suffix}"
+
+
 def _build_remote_command(
     cluster_config: dict,
     method_config: dict,
     task_set: str,
     sensor_config: str,
     run_dir: str,
+    execution_mode: str,
     smoke_only: bool,
     max_trials: int,
 ) -> str:
     miniforge_root = cluster_config["miniforge_root"]
     remote_root = cluster_config["remote_root"]
-    env_prefix = f'{cluster_config["conda_envs_dir"]}/{method_config["env_name"]}'
+    env_prefix = f'{cluster_config["conda_envs_dir"]}/{_remote_env_name(method_config, execution_mode)}'
     smoke_flag = "--smoke-only" if smoke_only else ""
     max_trials_flag = f'--max-trials "{max_trials}"' if max_trials > 0 else ""
     return (
@@ -53,6 +71,7 @@ def _build_remote_command(
         f'--task-set "{task_set}" '
         f'--sensor-config "{sensor_config}" '
         f'--output-dir "{run_dir}" '
+        f'--execution-mode "{execution_mode}" '
         f'{max_trials_flag} '
         f'{smoke_flag}'
     ).strip()
@@ -91,6 +110,11 @@ def main() -> None:
         help="Dispatch the remote worker in smoke-only mode.",
     )
     parser.add_argument("--max-trials", type=int, default=0, help="Optional cap on expanded trial count.")
+    parser.add_argument(
+        "--execution-mode",
+        default="",
+        help="Execution backend to use. Defaults to the method config's preferred mode.",
+    )
     args = parser.parse_args()
 
     cluster_config = load_named_config("cluster", "default")
@@ -99,9 +123,10 @@ def main() -> None:
     sensor_config = load_named_config("sensors", args.sensor_config)
     available_nodes = _load_available_nodes(Path(args.available_nodes))
     node = _pick_node(method_config, cluster_config, available_nodes, args.node)
+    execution_mode = _resolve_execution_mode(method_config, args.execution_mode)
 
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    run_dir = ARTIFACTS_DIR / "runs" / f"{timestamp}_{args.method}_{args.task_set}"
+    run_dir = ARTIFACTS_DIR / "runs" / _run_dir_name(timestamp, args.method, args.task_set, execution_mode)
     ensure_dir(run_dir)
 
     remote_run_dir = f'{cluster_config["remote_root"]}/artifacts/runs/{run_dir.name}'
@@ -111,6 +136,7 @@ def main() -> None:
         task_set=args.task_set,
         sensor_config=args.sensor_config,
         run_dir=remote_run_dir,
+        execution_mode=execution_mode,
         smoke_only=args.smoke_only,
         max_trials=args.max_trials,
     )
@@ -118,6 +144,7 @@ def main() -> None:
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "method": args.method,
         "task_set": task_config["name"],
+        "execution_mode": execution_mode,
         "sensor_config": sensor_config["sensor_stack"],
         "selected_node": node,
         "local_run_dir": str(run_dir),

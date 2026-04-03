@@ -37,6 +37,7 @@ class Action:
 class EpisodeResult:
     method: str
     track: str
+    execution_mode: str
     task: str
     scene_id: str
     object_id: str
@@ -63,6 +64,7 @@ class EpisodeResult:
         return [
             "method",
             "track",
+            "execution_mode",
             "task",
             "scene_id",
             "object_id",
@@ -101,4 +103,3 @@ def append_episode_results_csv(path: Path, results: list[EpisodeResult]) -> None
             writer.writeheader()
         for result in results:
             writer.writerow(result.to_row())
-

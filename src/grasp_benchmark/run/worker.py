@@ -11,6 +11,7 @@ from grasp_benchmark.config import load_named_config
 from grasp_benchmark.execution import run_integration_suite
 from grasp_benchmark.paths import PROJECT_ROOT, ensure_dir
 from grasp_benchmark.provenance import resolve_commit
+from grasp_benchmark.runners.graspvla_track_a_sim import run_shared_track_a_suite
 from grasp_benchmark.task_specs import expand_task_set
 from grasp_benchmark.types import EpisodeResult, append_episode_results_csv
 
@@ -55,6 +56,7 @@ def _setup_failure_results(
     task_specs: list,
     node: str,
     commit: str,
+    execution_mode: str,
     exc: BaseException,
 ) -> list[EpisodeResult]:
     failure_stage = exc.failure_stage if isinstance(exc, AdapterExecutionError) else "adapter_setup"
@@ -65,6 +67,7 @@ def _setup_failure_results(
             EpisodeResult(
                 method=adapter_name,
                 track=trial.track,
+                execution_mode=execution_mode,
                 task=trial.task,
                 scene_id=trial.scene_id,
                 object_id=trial.object_id,
@@ -98,6 +101,7 @@ def main() -> None:
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--smoke-only", action="store_true")
     parser.add_argument("--max-trials", type=int, default=0, help="Optional cap on expanded trial count.")
+    parser.add_argument("--execution-mode", default="integration_fixture")
     args = parser.parse_args()
 
     cluster_config = load_named_config("cluster", "default")
@@ -112,6 +116,7 @@ def main() -> None:
         "method": args.method,
         "task_set": args.task_set,
         "sensor_config": args.sensor_config,
+        "execution_mode": args.execution_mode,
         "node": socket.gethostname(),
         "project_root": str(PROJECT_ROOT),
         "commit": resolve_commit(PROJECT_ROOT),
@@ -129,21 +134,40 @@ def main() -> None:
 
     max_trials = args.max_trials or None
     task_specs = expand_task_set(task_config, max_trials=max_trials)
-    payload["execution_mode"] = "integration_fixture"
     payload["trial_count"] = len(task_specs)
     payload["task_specs"] = [task_spec.to_task_spec() for task_spec in task_specs]
     (output_dir / "run_metadata.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
     try:
-        adapter.setup(_runtime_config(method_config, cluster_config))
-        results = run_integration_suite(
-            adapter=adapter,
-            sensor_config=sensor_config,
-            task_specs=task_specs,
-            artifact_dir=output_dir / "episodes",
-            node=payload["node"],
-            commit=payload["commit"],
-        )
+        runtime_config = _runtime_config(method_config, cluster_config)
+        if args.execution_mode == "shared_track_a_sim":
+            if args.method != "graspvla":
+                raise RuntimeError(
+                    f"Execution mode {args.execution_mode} is currently implemented only for GraspVLA."
+                )
+            results, scene_metadata = run_shared_track_a_suite(
+                method_config=method_config,
+                sensor_config=sensor_config,
+                task_specs=task_specs,
+                artifact_dir=output_dir,
+                node=payload["node"],
+                commit=payload["commit"],
+                runtime_config=runtime_config,
+                execution_mode=args.execution_mode,
+            )
+            payload.update(scene_metadata)
+            (output_dir / "run_metadata.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        else:
+            adapter.setup(runtime_config)
+            results = run_integration_suite(
+                adapter=adapter,
+                sensor_config=sensor_config,
+                task_specs=task_specs,
+                artifact_dir=output_dir / "episodes",
+                node=payload["node"],
+                commit=payload["commit"],
+                execution_mode=args.execution_mode,
+            )
     except Exception as exc:
         payload["setup_error"] = _sanitize_reason(exc)
         (output_dir / "run_metadata.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
@@ -153,6 +177,7 @@ def main() -> None:
             task_specs=task_specs,
             node=payload["node"],
             commit=payload["commit"],
+            execution_mode=args.execution_mode,
             exc=exc,
         )
     finally:
@@ -162,6 +187,7 @@ def main() -> None:
     summary = {
         "method": args.method,
         "task_set": args.task_set,
+        "execution_mode": args.execution_mode,
         "trial_count": len(results),
         "successes": sum(1 for result in results if result.success),
         "failures": sum(1 for result in results if not result.success),

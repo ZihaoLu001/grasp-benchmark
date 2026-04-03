@@ -33,5 +33,7 @@ track_a_input_policy:
   native_reference_track: track_b_native
 sim:
   runner: benchmark_wrapper
+  execution_mode: shared_track_a_sim
+  scene_catalog: graspvla_track_a_playground_v1
   control_freq: 5
   stabilization_steps: 10

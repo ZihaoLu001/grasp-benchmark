@@ -76,6 +76,7 @@ class ExecutionTest(unittest.TestCase):
             self.assertEqual(len(results), 1)
             self.assertTrue(results[0].success)
             self.assertEqual(results[0].attempts, 1)
+            self.assertEqual(results[0].execution_mode, "integration_fixture")
             self.assertTrue((Path(tmp_dir) / results[0].video_path).exists())
 
     def test_integration_suite_records_failure_reason(self) -> None:
@@ -100,6 +101,7 @@ class ExecutionTest(unittest.TestCase):
             self.assertFalse(results[0].success)
             self.assertEqual(results[0].failure_stage, "adapter_execution")
             self.assertIn("planned adapter failure", results[0].failure_reason)
+            self.assertEqual(results[0].execution_mode, "integration_fixture")
 
     def test_integration_suite_preserves_structured_failure_stage(self) -> None:
         task_config = load_named_config("tasks", "track_a_v1")
@@ -131,11 +133,13 @@ class ExecutionTest(unittest.TestCase):
             task_specs=trial,
             node="em14",
             commit="deadbeef",
+            execution_mode="integration_fixture",
             exc=AdapterExecutionError("missing checkpoint", failure_stage="model_assets"),
         )
         self.assertEqual(results[0].attempts, 0)
         self.assertEqual(results[0].failure_stage, "model_assets")
         self.assertIn("missing checkpoint", results[0].failure_reason)
+        self.assertEqual(results[0].execution_mode, "integration_fixture")
 
 
 if __name__ == "__main__":

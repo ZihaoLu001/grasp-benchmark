@@ -16,8 +16,8 @@ class ReportTest(unittest.TestCase):
             (runs_dir / "results.csv").write_text(
                 "\n".join(
                     [
-                        "method,track,task,scene_id,object_id,object_group,condition,instruction,sensor_stack,attempts,success,lift_cm,hold_s,spl,inference_ms,cycle_time_s,failure_stage,failure_reason,collision,video_path,node,commit",
-                        "graspvla,track_a,language_conditioned_single_target_pick,scene_1,obj_1,ycb_core,basic,pick up the mug,dual_fixed_realsense_rgbd,1,1,20,2.0,1.0,120,4.0,,,0,,em14,deadbeef",
+                        "method,track,execution_mode,task,scene_id,object_id,object_group,condition,instruction,sensor_stack,attempts,success,lift_cm,hold_s,spl,inference_ms,cycle_time_s,failure_stage,failure_reason,collision,video_path,node,commit",
+                        "graspvla,track_a,shared_track_a_sim,language_conditioned_single_target_pick,scene_1,obj_1,ycb_core,basic,pick up the mug,dual_fixed_realsense_rgbd,1,1,20,2.0,1.0,120,4.0,,,0,,em14,deadbeef",
                     ]
                 )
                 + "\n",
@@ -42,6 +42,7 @@ class ReportTest(unittest.TestCase):
 
             self.assertTrue((output_dir / "summary.csv").exists())
             self.assertTrue((output_dir / "report.md").exists())
+            self.assertTrue((output_dir / "teacher_summary_zh.md").exists())
 
     def test_aggregate_writes_track_b_reference_section(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -51,8 +52,8 @@ class ReportTest(unittest.TestCase):
             (runs_dir / "results.csv").write_text(
                 "\n".join(
                     [
-                        "method,track,task,scene_id,object_id,object_group,condition,instruction,sensor_stack,attempts,success,lift_cm,hold_s,spl,inference_ms,cycle_time_s,failure_stage,failure_reason,collision,video_path,node,commit",
-                        "graspvla,track_a,language_conditioned_single_target_pick,scene_1,obj_1,ycb_core,basic,pick up the mug,dual_fixed_realsense_rgbd,1,1,20,2.0,1.0,120,4.0,,,0,,em14,deadbeef",
+                        "method,track,execution_mode,task,scene_id,object_id,object_group,condition,instruction,sensor_stack,attempts,success,lift_cm,hold_s,spl,inference_ms,cycle_time_s,failure_stage,failure_reason,collision,video_path,node,commit",
+                        "graspvla,track_a,shared_track_a_sim,language_conditioned_single_target_pick,scene_1,obj_1,ycb_core,basic,pick up the mug,dual_fixed_realsense_rgbd,1,1,20,2.0,1.0,120,4.0,,,0,,em14,deadbeef",
                     ]
                 )
                 + "\n",
@@ -98,6 +99,45 @@ class ReportTest(unittest.TestCase):
             self.assertIn("## Track B Native Deployment Reference", report_text)
             self.assertIn("track_b_native", report_text)
             self.assertIn("_No failures recorded._", report_text)
+
+    def test_aggregate_ignores_integration_fixture_rows_for_track_a_summary(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            runs_dir = root / "runs" / "sample"
+            runs_dir.mkdir(parents=True)
+            (runs_dir / "results.csv").write_text(
+                "\n".join(
+                    [
+                        "method,track,execution_mode,task,scene_id,object_id,object_group,condition,instruction,sensor_stack,attempts,success,lift_cm,hold_s,spl,inference_ms,cycle_time_s,failure_stage,failure_reason,collision,video_path,node,commit",
+                        "graspvla,track_a,integration_fixture,language_conditioned_single_target_pick,scene_fixture,obj_1,ycb_core,basic,pick up the mug,dual_fixed_realsense_rgbd,1,1,20,2.0,1.0,120,4.0,,,0,,em14,deadbeef",
+                        "graspvla,track_a,shared_track_a_sim,language_conditioned_single_target_pick,scene_real,obj_1,ycb_core,basic,pick up the mug,dual_fixed_realsense_rgbd,2,0,0,0.0,0.0,220,14.0,task_failure,not_met,0,,em14,deadbeef",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            output_dir = root / "report"
+
+            import sys
+
+            argv = sys.argv
+            try:
+                sys.argv = [
+                    "aggregate.py",
+                    "--input",
+                    str(root / "runs"),
+                    "--output-dir",
+                    str(output_dir),
+                ]
+                aggregate_main()
+            finally:
+                sys.argv = argv
+
+            summary_text = (output_dir / "summary.csv").read_text(encoding="utf-8")
+            self.assertIn("0.0", summary_text)
+            self.assertNotIn("120", summary_text)
+            taxonomy_text = (output_dir / "failure_taxonomy.csv").read_text(encoding="utf-8")
+            self.assertIn("task_failure", taxonomy_text)
 
 
 if __name__ == "__main__":

@@ -87,6 +87,8 @@ def _aggregate(rows: list[dict[str, object]], group_keys: list[str]) -> list[dic
 def _failure_taxonomy(rows: list[dict[str, object]]) -> list[dict[str, object]]:
     counter = Counter()
     for row in rows:
+        if str(row.get("execution_mode", "")) != "shared_track_a_sim":
+            continue
         stage = str(row.get("failure_stage", "")).strip()
         reason = str(row.get("failure_reason", "")).strip()
         success = int(row.get("success", 0))
@@ -109,8 +111,12 @@ def _failure_taxonomy(rows: list[dict[str, object]]) -> list[dict[str, object]]:
     return taxonomy
 
 
-def _track_a_rows(rows: list[dict[str, object]]) -> list[dict[str, object]]:
-    return [row for row in rows if str(row.get("track", "")).startswith("track_a")]
+def _track_a_rows(rows: list[dict[str, object]], execution_mode: str) -> list[dict[str, object]]:
+    return [
+        row
+        for row in rows
+        if str(row.get("track", "")).startswith("track_a") and str(row.get("execution_mode", "")) == execution_mode
+    ]
 
 
 def _parse_track_b_reference(summary_path: Path) -> list[dict[str, object]]:
@@ -174,6 +180,7 @@ def _write_markdown(
     output: Path,
     summary: list[dict[str, object]],
     conditions: list[dict[str, object]],
+    object_groups: list[dict[str, object]],
     taxonomy: list[dict[str, object]],
     track_b_reference: list[dict[str, object]],
 ) -> None:
@@ -196,6 +203,13 @@ def _write_markdown(
             conditions,
         )
     )
+    lines.extend(["", "## Track A By Object Group", ""])
+    lines.extend(
+        _markdown_table(
+            ["track", "method", "task", "object_group", "trials", "success_rate", "mean_attempts"],
+            object_groups,
+        )
+    )
     lines.extend(["", "## Track B Native Deployment Reference", ""])
     lines.extend(
         _markdown_table(
@@ -214,6 +228,64 @@ def _write_markdown(
     output.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def _write_teacher_summary(
+    output: Path,
+    summary: list[dict[str, object]],
+    by_condition: list[dict[str, object]],
+    track_b_reference: list[dict[str, object]],
+) -> None:
+    lines = [
+        "# GraspVLA Simulation Summary",
+        "",
+        "这页只汇报两套互相分开的结果：",
+        "- `Track A shared benchmark`：统一 benchmark setting 下的正式 GraspVLA simulation 结果。",
+        "- `Track B native deployment reference`：官方 release / 官方仿真协议结果，只作为 native reference，不和 Track A 混算。",
+        "",
+        "## Track A Shared Benchmark",
+        "",
+    ]
+    if summary:
+        for row in summary:
+            lines.append(
+                "- "
+                f"{row['task']}: success_rate={row['success_rate']}, trials={row['trials']}, "
+                f"mean_attempts={row['mean_attempts']}, mean_inference_ms={row['mean_inference_ms']}, "
+                f"mean_cycle_time_s={row['mean_cycle_time_s']}"
+            )
+    else:
+        lines.append("- 没有找到符合 `shared_track_a_sim` 的正式 Track A 结果。")
+
+    lines.extend(["", "## Track A By Condition", ""])
+    if by_condition:
+        for row in by_condition:
+            lines.append(
+                f"- {row['task']} / {row['condition']}: success_rate={row['success_rate']}, trials={row['trials']}"
+            )
+    else:
+        lines.append("- 暂无 condition 维度数据。")
+
+    lines.extend(["", "## Track B Native Reference", ""])
+    if track_b_reference:
+        for row in track_b_reference:
+            lines.append(
+                f"- {row['benchmark']}: success_rate={row['success_rate']}, trials={row['trials']}, source={row['source_artifact']}"
+            )
+    else:
+        lines.append("- 未提供 Track B 官方 reference。")
+
+    lines.extend(
+        [
+            "",
+            "## Interpretation",
+            "",
+            "- Track A 才是 benchmark setting 下可用于公平比较的正式分数。",
+            "- Track B 只用于说明 GraspVLA 在作者原生/官方协议下的表现，不用于最终公平 claim。",
+            "",
+        ]
+    )
+    output.write_text("\n".join(lines), encoding="utf-8")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Aggregate benchmark result CSV files.")
     parser.add_argument("--input", required=True, help="Root directory containing benchmark result CSV files.")
@@ -227,6 +299,11 @@ def main() -> None:
         default="",
         help="Optional path to an official GraspVLA simulation summary.json to render as Track B native reference.",
     )
+    parser.add_argument(
+        "--track-a-execution-mode",
+        default="shared_track_a_sim",
+        help="Only Track A rows with this execution_mode are treated as formal benchmark results.",
+    )
     args = parser.parse_args()
 
     input_root = Path(args.input)
@@ -235,11 +312,11 @@ def main() -> None:
     if not rows:
         raise SystemExit(f"No CSV files found under {input_root}")
 
-    track_a_rows = _track_a_rows(rows)
+    track_a_rows = _track_a_rows(rows, execution_mode=args.track_a_execution_mode)
     summary = _aggregate(track_a_rows, ["track", "method", "task"])
     by_condition = _aggregate(track_a_rows, ["track", "method", "task", "condition"])
     by_object_group = _aggregate(track_a_rows, ["track", "method", "task", "object_group"])
-    taxonomy = _failure_taxonomy(rows)
+    taxonomy = _failure_taxonomy(track_a_rows)
     track_b_reference = _parse_track_b_reference(Path(args.track_b_reference)) if args.track_b_reference else []
 
     _write_csv(output_dir / "summary.csv", summary)
@@ -247,7 +324,8 @@ def main() -> None:
     _write_csv(output_dir / "by_object_group.csv", by_object_group)
     _write_csv(output_dir / "failure_taxonomy.csv", taxonomy)
     _write_csv(output_dir / "track_b_reference.csv", track_b_reference)
-    _write_markdown(output_dir / "report.md", summary, by_condition, taxonomy, track_b_reference)
+    _write_markdown(output_dir / "report.md", summary, by_condition, by_object_group, taxonomy, track_b_reference)
+    _write_teacher_summary(output_dir / "teacher_summary_zh.md", summary, by_condition, track_b_reference)
     (output_dir / "report.json").write_text(
         json.dumps(
             {
@@ -256,6 +334,7 @@ def main() -> None:
                 "by_object_group": by_object_group,
                 "failure_taxonomy": taxonomy,
                 "track_b_reference": track_b_reference,
+                "track_a_execution_mode": args.track_a_execution_mode,
             },
             indent=2,
         ),
