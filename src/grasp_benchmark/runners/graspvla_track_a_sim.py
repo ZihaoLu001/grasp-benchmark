@@ -84,9 +84,12 @@ def _playground_root() -> Path:
 
 def _ensure_playground_imports(playground_root: Path) -> None:
     playground_path = str(playground_root)
+    libero_path = str(playground_root / "libero")
     robosuite_path = str(playground_root / "third_party" / "robosuite")
     if robosuite_path not in sys.path:
         sys.path.insert(0, robosuite_path)
+    if libero_path not in sys.path:
+        sys.path.insert(0, libero_path)
     if playground_path not in sys.path:
         sys.path.insert(0, playground_path)
 
