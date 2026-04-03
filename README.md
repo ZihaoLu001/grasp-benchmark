@@ -113,6 +113,8 @@ powershell -ExecutionPolicy Bypass -File .\scripts\run_official_graspvla_sim.ps1
 - Official runbook: `docs/runbooks/graspvla_official_runbook.md`
 - Official sim report:
   `docs/reports/graspvla_official_sim_complete_20260402.md`
+- Setting freeze note:
+  `docs/reports/benchmark_setting_freeze_v1_20260402.md`
 - Latest official validation artifact:
   `artifacts/official/20260402_211510_em14_graspvla_checks/summary.json`
 - Latest official offline visualization:
