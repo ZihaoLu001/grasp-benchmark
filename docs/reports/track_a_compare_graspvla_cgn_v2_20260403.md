@@ -1,10 +1,11 @@
-# Track A v2 Compare Report (2026-04-03)
+# Track A-Stress v1 Compare Report (historical `track_a_v2`, 2026-04-03)
 
 ## Scope
 
 - Formal shared-setting simulation compare only.
 - Methods: `GraspVLA` and `Contact-GraspNet`.
 - Task set: `track_a_v2`.
+- Reporting role: preserved `Track A-Stress` reference only.
 - Track B remains a frozen native-reference appendix only.
 
 ## Parent Runs
@@ -17,7 +18,7 @@
 
 - `GraspVLA`: `0/34`
 - `CGN`: `0/34`
-- The two methods fail for different reasons under the same Track A shared protocol.
+- This artifact is no longer the benchmark headline table; it is the current shared stress reference.
 
 ## Failure Breakdown
 
@@ -32,6 +33,7 @@
 - Relaxing from the shared Track A success rule to the official rule still does not recover success on the diagnostic set.
 - The current gap is therefore not explained mainly by gripper geometry or the success threshold alone.
 - `CGN` now produces valid proposals often enough to finish most trials as real `task_failure` episodes, so the shared-sim depth / intrinsics path is no longer the dominant blocker.
+- Under benchmark v1.1, this report should be read as `Track A-Stress`, while `Track A-Cal` is the new headline leaderboard.
 
 ## Key Artifacts
 

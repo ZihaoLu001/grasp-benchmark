@@ -292,6 +292,13 @@ def _write_markdown(
             summary,
         )
     )
+    if summary and all(float(row.get("success_rate", 0.0)) == 0.0 for row in summary):
+        lines.extend(
+            [
+                "",
+                "_Health check triggered: Track A-Cal is still all-zero across methods, so the next action is to audit shared-runner / released-distribution alignment before expanding the benchmark further._",
+            ]
+        )
     lines.extend(["", f"## {PRIMARY_BY_CONDITION_TITLE}", ""])
     lines.extend(
         _markdown_table(
@@ -344,7 +351,7 @@ def _write_markdown(
     output.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def _write_teacher_summary(
+def _render_teacher_summary(
     output: Path,
     summary: list[dict[str, object]],
     by_condition: list[dict[str, object]],
@@ -355,7 +362,7 @@ def _write_teacher_summary(
     diagnostic_note: list[str],
     stress_reference: dict[str, Any],
     stress_reference_path: str,
-) -> None:
+) -> str:
     parent_run_id = ", ".join(parent_run_ids)
     lines = [
         "# Benchmark 汇总说明",
@@ -380,6 +387,8 @@ def _write_teacher_summary(
             )
     else:
         lines.append("- 没有找到符合 `shared_track_a_sim` 的正式 `Track A-Cal` 结果。")
+    if summary and all(float(row.get("success_rate", 0.0)) == 0.0 for row in summary):
+        lines.append("- 本轮 `Track A-Cal` 仍然是所有方法全 0，已经触发 health check。下一步优先做 shared runner 与 released distribution 的对齐审计，而不是继续扩 benchmark。")
 
     lines.extend(["", f"## {PRIMARY_BY_CONDITION_TITLE}", ""])
     if by_condition:
@@ -439,7 +448,9 @@ def _write_teacher_summary(
             "",
         ]
     )
-    output.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    text = "\n".join(lines) + "\n"
+    output.write_text(text, encoding="utf-8")
+    return text
 
 
 def main() -> None:
@@ -518,7 +529,7 @@ def main() -> None:
         stress_reference=stress_reference,
         stress_reference_path=stress_reference_path,
     )
-    _write_teacher_summary(
+    teacher_summary_text = _render_teacher_summary(
         output_dir / "teacher_summary_zh.md",
         summary,
         by_condition,
@@ -529,6 +540,8 @@ def main() -> None:
         stress_reference=stress_reference,
         stress_reference_path=stress_reference_path,
     )
+    with (output_dir / "teacher_summary_zh_clean.md").open("w", encoding="utf-8-sig") as handle:
+        handle.write(teacher_summary_text)
     (output_dir / "report.json").write_text(
         json.dumps(
             {

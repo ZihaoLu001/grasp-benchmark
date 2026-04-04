@@ -4,9 +4,11 @@
 
 ## Scope
 
-- Track A only for the first release.
+- Track A remains the fairness claim, but v1.1 splits it into:
+  - `Track A-Cal`: shared calibration leaderboard
+  - `Track A-Stress`: shared stress appendix
 - Three baselines: `GraspVLA`, `AnyGrasp + Grounding DINO + motion planner`, and `Contact-GraspNet + segmentation + Grounding DINO + motion planner`.
-- Two task clusters: `language-conditioned single-target pick` and `transparent arbitrary grasping`.
+- Start the headline table from `track_a_cal_v1`, then keep `track_a_v2` as the historical stress reference.
 - Simulation first, then a small `Franka + dual RealSense + blocking` real-world pilot.
 
 ## Layout
@@ -73,19 +75,19 @@ python -m grasp_benchmark.serve.graspvla --node em14 --download-model
 7. Generate a simulation dispatch manifest:
 
 ```powershell
-python -m grasp_benchmark.run.sim --method graspvla --task-set track_a_v1 --dry-run
+python -m grasp_benchmark.run.sim --method graspvla --task-set track_a_cal_v1 --dry-run
 ```
 
 8. Run a small integration batch and fetch results back to `artifacts/runs/...`:
 
 ```powershell
-python -m grasp_benchmark.run.sim --method graspvla --task-set track_a_v1 --node em14 --max-trials 2
+python -m grasp_benchmark.run.sim --method graspvla --task-set track_a_cal_v1 --node em14 --max-trials 2
 ```
 
 9. Aggregate result files:
 
 ```powershell
-python -m grasp_benchmark.report.aggregate --input artifacts\runs
+python -m grasp_benchmark.report.aggregate --input artifacts\runs --track-a-stress-reference artifacts\reports\track_a_compare_graspvla_cgn_v2_latest\report.json --track-b-reference artifacts\official_sim\20260402_231726_em14_full\summary.json --diagnostic-report artifacts\diagnostics\20260403_175506_graspvla_track_a_diagnostics\report.md
 ```
 
 To render the shared Track A table together with the native GraspVLA reference:
@@ -129,6 +131,12 @@ powershell -ExecutionPolicy Bypass -File .\scripts\run_official_graspvla_sim.ps1
   `artifacts/reports/track_a_compare_graspvla_cgn_v2_latest/report.md`
 - Latest Track A v2 teacher summary:
   `artifacts/reports/track_a_compare_graspvla_cgn_v2_latest/teacher_summary_zh.md`
+- Latest Track A-Cal compare report:
+  `artifacts/reports/track_a_cal_compare_graspvla_cgn_latest/report.md`
+- Latest Track A-Cal teacher summary:
+  `artifacts/reports/track_a_cal_compare_graspvla_cgn_latest/teacher_summary_zh_clean.md`
+- Track A-Cal compare note:
+  `docs/reports/track_a_cal_compare_graspvla_cgn_20260403.md`
 - Latest official validation artifact:
   `artifacts/official/20260402_211510_em14_graspvla_checks/summary.json`
 - Latest official offline visualization:
@@ -147,7 +155,8 @@ powershell -ExecutionPolicy Bypass -File .\scripts\run_official_graspvla_sim.ps1
 - Remote environments are rooted at `/datasets/ss/current/zihao/miniforge3`, with env packages stored under `/datasets/ss/current/zihao/conda`.
 - The official GraspVLA simulation stack now runs in a dedicated env at `/datasets/ss/current/zihao/conda/envs/gb-graspvla-sim` so the `gb-core` server runtime stays stable.
 - The official complete GraspVLA batch now runs through the same wrapper with `ParallelEnvNum=5`, which is enough to finish the public `playground + LIBERO` release on `em14` in one reproducible batch.
-- Official GraspVLA simulation artifacts should be treated as `track_b_native` method-native references, while benchmark wrapper outputs under `artifacts/runs/...` remain the source of truth for `track_a`.
+- Official GraspVLA simulation artifacts should be treated as `track_b_native` method-native references.
+- Under benchmark v1.1, `track_a_cal_v1` is the headline shared leaderboard and `track_a_v2` is preserved as the current `Track A-Stress` reference.
 - Archive-based cluster sync now preserves remote `artifacts/` and `third_party/upstreams/` directories and writes `.grasp-benchmark-sync.json` for commit provenance.
 - `run.worker` now executes an integration-fixture backend that writes benchmark-shaped `results.csv` plus per-attempt artifacts under `episodes/`. This is the common adapter/logging layer that will later be swapped under real simulation or robot controllers.
 - `run.worker` now records the Track A shared protocol and each adapter's declared input policy into `run_metadata.json`, so Track A runs explicitly document the frozen camera / embodiment / success contract.
