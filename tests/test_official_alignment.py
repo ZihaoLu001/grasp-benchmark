@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import unittest
 
+from grasp_benchmark.audit.graspvla_official_alignment import classify_parity_status
 from grasp_benchmark.runners.graspvla_official_aligned import (
     OfficialLiberoTaskSpec,
     select_non_invalid_official_tasks,
@@ -57,6 +58,62 @@ class OfficialAlignmentSelectionTest(unittest.TestCase):
     def test_official_aligned_uses_official_sim_env(self) -> None:
         method_config = load_named_config("methods", "graspvla")
         self.assertEqual(_remote_env_name(method_config, "official_aligned_sim"), method_config["official_sim_env_name"])
+
+    def test_classify_parity_status_can_be_reproducibility_limited(self) -> None:
+        status = classify_parity_status(
+            expected_episodes=65,
+            coverage_counts={
+                "V0_official_runner": 65,
+                "V0_repeat_official_runner": 65,
+                "V1_wrapper_official_parity": 65,
+            },
+            setup_errors={
+                "V0_official_runner": "",
+                "V0_repeat_official_runner": "",
+                "V1_wrapper_official_parity": "",
+            },
+            v0_repeat_mismatch_count=2,
+            v1_mismatch_count=2,
+        )
+        self.assertEqual(status["status_code"], "reproducibility_limited_parity")
+        self.assertTrue(status["advance_to_attribution"])
+
+    def test_classify_parity_status_is_strict_when_wrapper_has_zero_mismatch(self) -> None:
+        status = classify_parity_status(
+            expected_episodes=65,
+            coverage_counts={
+                "V0_official_runner": 65,
+                "V0_repeat_official_runner": 65,
+                "V1_wrapper_official_parity": 65,
+            },
+            setup_errors={
+                "V0_official_runner": "",
+                "V0_repeat_official_runner": "",
+                "V1_wrapper_official_parity": "",
+            },
+            v0_repeat_mismatch_count=2,
+            v1_mismatch_count=0,
+        )
+        self.assertEqual(status["status_code"], "strict_parity_passed")
+
+    def test_classify_parity_status_fails_when_coverage_is_missing(self) -> None:
+        status = classify_parity_status(
+            expected_episodes=65,
+            coverage_counts={
+                "V0_official_runner": 65,
+                "V0_repeat_official_runner": 64,
+                "V1_wrapper_official_parity": 65,
+            },
+            setup_errors={
+                "V0_official_runner": "",
+                "V0_repeat_official_runner": "",
+                "V1_wrapper_official_parity": "",
+            },
+            v0_repeat_mismatch_count=1,
+            v1_mismatch_count=1,
+        )
+        self.assertEqual(status["status_code"], "parity_failed")
+        self.assertFalse(status["advance_to_attribution"])
 
 
 if __name__ == "__main__":
