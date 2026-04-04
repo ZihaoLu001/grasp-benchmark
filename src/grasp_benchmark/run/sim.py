@@ -127,6 +127,7 @@ def _build_remote_command(
     miniforge_root = cluster_config["miniforge_root"]
     remote_root = cluster_config["remote_root"]
     env_prefix = f'{cluster_config["conda_envs_dir"]}/{_remote_env_name(method_config, execution_mode)}'
+    libero_config_root = f'{remote_root}/artifacts/libero_config'
     smoke_flag = "--smoke-only" if smoke_only else ""
     max_trials_flag = f'--max-trials "{max_trials}"' if max_trials > 0 else ""
     shard_index_flag = f'--shard-index "{shard_index}"'
@@ -138,6 +139,7 @@ def _build_remote_command(
         f'source "{miniforge_root}/etc/profile.d/conda.sh" && '
         f'conda activate "{env_prefix}" && '
         f'cd "{remote_root}" && '
+        f'export LIBERO_CONFIG_PATH="{libero_config_root}" && '
         f'export PYTHONPATH="{remote_root}/src${{PYTHONPATH:+:${{PYTHONPATH}}}}" && '
         f'python -m grasp_benchmark.run.worker '
         f'--method "{method_config["name"]}" '

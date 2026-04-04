@@ -14,6 +14,7 @@ from grasp_benchmark.runners.graspvla_track_a_sim import (
     SharedFrankaKinematics,
     SharedTrackARemoteAgent,
     _camera_metadata,
+    _refresh_obs,
     _step_trace_entry,
 )
 
@@ -227,6 +228,10 @@ def _shared_success_definition(lift_threshold_cm: float, hold_steps: int, contro
     }
 
 
+def _use_official_remote_agent(variant: OfficialAlignmentVariant) -> bool:
+    return variant.name == "V1_wrapper_official_parity"
+
+
 def _build_agent(
     *,
     variant: OfficialAlignmentVariant,
@@ -234,7 +239,7 @@ def _build_agent(
     runtime_config: dict[str, Any],
     kinematics: SharedFrankaKinematics | None,
 ) -> Any:
-    if variant.agent_mode == "official":
+    if variant.agent_mode == "official" or _use_official_remote_agent(variant):
         from agent import RemoteAgent
 
         return RemoteAgent(instruction, int(runtime_config["port"]))
@@ -282,6 +287,17 @@ def _official_language_target(instruction: str, obj_of_interest: tuple[str, ...]
     if obj_of_interest:
         return obj_of_interest[0].replace("_", " ")
     return instruction
+
+
+def _tracked_obj_instances(obs: dict[str, Any], obj_of_interest: tuple[str, ...]) -> tuple[str, ...]:
+    tracked = tuple(instance_name for instance_name in obj_of_interest if f"{instance_name}_pos" in obs)
+    if tracked:
+        return tracked
+    return tuple(
+        instance_name
+        for instance_name in obj_of_interest
+        if "region" not in instance_name and "site" not in instance_name and "goal" not in instance_name
+    )
 
 
 def _result_row(
@@ -377,10 +393,11 @@ def _run_libero_episode_direct_official(
                 f"Unexpected invalid instruction during selected episode: {task_spec.benchmark} task {task_spec.task_id}"
             )
         obj_of_interest = tuple(str(item) for item in env.obj_of_interest)
+        tracked_instances = _tracked_obj_instances(obs, obj_of_interest)
         target_label = _official_language_target(instruction, obj_of_interest)
         baseline_z = {
             instance_name: float(np.asarray(obs[f"{instance_name}_pos"])[2])
-            for instance_name in obj_of_interest
+            for instance_name in tracked_instances
         }
         agent = RemoteAgent(instruction, int(runtime_config["port"]))
         video_logger = VideoLogger(str(ensure_dir(artifact_dir / "videos")))
@@ -391,9 +408,9 @@ def _run_libero_episode_direct_official(
         final_obs = _refresh_obs(env)
         final_z = {
             instance_name: float(np.asarray(final_obs[f"{instance_name}_pos"])[2])
-            for instance_name in obj_of_interest
+            for instance_name in tracked_instances
         }
-        lift_cm = _max_lift_cm(final_z, baseline_z, obj_of_interest)
+        lift_cm = _max_lift_cm(final_z, baseline_z, tracked_instances) if tracked_instances else 0.0
         video_path = ""
         success = False
         if video_logger.new_video_name:
@@ -410,6 +427,7 @@ def _run_libero_episode_direct_official(
             "instruction": instruction,
             "target_label": target_label,
             "obj_of_interest": list(obj_of_interest),
+            "tracked_obj_instances": list(tracked_instances),
             "success": success,
             "best_lift_cm": round(lift_cm, 4),
             "hold_s": 0.0,
@@ -474,7 +492,7 @@ def _run_playground_episode_direct_official(
     set_random_seeds(seed)
     benchmark_instance = get_benchmark_dict()["libero_object"]()
     task = benchmark_instance.get_task(10)
-    object_root_dir = "playground_assets"
+    object_root_dir = "assets/playground_assets"
     complete_object_names = sample_objects(object_num=6, object_root_dir=object_root_dir)
     object_names = ["_".join(c.split("_")[:-1]) for c in complete_object_names]
     target_object_name = random.choice(object_names).replace("_", " ")
@@ -632,11 +650,12 @@ def _run_libero_episode(
         if instruction == "invalid":
             raise RuntimeError(f"Unexpected invalid instruction during selected episode: {task_spec.benchmark} task {task_spec.task_id}")
         obj_of_interest = tuple(str(item) for item in env.obj_of_interest)
+        tracked_instances = _tracked_obj_instances(obs, obj_of_interest)
         target_label = _official_language_target(instruction, obj_of_interest)
         robot_config_path = _robot_config_path(variant.robot_profile)
         kinematics = None
         camera_meta = None
-        if variant.agent_mode == "wrapper":
+        if variant.agent_mode == "wrapper" and not _use_official_remote_agent(variant):
             kinematics = SharedFrankaKinematics(robot_config_path)
             env.robots[0].IK_solver = kinematics
             camera_meta = _camera_metadata(env, {"camera_names": {"front": "front_view", "side": "side_view"}})
@@ -649,10 +668,10 @@ def _run_libero_episode(
         obs = _stabilize_scene(env, agent, obs, steps=10)
         baseline_z = {
             instance_name: float(np.asarray(obs[f"{instance_name}_pos"])[2])
-            for instance_name in obj_of_interest
+            for instance_name in tracked_instances
         }
         final_z = dict(baseline_z)
-        hold_counts = {instance_name: 0 for instance_name in obj_of_interest}
+        hold_counts = {instance_name: 0 for instance_name in tracked_instances}
         control_freq = 5
         lift_threshold_cm = 15.0
         hold_steps_required = 10
@@ -672,7 +691,7 @@ def _run_libero_episode(
             obs, _reward, done, _info = env.step(action)
             video_logger.log_frame(obs, bbox)
             current_contacts = int(getattr(env.sim.data, "ncon", 0))
-            for instance_name in obj_of_interest:
+            for instance_name in tracked_instances:
                 current_z = float(np.asarray(obs[f"{instance_name}_pos"])[2])
                 final_z[instance_name] = current_z
                 lift_delta_cm = (current_z - baseline_z[instance_name]) * 100.0
@@ -688,7 +707,7 @@ def _run_libero_episode(
                     else:
                         hold_counts[instance_name] = 0
             if trace_steps:
-                target_name = obj_of_interest[0] if obj_of_interest else ""
+                target_name = tracked_instances[0] if tracked_instances else ""
                 target_z = float(np.asarray(obs[f"{target_name}_pos"])[2]) if target_name else 0.0
                 if kinematics is not None:
                     ee_position, ee_quaternion = kinematics.fk(np.asarray(obs["robot0_joint_pos"], dtype=np.float32))
@@ -733,6 +752,7 @@ def _run_libero_episode(
             "instruction": instruction,
             "target_label": target_label,
             "obj_of_interest": list(obj_of_interest),
+            "tracked_obj_instances": list(tracked_instances),
             "success": success,
             "best_lift_cm": round(best_lift_cm, 4),
             "hold_s": round(hold_s, 4),
@@ -817,7 +837,7 @@ def _run_playground_episode(
     set_random_seeds(seed)
     benchmark_instance = get_benchmark_dict()["libero_object"]()
     task = benchmark_instance.get_task(10)
-    object_root_dir = "playground_assets"
+    object_root_dir = "assets/playground_assets"
     complete_object_names = sample_objects(object_num=6, object_root_dir=object_root_dir)
     object_names = ["_".join(c.split("_")[:-1]) for c in complete_object_names]
     target_object_name = random.choice(object_names).replace("_", " ")
@@ -846,10 +866,11 @@ def _run_playground_episode(
         obs = env.set_init_state(init_state)
         instruction = f"pick up {target_object_name}"
         obj_of_interest = tuple(str(item) for item in env.obj_of_interest)
+        tracked_instances = _tracked_obj_instances(obs, obj_of_interest)
         robot_config_path = _robot_config_path(variant.robot_profile)
         kinematics = None
         camera_meta = None
-        if variant.agent_mode == "wrapper":
+        if variant.agent_mode == "wrapper" and not _use_official_remote_agent(variant):
             kinematics = SharedFrankaKinematics(robot_config_path)
             env.robots[0].IK_solver = kinematics
             camera_meta = _camera_metadata(env, {"camera_names": {"front": "front_view", "side": "side_view"}})
@@ -862,13 +883,13 @@ def _run_playground_episode(
         obs = _stabilize_scene(env, agent, obs, steps=10)
         baseline_z = {
             instance_name: float(np.asarray(obs[f"{instance_name}_pos"])[2])
-            for instance_name in obj_of_interest
+            for instance_name in tracked_instances
         }
         final_z = dict(baseline_z)
         control_freq = 5
         lift_threshold_cm = 15.0
         hold_steps_required = 10
-        hold_counts = {instance_name: 0 for instance_name in obj_of_interest}
+        hold_counts = {instance_name: 0 for instance_name in tracked_instances}
         cycle_start = time.perf_counter()
         per_step_inference_ms: list[float] = []
         best_lift_cm = 0.0
@@ -881,7 +902,7 @@ def _run_playground_episode(
             per_step_inference_ms.append(inference_ms)
             obs, _reward, done, _info = env.step(action)
             video_logger.log_frame(obs, bbox)
-            for instance_name in obj_of_interest:
+            for instance_name in tracked_instances:
                 current_z = float(np.asarray(obs[f"{instance_name}_pos"])[2])
                 final_z[instance_name] = current_z
                 lift_delta_cm = (current_z - baseline_z[instance_name]) * 100.0
@@ -914,6 +935,7 @@ def _run_playground_episode(
             "instruction": instruction,
             "target_label": target_object_name,
             "scene_objects": object_names,
+            "tracked_obj_instances": list(tracked_instances),
             "success": success,
             "best_lift_cm": round(best_lift_cm, 4),
             "failure_reason": failure_reason,

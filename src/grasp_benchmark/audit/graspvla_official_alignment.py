@@ -123,6 +123,7 @@ def _build_remote_worker_command(
     miniforge_root = cluster_config["miniforge_root"]
     remote_root = cluster_config["remote_root"]
     env_prefix = f'{cluster_config["conda_envs_dir"]}/{method_config["official_sim_env_name"]}'
+    libero_config_root = f'{remote_root}/artifacts/libero_config'
     official_flags = ""
     if variant.execution_mode == "official_aligned_sim":
         playground_flag = "--official-run-playground-sanity" if variant.run_playground_sanity else ""
@@ -143,6 +144,7 @@ def _build_remote_worker_command(
         f'source "{miniforge_root}/etc/profile.d/conda.sh" && '
         f'conda activate "{env_prefix}" && '
         f'cd "{remote_root}" && '
+        f'export LIBERO_CONFIG_PATH="{libero_config_root}" && '
         f'export PYTHONPATH="{remote_root}/src${{PYTHONPATH:+:${{PYTHONPATH}}}}" && '
         f'python -m grasp_benchmark.run.worker '
         f'--method "graspvla" '
@@ -257,8 +259,8 @@ def _run_variant(
         playground_seeds=playground_seeds,
     )
     result = run_command(["ssh", "-o", "BatchMode=yes", node, f"bash -lc '{remote_command}'"], timeout=14400)
-    (local_variant_dir / "dispatch_stdout.txt").write_text(result.stdout, encoding="utf-8")
-    (local_variant_dir / "dispatch_stderr.txt").write_text(result.stderr, encoding="utf-8")
+    (local_variant_dir / "dispatch_stdout.txt").write_text(result.stdout or "", encoding="utf-8")
+    (local_variant_dir / "dispatch_stderr.txt").write_text(result.stderr or "", encoding="utf-8")
     if not result.ok:
         raise RuntimeError(result.stderr or result.stdout or f"Failed to dispatch {variant.name}.")
     _fetch_remote_results(node, remote_variant_dir, local_variant_dir)

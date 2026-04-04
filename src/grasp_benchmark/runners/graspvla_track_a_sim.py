@@ -542,11 +542,31 @@ class SharedTrackARemoteAgent:
         while len(self._proprio_history) < self.PROPRIO_HISTORY_SIZE:
             self._proprio_history.append(self._proprio_history[-1].copy())
         self._proprio_history = self._proprio_history[-self.PROPRIO_HISTORY_SIZE :]
+        rgb_front = self._np.asarray(obs["front_view_image"][::-1]).copy()
+        rgb_side = self._np.asarray(obs["side_view_image"][::-1]).copy()
+        front_depth_frame = obs.get("front_view_depth")
+        side_depth_frame = obs.get("side_view_depth")
+        if front_depth_frame is None:
+            front_depth = self._np.zeros(rgb_front.shape[:2], dtype=self._np.float32)
+        else:
+            front_depth = _depth_to_metric(
+                self._np.asarray(front_depth_frame[::-1]).squeeze(-1),
+                camera_meta,
+                self._np,
+            )
+        if side_depth_frame is None:
+            side_depth = self._np.zeros(rgb_side.shape[:2], dtype=self._np.float32)
+        else:
+            side_depth = _depth_to_metric(
+                self._np.asarray(side_depth_frame[::-1]).squeeze(-1),
+                camera_meta,
+                self._np,
+            )
         return Observation(
-            rgb_front=self._np.asarray(obs["front_view_image"][::-1]).copy(),
-            rgb_side=self._np.asarray(obs["side_view_image"][::-1]).copy(),
-            depth_front=_depth_to_metric(self._np.asarray(obs["front_view_depth"][::-1]).squeeze(-1), camera_meta, self._np),
-            depth_side=_depth_to_metric(self._np.asarray(obs["side_view_depth"][::-1]).squeeze(-1), camera_meta, self._np),
+            rgb_front=rgb_front,
+            rgb_side=rgb_side,
+            depth_front=front_depth,
+            depth_side=side_depth,
             intrinsics_front=dict(camera_meta["intrinsics_front"]),
             intrinsics_side=dict(camera_meta["intrinsics_side"]),
             extrinsics_front=dict(camera_meta["extrinsics_front"]),
@@ -621,10 +641,6 @@ class SharedTrackARemoteAgent:
         action, bbox = self._pred_actions.pop(0)
         action = action.copy()
         action[6] = -action[6]
-        if action[6] < 0:
-            self._last_gripper = -1.0
-        elif action[6] > 0:
-            self._last_gripper = 1.0
         return action, bbox, {"bbox": bbox, "policy": "graspvla_remote_sequence"}
 
     def close(self) -> None:
@@ -688,11 +704,31 @@ class SharedTrackAAdapterAgent:
         while len(self._proprio_history) < self.PROPRIO_HISTORY_SIZE:
             self._proprio_history.append(self._proprio_history[-1].copy())
         self._proprio_history = self._proprio_history[-self.PROPRIO_HISTORY_SIZE :]
+        rgb_front = self._np.asarray(obs["front_view_image"][::-1]).copy()
+        rgb_side = self._np.asarray(obs["side_view_image"][::-1]).copy()
+        front_depth_frame = obs.get("front_view_depth")
+        side_depth_frame = obs.get("side_view_depth")
+        if front_depth_frame is None:
+            front_depth = self._np.zeros(rgb_front.shape[:2], dtype=self._np.float32)
+        else:
+            front_depth = _depth_to_metric(
+                self._np.asarray(front_depth_frame[::-1]).squeeze(-1),
+                camera_meta,
+                self._np,
+            )
+        if side_depth_frame is None:
+            side_depth = self._np.zeros(rgb_side.shape[:2], dtype=self._np.float32)
+        else:
+            side_depth = _depth_to_metric(
+                self._np.asarray(side_depth_frame[::-1]).squeeze(-1),
+                camera_meta,
+                self._np,
+            )
         return Observation(
-            rgb_front=self._np.asarray(obs["front_view_image"][::-1]).copy(),
-            rgb_side=self._np.asarray(obs["side_view_image"][::-1]).copy(),
-            depth_front=_depth_to_metric(self._np.asarray(obs["front_view_depth"][::-1]).squeeze(-1), camera_meta, self._np),
-            depth_side=_depth_to_metric(self._np.asarray(obs["side_view_depth"][::-1]).squeeze(-1), camera_meta, self._np),
+            rgb_front=rgb_front,
+            rgb_side=rgb_side,
+            depth_front=front_depth,
+            depth_side=side_depth,
             intrinsics_front=dict(camera_meta["intrinsics_front"]),
             intrinsics_side=dict(camera_meta["intrinsics_side"]),
             extrinsics_front=dict(camera_meta["extrinsics_front"]),
