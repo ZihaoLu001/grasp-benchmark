@@ -11,6 +11,11 @@ from grasp_benchmark.config import load_named_config
 from grasp_benchmark.execution import run_integration_suite
 from grasp_benchmark.paths import PROJECT_ROOT, ensure_dir
 from grasp_benchmark.provenance import resolve_commit
+from grasp_benchmark.runners.graspvla_official_aligned import (
+    OfficialAlignmentVariant,
+    parse_seed_csv,
+    run_official_aligned_suite,
+)
 from grasp_benchmark.runners.graspvla_track_a_sim import run_shared_track_a_suite
 from grasp_benchmark.task_specs import expand_task_set
 from grasp_benchmark.types import EpisodeResult, append_episode_results_csv
@@ -47,6 +52,10 @@ def _filter_scene_ids(task_specs: list, scene_ids: str) -> list:
 
 def _is_shared_track_a_execution_mode(execution_mode: str) -> bool:
     return execution_mode == "shared_track_a_sim" or execution_mode.startswith("track_a_diag_")
+
+
+def _is_official_aligned_execution_mode(execution_mode: str) -> bool:
+    return execution_mode == "official_aligned_sim"
 
 
 def _shared_protocol(sensor_config: dict) -> dict:
@@ -136,6 +145,16 @@ def main() -> None:
     parser.add_argument("--lift-threshold-cm", type=float, default=-1.0)
     parser.add_argument("--hold-steps", type=int, default=-1)
     parser.add_argument("--trace-steps", action="store_true")
+    parser.add_argument("--official-benchmarks", default="libero_object,libero_10,libero_goal")
+    parser.add_argument("--official-task-count", type=int, default=2)
+    parser.add_argument("--official-seeds", default="0,1,2,3,4,5,6,7,8,9")
+    parser.add_argument("--official-playground-seeds", default="0,1,2,3,4")
+    parser.add_argument("--official-variant-name", default="")
+    parser.add_argument("--official-agent-mode", default="wrapper")
+    parser.add_argument("--official-robot-profile", default="extended_finger")
+    parser.add_argument("--official-success-mode", default="env_done")
+    parser.add_argument("--official-scene-edit-policy", default="official")
+    parser.add_argument("--official-run-playground-sanity", action="store_true")
     args = parser.parse_args()
 
     cluster_config = load_named_config("cluster", "default")
@@ -176,13 +195,34 @@ def main() -> None:
         print(json.dumps(payload, indent=2))
         return
 
-    max_trials = args.max_trials or None
-    all_task_specs = expand_task_set(task_config, max_trials=max_trials)
-    task_specs = _shard_task_specs(all_task_specs, args.shard_index, args.shard_count)
-    task_specs = _filter_scene_ids(task_specs, args.scene_ids)
-    payload["expanded_trial_count"] = len(all_task_specs)
-    payload["trial_count"] = len(task_specs)
-    payload["task_specs"] = [task_spec.to_task_spec() for task_spec in task_specs]
+    if _is_official_aligned_execution_mode(args.execution_mode):
+        all_task_specs = []
+        task_specs = []
+        payload["expanded_trial_count"] = 0
+        payload["trial_count"] = 0
+        payload["task_specs"] = []
+        payload["official_alignment"] = {
+            "benchmarks": [item.strip() for item in args.official_benchmarks.split(",") if item.strip()],
+            "tasks_per_benchmark": args.official_task_count,
+            "seed_list": parse_seed_csv(args.official_seeds),
+            "playground_seed_list": parse_seed_csv(args.official_playground_seeds),
+            "variant": {
+                "name": args.official_variant_name or "official_alignment_variant",
+                "agent_mode": args.official_agent_mode,
+                "robot_profile": args.official_robot_profile,
+                "success_mode": args.official_success_mode,
+                "scene_edit_policy": args.official_scene_edit_policy,
+                "run_playground_sanity": args.official_run_playground_sanity,
+            },
+        }
+    else:
+        max_trials = args.max_trials or None
+        all_task_specs = expand_task_set(task_config, max_trials=max_trials)
+        task_specs = _shard_task_specs(all_task_specs, args.shard_index, args.shard_count)
+        task_specs = _filter_scene_ids(task_specs, args.scene_ids)
+        payload["expanded_trial_count"] = len(all_task_specs)
+        payload["trial_count"] = len(task_specs)
+        payload["task_specs"] = [task_spec.to_task_spec() for task_spec in task_specs]
     (output_dir / "run_metadata.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
     try:
@@ -191,7 +231,33 @@ def main() -> None:
         runtime_config["execution_mode"] = args.execution_mode
         runtime_config["smoke_only"] = args.smoke_only
         runtime_config["debug_dump_dir"] = str(output_dir / "debug")
-        if _is_shared_track_a_execution_mode(args.execution_mode):
+        if _is_official_aligned_execution_mode(args.execution_mode):
+            variant = OfficialAlignmentVariant(
+                name=args.official_variant_name or "official_alignment_variant",
+                execution_mode=args.execution_mode,
+                agent_mode=args.official_agent_mode,
+                robot_profile=args.official_robot_profile,
+                success_mode=args.official_success_mode,
+                scene_edit_policy=args.official_scene_edit_policy,
+                run_playground_sanity=args.official_run_playground_sanity,
+            )
+            results, official_metadata = run_official_aligned_suite(
+                variant=variant,
+                artifact_dir=output_dir,
+                runtime_config=runtime_config,
+                node=payload["node"],
+                commit=payload["commit"],
+                parent_run_id=args.parent_run_id,
+                benchmarks=[item.strip() for item in args.official_benchmarks.split(",") if item.strip()],
+                tasks_per_benchmark=args.official_task_count,
+                seeds=parse_seed_csv(args.official_seeds),
+                playground_seeds=parse_seed_csv(args.official_playground_seeds),
+                trace_steps=args.trace_steps,
+            )
+            payload["official_alignment"] = official_metadata
+            payload["trial_count"] = len(results)
+            (output_dir / "run_metadata.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        elif _is_shared_track_a_execution_mode(args.execution_mode):
             results, scene_metadata = run_shared_track_a_suite(
                 method_name=args.method,
                 method_config=method_config,

@@ -4,7 +4,11 @@ import unittest
 
 from grasp_benchmark.adapters import build_adapter
 from grasp_benchmark.config import load_named_config
-from grasp_benchmark.run.worker import _is_shared_track_a_execution_mode, _shared_protocol
+from grasp_benchmark.run.worker import (
+    _is_official_aligned_execution_mode,
+    _is_shared_track_a_execution_mode,
+    _shared_protocol,
+)
 
 
 class WorkerMetadataTest(unittest.TestCase):
@@ -12,6 +16,11 @@ class WorkerMetadataTest(unittest.TestCase):
         self.assertTrue(_is_shared_track_a_execution_mode("shared_track_a_sim"))
         self.assertTrue(_is_shared_track_a_execution_mode("track_a_diag_a0"))
         self.assertFalse(_is_shared_track_a_execution_mode("integration_fixture"))
+        self.assertFalse(_is_shared_track_a_execution_mode("official_aligned_sim"))
+
+    def test_official_aligned_mode_routes_separately(self) -> None:
+        self.assertTrue(_is_official_aligned_execution_mode("official_aligned_sim"))
+        self.assertFalse(_is_official_aligned_execution_mode("shared_track_a_sim"))
 
     def test_shared_protocol_includes_track_a_freeze_fields(self) -> None:
         sensor_config = load_named_config("sensors", "track_a_dual_realsense")

@@ -59,13 +59,18 @@ def _resolve_execution_mode(method_config: dict, explicit_mode: str) -> str:
 
 
 def _remote_env_name(method_config: dict, execution_mode: str) -> str:
-    if execution_mode == "shared_track_a_sim":
+    if execution_mode in {"shared_track_a_sim", "official_aligned_sim"}:
         return str(method_config.get("official_sim_env_name", method_config["env_name"]))
     return str(method_config["env_name"])
 
 
 def _run_dir_name(timestamp: str, method: str, task_set: str, execution_mode: str) -> str:
-    suffix = "shared_sim" if execution_mode == "shared_track_a_sim" else execution_mode
+    if execution_mode == "shared_track_a_sim":
+        suffix = "shared_sim"
+    elif execution_mode == "official_aligned_sim":
+        suffix = "official_aligned"
+    else:
+        suffix = execution_mode
     return f"{timestamp}_{method}_{task_set}_{suffix}"
 
 
