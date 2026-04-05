@@ -24,6 +24,8 @@ class AuditVariant:
     success_mode: str = ""
     scene_edit_policy: str = ""
     run_playground_sanity: bool = False
+    lift_threshold_cm_override: float | None = None
+    hold_steps_override: int | None = None
 
 
 PARITY_VARIANTS = (
@@ -168,6 +170,16 @@ def _build_remote_worker_command(
     official_flags = ""
     if variant.execution_mode == "official_aligned_sim":
         playground_flag = "--official-run-playground-sanity" if variant.run_playground_sanity else ""
+        lift_flag = (
+            f'--lift-threshold-cm "{variant.lift_threshold_cm_override}" '
+            if variant.lift_threshold_cm_override is not None
+            else ""
+        )
+        hold_flag = (
+            f'--hold-steps "{variant.hold_steps_override}" '
+            if variant.hold_steps_override is not None
+            else ""
+        )
         official_flags = (
             f'--official-benchmarks "{benchmarks}" '
             f'--official-task-count "{task_count}" '
@@ -178,7 +190,9 @@ def _build_remote_worker_command(
             f'--official-robot-profile "{variant.robot_profile}" '
             f'--official-success-mode "{variant.success_mode}" '
             f'--official-scene-edit-policy "{variant.scene_edit_policy}" '
-            f"{playground_flag}"
+            f"{playground_flag} "
+            f"{lift_flag}"
+            f"{hold_flag}"
         ).strip()
     return (
         f'mkdir -p "{remote_output_dir}" && '
@@ -988,6 +1002,8 @@ def main() -> None:
                 "success_mode": variant.success_mode,
                 "scene_edit_policy": variant.scene_edit_policy,
                 "run_playground_sanity": variant.run_playground_sanity,
+                "lift_threshold_cm_override": variant.lift_threshold_cm_override,
+                "hold_steps_override": variant.hold_steps_override,
             }
             for variant in VARIANTS
         ],

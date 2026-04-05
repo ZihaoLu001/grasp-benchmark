@@ -5,7 +5,7 @@
 - Basket-linked official tasks are not just harder without scene edits; in the current public release they become incompatible with raw init states.
 - A clean scene-edit performance delta can still be measured on the scene-edit-compatible overlap subset.
 - On that compatible subset, `V3 -> V4` changes success rate from `0.9500` to `0.9500` (`+0.0000`).
-- The latest formal Track A-Cal reference remains `15/15`.
+- The latest formal Track A-Cal reference is now `14/15`.
 
 ## Compatible Overlap Subset
 

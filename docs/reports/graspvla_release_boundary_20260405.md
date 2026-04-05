@@ -31,7 +31,7 @@
 | --- | --- | --- | --- |
 | Track B official LIBERO/playground native run | Supported and stable | Use only as the native-deployment upper bound for the public release, not as the shared benchmark headline result. | Official native full run completed successfully; benchmarks=libero_object, libero_10, libero_goal; LIBERO summary=libero_10: 325/350 = 0.929; libero_goal: 336/350 = 0.960; libero_object: 482/500 = 0.964 |
 | official_aligned subset parity | Supported but reproducibility-limited | Use to judge whether our wrapper is implementation-aligned with the public release on an official subset. | Parity status=reproducibility-limited parity; V0a vs V0b mismatches=1; V0a vs V1 mismatches=1; mismatch scene overlap=1. |
-| Track A-Cal shared benchmark | Unsupported / not claimable from public release | Keep provisional only; do not use as the final fair benchmark claim until the current shared-protocol bottleneck is explained. | Latest formal Track A-Cal run currently shows GraspVLA at 15/15 under the shared benchmark protocol. |
+| Track A-Cal shared benchmark | Unsupported / not claimable from public release | Keep provisional only; do not use as the final fair benchmark claim until the current shared-protocol bottleneck is explained. | Latest formal Track A-Cal rerun currently shows GraspVLA at 14/15 under the shared benchmark protocol. |
 
 ## Success Delta Table
 

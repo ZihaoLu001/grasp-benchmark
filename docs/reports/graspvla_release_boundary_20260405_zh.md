@@ -20,4 +20,4 @@
 
 ## 4. 下一步如果要把 Track A 变成可区分 leaderboard，最先该改哪里
 
-- 当前最先该审的是 `shared success-rule effect`，因为它比继续扩 benchmark 更可能解释 `Track A-Cal` 的全零结果。
+- 当前最先该审的是 `shared success-rule effect`，因为它比继续扩 benchmark 更可能解释 shared 协议下剩余的分数波动。

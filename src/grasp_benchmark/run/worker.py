@@ -213,6 +213,8 @@ def main() -> None:
                 "success_mode": args.official_success_mode,
                 "scene_edit_policy": args.official_scene_edit_policy,
                 "run_playground_sanity": args.official_run_playground_sanity,
+                "lift_threshold_cm_override": args.lift_threshold_cm if args.lift_threshold_cm > 0 else None,
+                "hold_steps_override": args.hold_steps if args.hold_steps > 0 else None,
             },
         }
     else:
@@ -240,6 +242,8 @@ def main() -> None:
                 success_mode=args.official_success_mode,
                 scene_edit_policy=args.official_scene_edit_policy,
                 run_playground_sanity=args.official_run_playground_sanity,
+                lift_threshold_cm_override=args.lift_threshold_cm if args.lift_threshold_cm > 0 else None,
+                hold_steps_override=args.hold_steps if args.hold_steps > 0 else None,
             )
             results, official_metadata = run_official_aligned_suite(
                 variant=variant,

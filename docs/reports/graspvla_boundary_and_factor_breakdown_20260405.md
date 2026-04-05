@@ -3,7 +3,7 @@
 ## Headline
 
 - The original "official native high, shared benchmark all-zero" story is no longer the right summary.
-- The latest formal shared calibration run is now `15/15`, so the old `Track A-Cal = 0/15` result should be treated as a stale implementation-era artifact, not the current benchmark state.
+- The latest formal shared calibration rerun is now `14/15`, so the old `Track A-Cal = 0/15` result should be treated as a stale implementation-era artifact, not the current benchmark state.
 - The current official-alignment status is `reproducibility-limited parity`, which means the wrapper is close to the public release and the remaining uncertainty is now much smaller than before.
 
 ## Evidence
@@ -19,8 +19,8 @@
   - [report.md](D:/codex/grasp-benchmark/artifacts/audits/20260405_021725_graspvla_official_alignment/report.md)
   - [success_delta.csv](D:/codex/grasp-benchmark/artifacts/audits/20260405_021725_graspvla_official_alignment/success_delta.csv)
 - Latest formal Track A-Cal run:
-  - [results.csv](D:/codex/grasp-benchmark/artifacts/runs/20260405_001205_graspvla_track_a_cal_v1_shared_sim/results.csv)
-  - [report.md](D:/codex/grasp-benchmark/artifacts/reports/track_a_cal_graspvla_refresh_20260405/report.md)
+  - [results.csv](D:/codex/grasp-benchmark/artifacts/runs/20260405_053120_graspvla_track_a_cal_v1_shared_sim/results.csv)
+  - [report.md](D:/codex/grasp-benchmark/artifacts/reports/track_a_cal_graspvla_refresh_20260405_v2/report.md)
 
 ## What Changed The Result The Most
 
@@ -67,7 +67,7 @@ So the current public release boundary is:
 
 - `Track B` still tells us the native upper bound of the public GraspVLA release.
 - `official_aligned` now tells us the wrapper is close enough that the remaining uncertainty is no longer the main story.
-- `Track A-Cal` should still be treated carefully, but the current shared calibration scenes are clearly runnable because the latest formal result is `15/15`.
+- `Track A-Cal` should still be treated carefully, but the current shared calibration scenes are clearly runnable because the latest formal rerun is `14/15`.
 
 ## Practical Conclusion
 
@@ -76,4 +76,4 @@ So the current public release boundary is:
 - If the question is "Did official scene edits matter?" the answer is **yes**, but in two different ways:
   - on `libero_goal` they create a modest performance delta
   - on basket-linked official tasks they are a release-boundary compatibility requirement
-- If the question is "Were the old shared all-zero results proving the benchmark scenes were impossible?" the answer is **no**. The latest formal `Track A-Cal` run is `15/15`.
+- If the question is "Were the old shared all-zero results proving the benchmark scenes were impossible?" the answer is **no**. The latest formal `Track A-Cal` rerun is `14/15`.

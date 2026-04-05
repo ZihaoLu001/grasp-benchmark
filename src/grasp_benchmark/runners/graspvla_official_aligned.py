@@ -43,6 +43,8 @@ class OfficialAlignmentVariant:
     success_mode: str
     scene_edit_policy: str
     run_playground_sanity: bool = False
+    lift_threshold_cm_override: float | None = None
+    hold_steps_override: int | None = None
 
 
 def _playground_root() -> Path:
@@ -226,6 +228,24 @@ def _shared_success_definition(lift_threshold_cm: float, hold_steps: int, contro
         "hold_steps": int(hold_steps),
         "hold_s_min": round(float(hold_steps) / float(control_freq), 4),
     }
+
+
+def _resolve_shared_success_parameters(variant: OfficialAlignmentVariant, control_freq: int) -> tuple[float, int, dict[str, Any]]:
+    lift_threshold_cm = (
+        float(variant.lift_threshold_cm_override)
+        if variant.lift_threshold_cm_override is not None
+        else 15.0
+    )
+    hold_steps_required = (
+        int(variant.hold_steps_override)
+        if variant.hold_steps_override is not None
+        else 10
+    )
+    return (
+        lift_threshold_cm,
+        hold_steps_required,
+        _shared_success_definition(lift_threshold_cm, hold_steps_required, control_freq),
+    )
 
 
 def _use_official_remote_agent(variant: OfficialAlignmentVariant) -> bool:
@@ -673,9 +693,10 @@ def _run_libero_episode(
         final_z = dict(baseline_z)
         hold_counts = {instance_name: 0 for instance_name in tracked_instances}
         control_freq = 5
-        lift_threshold_cm = 15.0
-        hold_steps_required = 10
-        shared_success = _shared_success_definition(lift_threshold_cm, hold_steps_required, control_freq)
+        lift_threshold_cm, hold_steps_required, shared_success = _resolve_shared_success_parameters(
+            variant,
+            control_freq,
+        )
         cycle_start = time.perf_counter()
         per_step_inference_ms: list[float] = []
         step_trace: list[dict[str, Any]] = []
@@ -887,8 +908,10 @@ def _run_playground_episode(
         }
         final_z = dict(baseline_z)
         control_freq = 5
-        lift_threshold_cm = 15.0
-        hold_steps_required = 10
+        lift_threshold_cm, hold_steps_required, _shared_success = _resolve_shared_success_parameters(
+            variant,
+            control_freq,
+        )
         hold_counts = {instance_name: 0 for instance_name in tracked_instances}
         cycle_start = time.perf_counter()
         per_step_inference_ms: list[float] = []

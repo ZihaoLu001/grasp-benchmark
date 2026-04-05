@@ -147,6 +147,12 @@ powershell -ExecutionPolicy Bypass -File .\scripts\run_official_graspvla_sim.ps1
   `docs/reports/graspvla_scene_edit_isolation_20260405.md`
 - Scene-edit isolation Chinese note:
   `docs/reports/graspvla_scene_edit_isolation_20260405_zh.md`
+- Success-rule isolation note:
+  `docs/reports/graspvla_success_rule_isolation_20260405.md`
+- Success-rule isolation Chinese note:
+  `docs/reports/graspvla_success_rule_isolation_20260405_zh.md`
+- Track A-Cal rerun note:
+  `docs/reports/graspvla_track_a_cal_rerun_20260405.md`
 - Track A-Cal compare note:
   `docs/reports/track_a_cal_compare_graspvla_cgn_20260403.md`
 - Latest official validation artifact:

@@ -3,7 +3,7 @@
 ## 结论先说
 
 - 之前那种“官方 native 很高，shared benchmark 全 0”的讲法已经不再准确。
-- 最新正式 `Track A-Cal` 已经是 `15/15`，所以旧的 `Track A-Cal = 0/15` 应该视为旧实现阶段的结果，而不是当前 benchmark 的真实状态。
+- 最新正式 `Track A-Cal` 复跑结果是 `14/15`，所以旧的 `Track A-Cal = 0/15` 应该视为旧实现阶段的结果，而不是当前 benchmark 的真实状态。
 - 当前官方对齐状态已经是 `reproducibility-limited parity`，说明 wrapper 和公开 release 已经非常接近，剩下的问题比之前小很多。
 
 ## 证据
@@ -19,8 +19,8 @@
   - [report.md](D:/codex/grasp-benchmark/artifacts/audits/20260405_021725_graspvla_official_alignment/report.md)
   - [success_delta.csv](D:/codex/grasp-benchmark/artifacts/audits/20260405_021725_graspvla_official_alignment/success_delta.csv)
 - 最新正式 `Track A-Cal`：
-  - [results.csv](D:/codex/grasp-benchmark/artifacts/runs/20260405_001205_graspvla_track_a_cal_v1_shared_sim/results.csv)
-  - [report.md](D:/codex/grasp-benchmark/artifacts/reports/track_a_cal_graspvla_refresh_20260405/report.md)
+  - [results.csv](D:/codex/grasp-benchmark/artifacts/runs/20260405_053120_graspvla_track_a_cal_v1_shared_sim/results.csv)
+  - [report.md](D:/codex/grasp-benchmark/artifacts/reports/track_a_cal_graspvla_refresh_20260405_v2/report.md)
 
 ## 到底哪个因素影响最大
 
@@ -67,7 +67,7 @@
 
 - `Track B` 继续代表公开 GraspVLA release 的原生上限。
 - `official_aligned` 现在说明 wrapper 已经足够接近公开 release，剩下的不确定性不再是主要矛盾。
-- `Track A-Cal` 仍然要谨慎使用，但当前 shared calibration scenes 本身显然是可跑的，因为最新正式结果已经是 `15/15`。
+- `Track A-Cal` 仍然要谨慎使用，但当前 shared calibration scenes 本身显然是可跑的，因为最新正式复跑已经是 `14/15`。
 
 ## 最后的实际判断
 
@@ -76,4 +76,4 @@
 - 如果问题是“official scene edits 重不重要”，答案是：**重要**，但要分两层：
   - 对 `libero_goal` 来说，它带来的是中等程度的性能变化
   - 对 basket 相关官方任务来说，它还是公开 release 的兼容性门槛
-- 如果问题是“之前 shared 全 0 是否说明 benchmark 场景根本不合理”，答案是：**不是**。最新正式 `Track A-Cal` 已经是 `15/15`。
+- 如果问题是“之前 shared 全 0 是否说明 benchmark 场景根本不合理”，答案是：**不是**。最新正式 `Track A-Cal` 复跑已经是 `14/15`。
