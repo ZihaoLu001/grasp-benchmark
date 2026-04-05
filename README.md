@@ -135,6 +135,14 @@ powershell -ExecutionPolicy Bypass -File .\scripts\run_official_graspvla_sim.ps1
   `artifacts/reports/track_a_cal_compare_graspvla_cgn_latest/report.md`
 - Latest Track A-Cal teacher summary:
   `artifacts/reports/track_a_cal_compare_graspvla_cgn_latest/teacher_summary_zh_clean.md`
+- Latest boundary audit snapshot:
+  `docs/reports/graspvla_release_boundary_20260405.md`
+- Latest boundary audit Chinese summary:
+  `docs/reports/graspvla_release_boundary_20260405_zh.md`
+- Boundary + factor breakdown note:
+  `docs/reports/graspvla_boundary_and_factor_breakdown_20260405.md`
+- Boundary + factor breakdown Chinese note:
+  `docs/reports/graspvla_boundary_and_factor_breakdown_20260405_zh.md`
 - Track A-Cal compare note:
   `docs/reports/track_a_cal_compare_graspvla_cgn_20260403.md`
 - Latest official validation artifact:

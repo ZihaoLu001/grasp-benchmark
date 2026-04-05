@@ -11,7 +11,7 @@
 ## 2. 哪些结果只能算 reproducibility-limited
 
 - 当前 `official_aligned subset parity` 应标成 `reproducibility-limited parity`：wrapper 剩余 mismatch 数已经和官方自重复漂移同量级。
-- 这轮 `V0a vs V0b` mismatch 为 `3`，`V0a vs V1` mismatch 为 `3`，scene overlap 为 `libero_10__task001__seed005, libero_object__task000__seed003`。
+- 这轮 `V0a vs V0b` mismatch 为 `3`，`V0a vs V1` mismatch 为 `2`，scene overlap 为 `libero_goal__task001__seed002`。
 
 ## 3. 哪些 benchmark 结论现在还不能 claim
 
