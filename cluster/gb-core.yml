@@ -8,8 +8,7 @@ dependencies:
   - git-lfs
   - ffmpeg
   - pyyaml
-  - numpy
+  - numpy>=1.26,<2
   - requests
   - pip:
       - huggingface_hub
-

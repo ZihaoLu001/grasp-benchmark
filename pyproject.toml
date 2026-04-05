@@ -13,7 +13,7 @@ authors = [
   { name = "Zihao Lu" }
 ]
 dependencies = [
-  "numpy>=1.26,<3",
+  "numpy>=1.26,<2",
   "PyYAML>=6.0,<7",
 ]
 
