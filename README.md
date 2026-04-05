@@ -143,6 +143,10 @@ powershell -ExecutionPolicy Bypass -File .\scripts\run_official_graspvla_sim.ps1
   `docs/reports/graspvla_boundary_and_factor_breakdown_20260405.md`
 - Boundary + factor breakdown Chinese note:
   `docs/reports/graspvla_boundary_and_factor_breakdown_20260405_zh.md`
+- Scene-edit isolation note:
+  `docs/reports/graspvla_scene_edit_isolation_20260405.md`
+- Scene-edit isolation Chinese note:
+  `docs/reports/graspvla_scene_edit_isolation_20260405_zh.md`
 - Track A-Cal compare note:
   `docs/reports/track_a_cal_compare_graspvla_cgn_20260403.md`
 - Latest official validation artifact:
