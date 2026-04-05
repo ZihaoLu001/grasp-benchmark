@@ -492,6 +492,28 @@ def _load_track_b_native_reference() -> dict[str, object]:
 
 
 def _load_track_a_cal_reference() -> dict[str, object]:
+    latest_run_candidates = sorted((ARTIFACTS_DIR / "runs").glob("*_graspvla_track_a_cal_v1_shared_sim/results.csv"))
+    if latest_run_candidates:
+        path = latest_run_candidates[-1]
+        rows = _read_results(path)
+        graspvla_rows = [
+            row
+            for row in rows
+            if row.get("method") == "graspvla" and row.get("track") == "track_a_cal"
+        ]
+        total_trials = len(graspvla_rows)
+        total_successes = sum(int(row["success"]) for row in graspvla_rows)
+        success_rate = round(total_successes / total_trials, 4) if total_trials else 0.0
+        return {
+            "evidence_path": str(path),
+            "details": (
+                f"Latest formal Track A-Cal run currently shows GraspVLA at "
+                f"{total_successes}/{total_trials} under the shared benchmark protocol."
+            ),
+            "graspvla_trials": total_trials,
+            "graspvla_successes": total_successes,
+            "graspvla_success_rate": success_rate,
+        }
     path = ARTIFACTS_DIR / "reports" / "track_a_cal_compare_graspvla_cgn_latest" / "summary.csv"
     if not path.exists():
         return {
@@ -723,6 +745,7 @@ def _write_report(
     audit_root: Path,
     date_token: str,
     parity_status: dict[str, object],
+    force_attribution: bool,
     comparison_summary_rows: list[dict[str, object]],
     summary_rows: list[dict[str, object]],
     v0_repeat_diff_rows: list[dict[str, object]],
@@ -740,6 +763,7 @@ def _write_report(
         f"- parity_status: `{parity_status['status_label']}`",
         f"- primary_bottleneck: `{primary_bottleneck}`",
         f"- attribution_ran: `{bool(attribution_rows)}`",
+        f"- attribution_mode: `{'forced_provisional' if force_attribution and str(parity_status['status_code']) == 'parity_failed' else 'gated'}`",
         f"- scene_level_overlap_between_V0_repeat_and_V1_mismatches: `{', '.join(scene_overlap) if scene_overlap else 'none'}`",
         "",
         "## Comparison Summary",
@@ -847,6 +871,8 @@ def _write_report(
     lines.append(f"- Parity conclusion: `{parity_status['status_label']}`.")
     lines.append(f"- Interpretation: {parity_status['reason']}")
     lines.append(f"- Primary bottleneck: `{primary_bottleneck}`.")
+    if force_attribution and str(parity_status["status_code"]) == "parity_failed" and attribution_rows:
+        lines.append("- `V2-V5` were still run in provisional mode so we could estimate factor contributions before parity is fully repaired.")
     lines.extend(_attribution_conclusion_lines(attribution_rows))
     if v1_mismatch_rows:
         lines.append("- See `mismatch_episodes.csv` for the remaining `V0a vs V1` mismatches.")
@@ -879,6 +905,8 @@ def _write_report(
     teacher_lines.append(
         f"- 这轮 `V0a vs V0b` mismatch 为 `{len(v0_repeat_mismatch_rows)}`，`V0a vs V1` mismatch 为 `{len(v1_mismatch_rows)}`，scene overlap 为 `{', '.join(scene_overlap) if scene_overlap else 'none'}`。"
     )
+    if force_attribution and str(parity_status["status_code"]) == "parity_failed" and attribution_rows:
+        teacher_lines.append("- 这轮我仍然把 `V2-V5` 跑了出来，但它们现在只能算 provisional factor attribution，不能替代正式 parity gate。")
     teacher_lines.extend(
         [
             "",
@@ -905,6 +933,7 @@ def _write_report(
         audit_root / "report.json",
         {
             "parity_status": parity_status,
+            "force_attribution": force_attribution,
             "comparison_summary": comparison_summary_rows,
             "summary": summary_rows,
             "boundary_ledger": boundary_ledger_rows,
@@ -930,6 +959,7 @@ def main() -> None:
     parser.add_argument("--smoke-task-count", type=int, default=1)
     parser.add_argument("--smoke-seeds", default="0,1")
     parser.add_argument("--stop-after-parity", action="store_true")
+    parser.add_argument("--force-attribution", action="store_true")
     args = parser.parse_args()
 
     cluster_config = load_named_config("cluster", "default")
@@ -947,6 +977,7 @@ def main() -> None:
         "tasks_per_benchmark": args.tasks_per_benchmark,
         "seeds": args.seeds,
         "playground_seeds": args.playground_seeds,
+        "force_attribution": bool(args.force_attribution),
         "variants": [
             {
                 "name": variant.name,
@@ -1051,7 +1082,8 @@ def main() -> None:
         v1_mismatch_count=len(v1_mismatch_rows),
     )
 
-    if bool(parity_status["advance_to_attribution"]) and not args.stop_after_parity:
+    should_run_attribution = (bool(parity_status["advance_to_attribution"]) or bool(args.force_attribution)) and not args.stop_after_parity
+    if should_run_attribution:
         for variant in ATTRIBUTION_VARIANTS:
             variant_dirs[variant.name] = _run_variant(
                 node=args.node,
@@ -1106,6 +1138,7 @@ def main() -> None:
         audit_root=audit_root,
         date_token=date_token,
         parity_status=parity_status,
+        force_attribution=bool(args.force_attribution),
         comparison_summary_rows=comparison_summary_rows,
         summary_rows=summary_rows,
         v0_repeat_diff_rows=v0_repeat_diff_rows,
@@ -1121,6 +1154,7 @@ def main() -> None:
                 "audit_root": str(audit_root),
                 "parity_status": parity_status["status_code"],
                 "advance_to_attribution": bool(parity_status["advance_to_attribution"]),
+                "force_attribution": bool(args.force_attribution),
             },
             indent=2,
         )
