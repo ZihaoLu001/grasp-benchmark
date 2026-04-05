@@ -154,7 +154,9 @@ powershell -ExecutionPolicy Bypass -File .\scripts\run_official_graspvla_sim.ps1
 - Track A-Cal rerun note:
   `docs/reports/graspvla_track_a_cal_rerun_20260405.md`
 - Track A-Cal compare note:
-  `docs/reports/track_a_cal_compare_graspvla_cgn_20260403.md`
+  `docs/reports/track_a_cal_compare_graspvla_cgn_20260405.md`
+- Track A-Cal compare note (Chinese):
+  `docs/reports/track_a_cal_compare_graspvla_cgn_20260405_zh.md`
 - Latest official validation artifact:
   `artifacts/official/20260402_211510_em14_graspvla_checks/summary.json`
 - Latest official offline visualization:
