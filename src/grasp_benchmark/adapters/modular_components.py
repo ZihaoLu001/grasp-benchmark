@@ -144,7 +144,8 @@ def build_shared_pick_plan(
     translation_cam: Any | None,
     planner_config: dict[str, Any],
     grasp_matrix_cam: Any | None = None,
-) -> list[Action]:
+    return_debug: bool = False,
+) -> list[Action] | tuple[list[Action], dict[str, Any]]:
     current_pose = current_pose_from_obs(obs, np_module)
     approach_clearance_m = float(planner_config.get("approach_clearance_m", 0.08))
     grasp_offset_m = float(planner_config.get("grasp_offset_m", 0.015))
@@ -200,6 +201,15 @@ def build_shared_pick_plan(
         pregrasp_pose = np_module.concatenate([pregrasp_translation, grasp_euler])
         grasp_pose = np_module.concatenate([grasp_translation, grasp_euler])
         lift_pose = np_module.concatenate([lift_translation, grasp_euler])
+        planner_debug = {
+            "planner_mode": "grasp_pose",
+            "translation_cam": np_module.asarray(grasp_cam[:3, 3], dtype=np_module.float32).tolist(),
+            "target_world": grasp_translation.tolist(),
+            "pregrasp_pose": pregrasp_pose.tolist(),
+            "grasp_pose": grasp_pose.tolist(),
+            "lift_pose": lift_pose.tolist(),
+            "approach_axis": approach_axis.tolist(),
+        }
     else:
         if translation_cam is None:
             raise AdapterExecutionError(
@@ -221,6 +231,14 @@ def build_shared_pick_plan(
         pregrasp_pose = np_module.concatenate([pregrasp_translation, start_pose[3:6]])
         grasp_pose = np_module.concatenate([grasp_translation, start_pose[3:6]])
         lift_pose = np_module.concatenate([lift_translation, start_pose[3:6]])
+        planner_debug = {
+            "planner_mode": "translation_only",
+            "translation_cam": np_module.asarray(translation_cam, dtype=np_module.float32).tolist(),
+            "target_world": target_world.tolist(),
+            "pregrasp_pose": pregrasp_pose.tolist(),
+            "grasp_pose": grasp_pose.tolist(),
+            "lift_pose": lift_pose.tolist(),
+        }
 
     plan: list[Action] = []
     plan.extend(
@@ -255,6 +273,10 @@ def build_shared_pick_plan(
             gripper=-1,
         )
     )
+    if return_debug:
+        planner_debug["plan_length"] = len(plan)
+        planner_debug["close_steps"] = close_steps
+        return plan, planner_debug
     return plan
 
 

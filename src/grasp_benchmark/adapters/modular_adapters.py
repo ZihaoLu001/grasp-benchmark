@@ -100,16 +100,7 @@ class _SharedModularAdapterBase(AgentAdapter):
                 "The modular grasp pipeline did not produce a target translation for the shared planner.",
                 failure_stage="planner_failure",
             )
-        self._write_debug_payload(
-            f"{self.name}_perception_",
-            {
-                "instruction": self._instruction or obs.instruction,
-                "task_spec": self.task_spec,
-                "perception": perception.debug,
-                "proposal": payload,
-            },
-        )
-        self._pending_actions = build_shared_pick_plan(
+        self._pending_actions, planner_debug = build_shared_pick_plan(
             obs,
             self._np,
             translation_cam=self._np.asarray(translation, dtype=self._np.float32),
@@ -119,7 +110,17 @@ class _SharedModularAdapterBase(AgentAdapter):
                 if self._planner_config.get("use_grasp_pose", True) and payload.get("best_grasp") is not None
                 else None
             ),
+            return_debug=True,
         )
+        if self._debug_dump_dir is not None:
+            latest_payload = {
+                "instruction": self._instruction or obs.instruction,
+                "task_spec": self.task_spec,
+                "perception": perception.debug,
+                "proposal": payload,
+                "planner": planner_debug,
+            }
+            self._write_debug_payload(f"{self.name}_perception_", latest_payload)
         if not self._pending_actions:
             raise AdapterExecutionError(
                 "Shared modular planner failed to produce any executable actions.",
