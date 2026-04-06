@@ -36,6 +36,7 @@ planner:
   approach_clearance_m: 0.08
   grasp_offset_m: 0.015
   lift_height_m: 0.18
+  pregrasp_min_z_m: 0.5
   chunk_size_m: 0.02
   close_steps: 2
   pregrasp_settle_steps: 6

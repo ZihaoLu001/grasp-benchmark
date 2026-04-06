@@ -150,6 +150,7 @@ def build_shared_pick_plan(
     approach_clearance_m = float(planner_config.get("approach_clearance_m", 0.08))
     grasp_offset_m = float(planner_config.get("grasp_offset_m", 0.015))
     lift_height_m = float(planner_config.get("lift_height_m", 0.18))
+    pregrasp_min_z_m = float(planner_config.get("pregrasp_min_z_m", 0.0))
     chunk_size_m = float(planner_config.get("chunk_size_m", 0.04))
     chunk_size_rad = float(planner_config.get("chunk_size_rad", 0.2))
     close_steps = max(int(planner_config.get("close_steps", 2)), 1)
@@ -198,6 +199,7 @@ def build_shared_pick_plan(
             )
         approach_axis /= norm
         pregrasp_translation = grasp_translation - approach_clearance_m * approach_axis
+        pregrasp_translation[2] = max(float(pregrasp_translation[2]), pregrasp_min_z_m)
         lift_translation = grasp_translation.copy()
         lift_translation[2] += lift_height_m
         grasp_euler = np_module.asarray(t3d.euler.mat2euler(grasp_rotation, axes="sxyz"), dtype=np_module.float32)
@@ -226,7 +228,11 @@ def build_shared_pick_plan(
                 failure_stage="planner_failure",
             )
         pregrasp_translation = target_world.copy()
-        pregrasp_translation[2] = max(float(start_pose[2]), float(target_world[2]) + approach_clearance_m)
+        pregrasp_translation[2] = max(
+            float(start_pose[2]),
+            float(target_world[2]) + approach_clearance_m,
+            pregrasp_min_z_m,
+        )
         grasp_translation = target_world.copy()
         grasp_translation[2] = max(0.02, float(target_world[2]) + grasp_offset_m)
         lift_translation = grasp_translation.copy()
