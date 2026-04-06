@@ -352,6 +352,10 @@ class GroundingDinoDetector:
         self._torch = torch
         self._Image = Image
         self._box_convert = box_convert
+        self._device = device
+        self._box_threshold = float(config.get("box_threshold", 0.3))
+        self._text_threshold = float(config.get("text_threshold", 0.25))
+        self._hf_model_id = str(config.get("hf_model_id", "IDEA-Research/grounding-dino-tiny")).strip()
         self._predict = predict
         self._transform = T.Compose(
             [
@@ -360,14 +364,28 @@ class GroundingDinoDetector:
                 T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
             ]
         )
-        self._model = load_model(str(config_path), str(checkpoint_path), device=device)
-        self._device = device
-        self._box_threshold = float(config.get("box_threshold", 0.3))
-        self._text_threshold = float(config.get("text_threshold", 0.25))
+        self._model = None
+        self._processor = None
+        self._hf_model = None
+        self._backend = "official"
+        try:
+            self._model = load_model(str(config_path), str(checkpoint_path), device=device)
+        except Exception:
+            self._init_hf_backend()
 
-    def detect_with_classes(self, image_rgb: Any, classes: list[str]) -> list[DetectionResult]:
-        if not classes:
-            return []
+    def _init_hf_backend(self) -> None:
+        try:
+            from transformers import AutoModelForZeroShotObjectDetection, AutoProcessor
+        except ImportError as exc:
+            raise AdapterExecutionError(
+                f"Unable to initialize the Hugging Face GroundingDINO fallback: {exc}",
+                failure_stage="dependency_setup",
+            ) from exc
+        self._processor = AutoProcessor.from_pretrained(self._hf_model_id)
+        self._hf_model = AutoModelForZeroShotObjectDetection.from_pretrained(self._hf_model_id).to(self._device)
+        self._backend = "hf"
+
+    def _detect_with_official_backend(self, image_rgb: Any, classes: list[str]) -> list[DetectionResult]:
         caption = ". ".join(classes)
         image_pil = self._Image.fromarray(image_rgb.astype("uint8"), mode="RGB")
         image_tensor, _ = self._transform(image_pil, None)
@@ -384,8 +402,45 @@ class GroundingDinoDetector:
         h, w = image_rgb.shape[:2]
         scaled = boxes * self._torch.tensor([w, h, w, h], dtype=boxes.dtype)
         xyxy = self._box_convert(boxes=scaled, in_fmt="cxcywh", out_fmt="xyxy").cpu().numpy()
-        results: list[DetectionResult] = []
+        return self._to_detection_results(xyxy, logits, phrases, classes, caption)
+
+    def _detect_with_hf_backend(self, image_rgb: Any, classes: list[str]) -> list[DetectionResult]:
+        caption = ". ".join(classes)
+        image_pil = self._Image.fromarray(image_rgb.astype("uint8"), mode="RGB")
+        raw_inputs = self._processor(images=image_pil, text=caption, return_tensors="pt")
+        inputs = {
+            key: value.to(self._device) if hasattr(value, "to") else value
+            for key, value in raw_inputs.items()
+        }
+        with self._torch.no_grad():
+            outputs = self._hf_model(**inputs)
+        results = self._processor.post_process_grounded_object_detection(
+            outputs,
+            inputs["input_ids"],
+            box_threshold=self._box_threshold,
+            text_threshold=self._text_threshold,
+            target_sizes=[image_pil.size[::-1]],
+        )[0]
+        boxes = results.get("boxes")
+        scores = results.get("scores")
+        labels = results.get("labels")
+        if boxes is None or len(boxes) == 0:
+            return []
+        xyxy = boxes.detach().cpu().numpy()
+        logits = scores.detach().cpu().numpy()
+        phrases = [str(label) for label in labels]
+        return self._to_detection_results(xyxy, logits, phrases, classes, caption)
+
+    def _to_detection_results(
+        self,
+        xyxy: Any,
+        logits: Any,
+        phrases: list[str],
+        classes: list[str],
+        caption: str,
+    ) -> list[DetectionResult]:
         normalized_classes = {_normalize_label(item): item for item in classes}
+        results: list[DetectionResult] = []
         for box, score, phrase in zip(xyxy, logits, phrases):
             phrase_norm = _normalize_label(str(phrase))
             matched_label = ""
@@ -409,6 +464,19 @@ class GroundingDinoDetector:
             )
         results.sort(key=lambda item: item.score, reverse=True)
         return results
+
+    def detect_with_classes(self, image_rgb: Any, classes: list[str]) -> list[DetectionResult]:
+        if not classes:
+            return []
+        if self._backend == "official":
+            try:
+                return self._detect_with_official_backend(image_rgb, classes)
+            except Exception as exc:
+                lower = str(exc).lower()
+                if "_c" not in lower and "ms_deform_attn" not in lower and "nameerror" not in lower:
+                    raise
+                self._init_hf_backend()
+        return self._detect_with_hf_backend(image_rgb, classes)
 
 
 def _ensure_detector_checkpoint(checkpoint_path: Path, checkpoint_url: str) -> None:

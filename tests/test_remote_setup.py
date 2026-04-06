@@ -45,7 +45,7 @@ class RemoteSetupTest(unittest.TestCase):
         method_config = load_named_config("methods", "anygrasp")
         script, notes = build_method_install_script(cluster_config, method_config, "anygrasp")
         self.assertIn("GroundingDINO", script)
-        self.assertIn('export CUDA_VISIBLE_DEVICES=""', script)
+        self.assertIn('python -m pip install "numpy<2" "transformers==4.41.2"', script)
         self.assertIn("gsnet.so", script)
         self.assertTrue(notes)
 
