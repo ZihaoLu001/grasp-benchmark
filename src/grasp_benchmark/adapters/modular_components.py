@@ -153,6 +153,9 @@ def build_shared_pick_plan(
     chunk_size_m = float(planner_config.get("chunk_size_m", 0.04))
     chunk_size_rad = float(planner_config.get("chunk_size_rad", 0.2))
     close_steps = max(int(planner_config.get("close_steps", 2)), 1)
+    pregrasp_settle_steps = max(int(planner_config.get("pregrasp_settle_steps", 0)), 0)
+    grasp_settle_steps = max(int(planner_config.get("grasp_settle_steps", 0)), 0)
+    post_close_settle_steps = max(int(planner_config.get("post_close_settle_steps", 0)), 0)
     extrinsic_matrix = obs.extrinsics_front.get("matrix")
     if extrinsic_matrix is None:
         raise AdapterExecutionError(
@@ -251,6 +254,8 @@ def build_shared_pick_plan(
             gripper=1,
         )
     )
+    for _ in range(pregrasp_settle_steps):
+        plan.append(Action(ee_delta=(0.0, 0.0, 0.0, 0.0, 0.0, 0.0), gripper=1))
     plan.extend(
         _chunk_delta_actions(
             np_module,
@@ -261,7 +266,11 @@ def build_shared_pick_plan(
             gripper=1,
         )
     )
+    for _ in range(grasp_settle_steps):
+        plan.append(Action(ee_delta=(0.0, 0.0, 0.0, 0.0, 0.0, 0.0), gripper=1))
     for _ in range(close_steps):
+        plan.append(Action(ee_delta=(0.0, 0.0, 0.0, 0.0, 0.0, 0.0), gripper=-1))
+    for _ in range(post_close_settle_steps):
         plan.append(Action(ee_delta=(0.0, 0.0, 0.0, 0.0, 0.0, 0.0), gripper=-1))
     plan.extend(
         _chunk_delta_actions(
@@ -276,6 +285,9 @@ def build_shared_pick_plan(
     if return_debug:
         planner_debug["plan_length"] = len(plan)
         planner_debug["close_steps"] = close_steps
+        planner_debug["pregrasp_settle_steps"] = pregrasp_settle_steps
+        planner_debug["grasp_settle_steps"] = grasp_settle_steps
+        planner_debug["post_close_settle_steps"] = post_close_settle_steps
         return plan, planner_debug
     return plan
 

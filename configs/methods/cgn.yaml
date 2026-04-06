@@ -36,8 +36,11 @@ planner:
   approach_clearance_m: 0.08
   grasp_offset_m: 0.015
   lift_height_m: 0.18
-  chunk_size_m: 0.04
+  chunk_size_m: 0.02
   close_steps: 2
+  pregrasp_settle_steps: 6
+  grasp_settle_steps: 6
+  post_close_settle_steps: 6
 track_a_input_policy:
   observation_contract: shared_observation
   consumes:
