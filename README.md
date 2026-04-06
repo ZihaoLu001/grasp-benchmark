@@ -131,10 +131,16 @@ powershell -ExecutionPolicy Bypass -File .\scripts\run_official_graspvla_sim.ps1
   `artifacts/reports/track_a_compare_graspvla_cgn_v2_latest/report.md`
 - Latest Track A v2 teacher summary:
   `artifacts/reports/track_a_compare_graspvla_cgn_v2_latest/teacher_summary_zh.md`
-- Latest Track A-Cal compare report:
-  `artifacts/reports/track_a_cal_compare_graspvla_cgn_latest/report.md`
-- Latest Track A-Cal teacher summary:
-  `artifacts/reports/track_a_cal_compare_graspvla_cgn_latest/teacher_summary_zh_clean.md`
+- Latest Track A-Cal full-modular compare report:
+  `artifacts/reports/track_a_cal_compare_graspvla_cgn_full_latest/report.md`
+- Latest Track A-Cal full-modular teacher summary:
+  `artifacts/reports/track_a_cal_compare_graspvla_cgn_full_latest/teacher_summary_zh_clean.md`
+- Latest Track A-Cal full-modular note:
+  `docs/reports/track_a_cal_compare_graspvla_cgn_full_20260406.md`
+- Latest Track A-Cal full-modular note (Chinese):
+  `docs/reports/track_a_cal_compare_graspvla_cgn_full_20260406_zh.md`
+- Latest AnyGrasp readiness note:
+  `docs/reports/anygrasp_readiness_20260406.md`
 - Latest boundary audit snapshot:
   `docs/reports/graspvla_release_boundary_20260405.md`
 - Latest boundary audit Chinese summary:
