@@ -670,6 +670,7 @@ class SharedTrackAAdapterAgent:
         self._np = np
         self._t3d = t3d
         self._last_gripper = self.GRIPPER_OPEN
+        self._command_pose: np.ndarray | None = None
         self._proprio_history: list[np.ndarray] = []
         self._request_latencies_ms: list[float] = []
         self._adapter.setup(runtime_config)
@@ -677,6 +678,7 @@ class SharedTrackAAdapterAgent:
     def reset(self, task_spec: dict[str, Any]) -> None:
         self._instruction = str(task_spec.get("instruction", self._instruction))
         self._last_gripper = self.GRIPPER_OPEN
+        self._command_pose = None
         self._proprio_history = []
         self._request_latencies_ms = []
         self._adapter.reset(task_spec)
@@ -766,13 +768,17 @@ class SharedTrackAAdapterAgent:
     def step(self, obs: dict[str, Any], camera_meta: dict[str, Any]) -> tuple[Any, Any, dict[str, Any]]:
         observation = self._build_observation(obs, camera_meta)
         current_pose = self._np.asarray(observation.proprio["history"][-1][:6], dtype=self._np.float32)
+        had_pending_actions = bool(getattr(self._adapter, "_pending_actions", []))
         start = time.perf_counter()
         action = self._adapter.step(observation)
         self._request_latencies_ms.append((time.perf_counter() - start) * 1000.0)
+        if not had_pending_actions or self._command_pose is None:
+            self._command_pose = current_pose.copy()
         delta_action = self._np.concatenate(
             [self._np.asarray(action.ee_delta, dtype=self._np.float32), [float(action.gripper)]]
         )
-        abs_action = self._delta_to_abs(delta_action, current_pose)
+        abs_action = self._delta_to_abs(delta_action, self._command_pose)
+        self._command_pose = abs_action[:6].copy()
         if abs_action[6] < 0:
             self._last_gripper = -1.0
         elif abs_action[6] > 0:
