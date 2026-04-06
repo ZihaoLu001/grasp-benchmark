@@ -116,7 +116,7 @@ class _SharedModularAdapterBase(AgentAdapter):
             planner_config=self._planner_config,
             grasp_matrix_cam=(
                 self._np.asarray(payload["best_grasp"], dtype=self._np.float32)
-                if payload.get("best_grasp") is not None
+                if self._planner_config.get("use_grasp_pose", True) and payload.get("best_grasp") is not None
                 else None
             ),
         )
