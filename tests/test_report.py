@@ -10,10 +10,29 @@ from grasp_benchmark.report.aggregate import main as aggregate_main
 
 class ReportTest(unittest.TestCase):
     HEADER = (
-        "method,track,execution_mode,task,scene_id,object_id,object_group,condition,instruction,sensor_stack,"
+        "method,method_tier,track,execution_mode,task,scene_id,object_id,object_group,condition,instruction,sensor_stack,"
         "attempts,success,lift_cm,hold_s,spl,inference_ms,cycle_time_s,failure_stage,failure_reason,collision,"
         "video_path,node,commit,parent_run_id,shard_id,gpu_id"
     )
+
+    def _run_aggregate(self, root: Path, *extra_args: str) -> Path:
+        output_dir = root / "report"
+        import sys
+
+        argv = sys.argv
+        try:
+            sys.argv = [
+                "aggregate.py",
+                "--input",
+                str(root / "runs"),
+                "--output-dir",
+                str(output_dir),
+                *extra_args,
+            ]
+            aggregate_main()
+        finally:
+            sys.argv = argv
+        return output_dir
 
     def test_aggregate_creates_summary_files(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -24,28 +43,14 @@ class ReportTest(unittest.TestCase):
                 "\n".join(
                     [
                         self.HEADER,
-                        "graspvla,track_a_cal,shared_track_a_sim,language_conditioned_single_target_pick,scene_1,obj_1,native_opaque_cal,basic,pick up the banana,dual_fixed_realsense_rgbd,1,1,20,2.0,1.0,120,4.0,,,0,,em14,deadbeef,parent_run_a,shard_000,0",
+                        "graspvla,graspvla_official,track_a_cal,shared_track_a_sim,language_conditioned_single_target_pick,scene_1,obj_1,native_opaque_cal,basic,pick up the banana,dual_fixed_realsense_rgbd,1,1,20,2.0,1.0,120,4.0,,,0,,em14,deadbeef,parent_run_a,shard_000,0",
                     ]
                 )
                 + "\n",
                 encoding="utf-8",
             )
-            output_dir = root / "report"
 
-            import sys
-
-            argv = sys.argv
-            try:
-                sys.argv = [
-                    "aggregate.py",
-                    "--input",
-                    str(root / "runs"),
-                    "--output-dir",
-                    str(output_dir),
-                ]
-                aggregate_main()
-            finally:
-                sys.argv = argv
+            output_dir = self._run_aggregate(root)
 
             self.assertTrue((output_dir / "summary.csv").exists())
             self.assertTrue((output_dir / "report.md").exists())
@@ -63,7 +68,7 @@ class ReportTest(unittest.TestCase):
                 "\n".join(
                     [
                         self.HEADER,
-                        "graspvla,track_a_cal,shared_track_a_sim,language_conditioned_single_target_pick,scene_1,obj_1,native_opaque_cal,basic,pick up the banana,dual_fixed_realsense_rgbd,1,1,20,2.0,1.0,120,4.0,,,0,,em14,deadbeef,parent_run_a,shard_000,0",
+                        "graspvla,graspvla_official,track_a_cal,shared_track_a_sim,language_conditioned_single_target_pick,scene_1,obj_1,native_opaque_cal,basic,pick up the banana,dual_fixed_realsense_rgbd,1,1,20,2.0,1.0,120,4.0,,,0,,em14,deadbeef,parent_run_a,shard_000,0",
                     ]
                 )
                 + "\n",
@@ -75,33 +80,17 @@ class ReportTest(unittest.TestCase):
             (official_dir / "playground_data" / "videos" / "demo_fail.mp4").write_text("", encoding="utf-8")
             summary_path = official_dir / "summary.json"
             summary_path.write_text(
-                """
-{
-  "method": "graspvla",
-  "track": "track_b_native",
-  "statistics_text": "libero_object: 482/500 = 0.964\\nlibero_10: 325/350 = 0.929\\n"
-}
-""".strip(),
+                json.dumps(
+                    {
+                        "method": "graspvla",
+                        "track": "track_b_native",
+                        "statistics_text": "libero_object: 482/500 = 0.964\nlibero_10: 325/350 = 0.929\n",
+                    }
+                ),
                 encoding="utf-8",
             )
-            output_dir = root / "report"
 
-            import sys
-
-            argv = sys.argv
-            try:
-                sys.argv = [
-                    "aggregate.py",
-                    "--input",
-                    str(root / "runs"),
-                    "--output-dir",
-                    str(output_dir),
-                    "--track-b-reference",
-                    str(summary_path),
-                ]
-                aggregate_main()
-            finally:
-                sys.argv = argv
+            output_dir = self._run_aggregate(root, "--track-b-reference", str(summary_path))
 
             report_text = (output_dir / "report.md").read_text(encoding="utf-8")
             self.assertTrue((output_dir / "track_b_reference.csv").exists())
@@ -119,7 +108,7 @@ class ReportTest(unittest.TestCase):
                 "\n".join(
                     [
                         self.HEADER,
-                        "graspvla,track_a_cal,shared_track_a_sim,language_conditioned_single_target_pick,scene_1,obj_1,native_opaque_cal,basic,pick up the banana,dual_fixed_realsense_rgbd,1,0,0,0.0,0.0,120,4.0,task_failure,not_met,0,,em14,deadbeef,parent_run_a,shard_000,0",
+                        "graspvla,graspvla_official,track_a_cal,shared_track_a_sim,language_conditioned_single_target_pick,scene_1,obj_1,native_opaque_cal,basic,pick up the banana,dual_fixed_realsense_rgbd,1,0,0,0.0,0.0,120,4.0,task_failure,not_met,0,,em14,deadbeef,parent_run_a,shard_000,0",
                     ]
                 )
                 + "\n",
@@ -140,24 +129,8 @@ class ReportTest(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-            output_dir = root / "report"
 
-            import sys
-
-            argv = sys.argv
-            try:
-                sys.argv = [
-                    "aggregate.py",
-                    "--input",
-                    str(root / "runs"),
-                    "--output-dir",
-                    str(output_dir),
-                    "--diagnostic-report",
-                    str(diagnostic_report),
-                ]
-                aggregate_main()
-            finally:
-                sys.argv = argv
+            output_dir = self._run_aggregate(root, "--diagnostic-report", str(diagnostic_report))
 
             report_text = (output_dir / "report.md").read_text(encoding="utf-8")
             teacher_text = (output_dir / "teacher_summary_zh.md").read_text(encoding="utf-8")
@@ -176,7 +149,7 @@ class ReportTest(unittest.TestCase):
                 "\n".join(
                     [
                         self.HEADER,
-                        "graspvla,track_a_cal,shared_track_a_sim,language_conditioned_single_target_pick,scene_1,obj_1,native_opaque_cal,basic,pick up the banana,dual_fixed_realsense_rgbd,1,1,18,2.0,1.0,120,4.0,,,0,,em14,deadbeef,parent_cal,shard_000,0",
+                        "graspvla,graspvla_official,track_a_cal,shared_track_a_sim,language_conditioned_single_target_pick,scene_1,obj_1,native_opaque_cal,basic,pick up the banana,dual_fixed_realsense_rgbd,1,1,18,2.0,1.0,120,4.0,,,0,,em14,deadbeef,parent_cal,shard_000,0",
                     ]
                 )
                 + "\n",
@@ -200,24 +173,8 @@ class ReportTest(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-            output_dir = root / "report"
 
-            import sys
-
-            argv = sys.argv
-            try:
-                sys.argv = [
-                    "aggregate.py",
-                    "--input",
-                    str(root / "runs"),
-                    "--output-dir",
-                    str(output_dir),
-                    "--track-a-stress-reference",
-                    str(stress_report),
-                ]
-                aggregate_main()
-            finally:
-                sys.argv = argv
+            output_dir = self._run_aggregate(root, "--track-a-stress-reference", str(stress_report))
 
             report_text = (output_dir / "report.md").read_text(encoding="utf-8")
             teacher_text = (output_dir / "teacher_summary_zh.md").read_text(encoding="utf-8")
@@ -226,6 +183,33 @@ class ReportTest(unittest.TestCase):
             self.assertIn("stress_report.json", report_text)
             self.assertIn("Track A-Stress", teacher_text)
             self.assertIn("track_a_stress_reference", report_json)
+
+    def test_aggregate_excludes_interim_rows_from_headline_summary(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            runs_dir = root / "runs" / "sample"
+            runs_dir.mkdir(parents=True)
+            (runs_dir / "results.csv").write_text(
+                "\n".join(
+                    [
+                        self.HEADER,
+                        "graspvla,graspvla_official,track_a_cal,shared_track_a_sim,language_conditioned_single_target_pick,scene_1,obj_1,native_opaque_cal,basic,pick up the banana,dual_fixed_realsense_rgbd,1,1,20,2.0,1.0,120,4.0,,,0,,em14,deadbeef,parent_run_a,shard_000,0",
+                        "cgn,cgn_raw_interim,track_a_cal,shared_track_a_sim,language_conditioned_single_target_pick,scene_2,obj_2,native_opaque_cal,basic,pick up the bowl,dual_fixed_realsense_rgbd,1,0,0,0.0,0.0,150,8.0,grasp_proposal,none,0,,rll_6000_1,deadbeef,parent_run_a,shard_001,1",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            output_dir = self._run_aggregate(root, "--parent-run-id", "parent_run_a")
+
+            summary_text = (output_dir / "summary.csv").read_text(encoding="utf-8")
+            interim_text = (output_dir / "historical_interim_summary.csv").read_text(encoding="utf-8")
+            report_text = (output_dir / "report.md").read_text(encoding="utf-8")
+            self.assertIn("graspvla_official", summary_text)
+            self.assertNotIn("cgn_raw_interim", summary_text)
+            self.assertIn("cgn_raw_interim", interim_text)
+            self.assertIn("## Historical / Interim Modular References", report_text)
 
     def test_aggregate_ignores_integration_fixture_rows_for_track_a_summary(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -236,34 +220,20 @@ class ReportTest(unittest.TestCase):
                 "\n".join(
                     [
                         self.HEADER,
-                        "graspvla,track_a_cal,integration_fixture,language_conditioned_single_target_pick,scene_fixture,obj_1,native_opaque_cal,basic,pick up the banana,dual_fixed_realsense_rgbd,1,1,20,2.0,1.0,120,4.0,,,0,,em14,deadbeef,parent_fixture,,",
-                        "graspvla,track_a_cal,shared_track_a_sim,language_conditioned_single_target_pick,scene_real,obj_1,native_opaque_cal,basic,pick up the banana,dual_fixed_realsense_rgbd,2,0,0,0.0,0.0,220,14.0,task_failure,not_met,0,,em14,deadbeef,parent_real,shard_000,0",
+                        "graspvla,graspvla_official,track_a_cal,integration_fixture,language_conditioned_single_target_pick,scene_fixture,obj_1,native_opaque_cal,basic,pick up the banana,dual_fixed_realsense_rgbd,1,1,20,2.0,1.0,120,4.0,,,0,,em14,deadbeef,parent_fixture,,",
+                        "graspvla,graspvla_official,track_a_cal,shared_track_a_sim,language_conditioned_single_target_pick,scene_real,obj_1,native_opaque_cal,basic,pick up the banana,dual_fixed_realsense_rgbd,2,0,0,0.0,0.0,220,14.0,task_failure,not_met,0,,em14,deadbeef,parent_real,shard_000,0",
                     ]
                 )
                 + "\n",
                 encoding="utf-8",
             )
-            output_dir = root / "report"
 
-            import sys
-
-            argv = sys.argv
-            try:
-                sys.argv = [
-                    "aggregate.py",
-                    "--input",
-                    str(root / "runs"),
-                    "--output-dir",
-                    str(output_dir),
-                ]
-                aggregate_main()
-            finally:
-                sys.argv = argv
+            output_dir = self._run_aggregate(root)
 
             summary_text = (output_dir / "summary.csv").read_text(encoding="utf-8")
+            taxonomy_text = (output_dir / "failure_taxonomy.csv").read_text(encoding="utf-8")
             self.assertIn("0.0", summary_text)
             self.assertNotIn("120", summary_text)
-            taxonomy_text = (output_dir / "failure_taxonomy.csv").read_text(encoding="utf-8")
             self.assertIn("task_failure", taxonomy_text)
 
     def test_aggregate_defaults_to_latest_parent_run_id(self) -> None:
@@ -275,34 +245,20 @@ class ReportTest(unittest.TestCase):
                 "\n".join(
                     [
                         self.HEADER,
-                        "graspvla,track_a_cal,shared_track_a_sim,language_conditioned_single_target_pick,scene_old,obj_1,native_opaque_cal,basic,pick up the banana,dual_fixed_realsense_rgbd,1,1,20,2.0,1.0,120,4.0,,,0,,em14,deadbeef,20260403_old,shard_000,0",
-                        "cgn,track_a_cal,shared_track_a_sim,language_conditioned_single_target_pick,scene_new,obj_1,native_opaque_cal,basic,pick up the banana,dual_fixed_realsense_rgbd,2,0,0,0.0,0.0,220,14.0,task_failure,not_met,0,,rll_6000_1,deadbeef,20260403_new,shard_001,1",
+                        "graspvla,graspvla_official,track_a_cal,shared_track_a_sim,language_conditioned_single_target_pick,scene_old,obj_1,native_opaque_cal,basic,pick up the banana,dual_fixed_realsense_rgbd,1,1,20,2.0,1.0,120,4.0,,,0,,em14,deadbeef,20260403_old,shard_000,0",
+                        "cgn,cgn_full_modular,track_a_cal,shared_track_a_sim,language_conditioned_single_target_pick,scene_new,obj_1,native_opaque_cal,basic,pick up the banana,dual_fixed_realsense_rgbd,2,0,0,0.0,0.0,220,14.0,task_failure,not_met,0,,rll_6000_1,deadbeef,20260403_new,shard_001,1",
                     ]
                 )
                 + "\n",
                 encoding="utf-8",
             )
-            output_dir = root / "report"
 
-            import sys
-
-            argv = sys.argv
-            try:
-                sys.argv = [
-                    "aggregate.py",
-                    "--input",
-                    str(root / "runs"),
-                    "--output-dir",
-                    str(output_dir),
-                ]
-                aggregate_main()
-            finally:
-                sys.argv = argv
+            output_dir = self._run_aggregate(root)
 
             summary_text = (output_dir / "summary.csv").read_text(encoding="utf-8")
             self.assertIn("20260403_new", (output_dir / "report.json").read_text(encoding="utf-8"))
             self.assertIn("cgn", summary_text)
-            self.assertNotIn("graspvla", summary_text)
+            self.assertNotIn("scene_old", summary_text)
             shard_text = (output_dir / "by_shard.csv").read_text(encoding="utf-8")
             self.assertIn("shard_001", shard_text)
 
@@ -315,30 +271,14 @@ class ReportTest(unittest.TestCase):
                 "\n".join(
                     [
                         self.HEADER,
-                        "graspvla,track_a_cal,shared_track_a_sim,language_conditioned_single_target_pick,scene_old,obj_1,native_opaque_cal,basic,pick up the banana,dual_fixed_realsense_rgbd,1,1,20,2.0,1.0,120,4.0,,,0,,em14,deadbeef,,,",
+                        "graspvla,graspvla_official,track_a_cal,shared_track_a_sim,language_conditioned_single_target_pick,scene_old,obj_1,native_opaque_cal,basic,pick up the banana,dual_fixed_realsense_rgbd,1,1,20,2.0,1.0,120,4.0,,,0,,em14,deadbeef,,,",
                     ]
                 )
                 + "\n",
                 encoding="utf-8",
             )
-            output_dir = root / "report"
 
-            import sys
-
-            argv = sys.argv
-            try:
-                sys.argv = [
-                    "aggregate.py",
-                    "--input",
-                    str(root / "runs"),
-                    "--output-dir",
-                    str(output_dir),
-                    "--parent-run-id",
-                    "20260403_legacy_graspvla",
-                ]
-                aggregate_main()
-            finally:
-                sys.argv = argv
+            output_dir = self._run_aggregate(root, "--parent-run-id", "20260403_legacy_graspvla")
 
             summary_text = (output_dir / "summary.csv").read_text(encoding="utf-8")
             report_json = (output_dir / "report.json").read_text(encoding="utf-8")

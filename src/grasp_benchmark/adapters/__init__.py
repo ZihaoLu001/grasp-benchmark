@@ -1,11 +1,8 @@
 from __future__ import annotations
 
 from grasp_benchmark.adapters.base import AgentAdapter
-from grasp_benchmark.adapters.placeholders import (
-    AnyGraspAdapter,
-    ContactGraspNetAdapter,
-    GraspVLAAdapter,
-)
+from grasp_benchmark.adapters.modular_adapters import AnyGraspAdapter, ContactGraspNetAdapter
+from grasp_benchmark.adapters.placeholders import GraspVLAAdapter
 
 
 ADAPTERS: dict[str, type[AgentAdapter]] = {
@@ -21,4 +18,3 @@ def build_adapter(method_name: str, method_config: dict, sensor_config: dict) ->
     except KeyError as exc:
         raise KeyError(f"Unknown method adapter: {method_name}") from exc
     return adapter_cls(method_config=method_config, sensor_config=sensor_config)
-

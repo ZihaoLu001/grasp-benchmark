@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
 
+from grasp_benchmark.adapters.modular_components import method_tier as resolve_method_tier
 from grasp_benchmark.paths import PROJECT_ROOT, ensure_dir
 from grasp_benchmark.types import EpisodeResult
 from grasp_benchmark.runners.graspvla_track_a_sim import (
@@ -341,8 +342,10 @@ def _result_row(
     parent_run_id: str,
     runtime_config: dict[str, Any],
 ) -> EpisodeResult:
+    benchmark_method_tier = resolve_method_tier({"name": "graspvla", "benchmark_method_tier": "graspvla_official"})
     return EpisodeResult(
         method="graspvla",
+        method_tier=benchmark_method_tier,
         track="official_alignment",
         execution_mode=variant.execution_mode,
         task=task,
@@ -792,6 +795,7 @@ def _run_libero_episode(
         _write_json(episode_json, payload)
         result = EpisodeResult(
             method="graspvla",
+            method_tier=resolve_method_tier({"name": "graspvla", "benchmark_method_tier": "graspvla_official"}),
             track="official_alignment",
             execution_mode=variant.execution_mode,
             task=task_spec.benchmark,
@@ -974,6 +978,7 @@ def _run_playground_episode(
         _write_json(episode_json, payload)
         result = EpisodeResult(
             method="graspvla",
+            method_tier=resolve_method_tier({"name": "graspvla", "benchmark_method_tier": "graspvla_official"}),
             track="official_alignment",
             execution_mode=variant.execution_mode,
             task="playground",

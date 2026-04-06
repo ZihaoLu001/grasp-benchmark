@@ -1,5 +1,6 @@
 name: cgn
 display_name: Contact-GraspNet + Segmentation + Grounding DINO + Motion Planner
+benchmark_method_tier: cgn_full_modular
 env_name: gb-cgn
 preferred_nodes:
   - em14
@@ -17,6 +18,25 @@ sim:
   scene_catalog_by_task_set:
     track_a_cal_v1: graspvla_track_a_playground_cal_v1
     track_a_v2: graspvla_track_a_playground_v2
+groundingdino:
+  config_relpath: third_party/upstreams/GroundingDINO/groundingdino/config/GroundingDINO_SwinT_OGC.py
+  checkpoint_relpath: third_party/upstreams/GroundingDINO/weights/groundingdino_swint_ogc.pth
+  checkpoint_url: https://github.com/IDEA-Research/GroundingDINO/releases/download/v0.1.0-alpha/groundingdino_swint_ogc.pth
+  box_threshold: 0.25
+  text_threshold: 0.2
+  device: cuda
+segmentation:
+  min_pixels: 96
+  depth_quantile: 0.2
+  depth_band_m: 0.03
+  fallback_depth_quantile: 0.1
+  fallback_depth_band_m: 0.04
+planner:
+  approach_clearance_m: 0.08
+  grasp_offset_m: 0.015
+  lift_height_m: 0.18
+  chunk_size_m: 0.04
+  close_steps: 2
 track_a_input_policy:
   observation_contract: shared_observation
   consumes:

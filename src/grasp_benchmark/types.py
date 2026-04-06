@@ -36,6 +36,7 @@ class Action:
 @dataclass(slots=True)
 class EpisodeResult:
     method: str
+    method_tier: str
     track: str
     execution_mode: str
     task: str
@@ -66,6 +67,7 @@ class EpisodeResult:
     def fieldnames(cls) -> list[str]:
         return [
             "method",
+            "method_tier",
             "track",
             "execution_mode",
             "task",

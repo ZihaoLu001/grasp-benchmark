@@ -89,6 +89,8 @@ def execute_integration_trial(
     node: str,
     commit: str,
     execution_mode: str = "integration_fixture",
+    *,
+    method_tier: str = "unknown_method_tier",
 ) -> EpisodeResult:
     last_failure = ""
     last_stage = ""
@@ -116,6 +118,7 @@ def execute_integration_trial(
             )
             return EpisodeResult(
                 method=adapter.name,
+                method_tier=method_tier,
                 track=trial.track,
                 execution_mode=execution_mode,
                 task=trial.task,
@@ -179,6 +182,7 @@ def execute_integration_trial(
     cycle_time_s = time.perf_counter() - cycle_start
     return EpisodeResult(
         method=adapter.name,
+        method_tier=method_tier,
         track=trial.track,
         execution_mode=execution_mode,
         task=trial.task,
@@ -212,6 +216,8 @@ def run_integration_suite(
     node: str,
     commit: str,
     execution_mode: str = "integration_fixture",
+    *,
+    method_tier: str = "unknown_method_tier",
 ) -> list[EpisodeResult]:
     success_definition = sensor_config["success_definition"]
     results: list[EpisodeResult] = []
@@ -220,6 +226,7 @@ def run_integration_suite(
         results.append(
             execute_integration_trial(
                 adapter=adapter,
+                method_tier=method_tier,
                 sensor_config=sensor_config,
                 success_definition=success_definition,
                 trial=trial,

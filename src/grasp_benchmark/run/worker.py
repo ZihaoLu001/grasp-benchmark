@@ -7,6 +7,7 @@ from pathlib import Path
 
 from grasp_benchmark.adapters import build_adapter
 from grasp_benchmark.adapters.base import AdapterExecutionError
+from grasp_benchmark.adapters.modular_components import method_tier as resolve_method_tier
 from grasp_benchmark.config import load_named_config
 from grasp_benchmark.execution import run_integration_suite
 from grasp_benchmark.paths import PROJECT_ROOT, ensure_dir
@@ -80,6 +81,7 @@ def _sanitize_reason(exc: BaseException) -> str:
 def _setup_failure_results(
     *,
     adapter_name: str,
+    method_tier: str = "unknown_method_tier",
     sensor_stack: str,
     task_specs: list,
     node: str,
@@ -97,6 +99,7 @@ def _setup_failure_results(
         results.append(
             EpisodeResult(
                 method=adapter_name,
+                method_tier=method_tier,
                 track=trial.track,
                 execution_mode=execution_mode,
                 task=trial.task,
@@ -167,6 +170,7 @@ def main() -> None:
     ensure_dir(output_dir)
     payload = {
         "method": args.method,
+        "benchmark_method_tier": resolve_method_tier(method_config),
         "task_set": args.task_set,
         "sensor_config": args.sensor_config,
         "execution_mode": args.execution_mode,
@@ -227,12 +231,14 @@ def main() -> None:
         payload["task_specs"] = [task_spec.to_task_spec() for task_spec in task_specs]
     (output_dir / "run_metadata.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
+    benchmark_method_tier = resolve_method_tier(method_config)
     try:
         runtime_config = _runtime_config(method_config, cluster_config)
         runtime_config["gpu_id"] = args.gpu_id
         runtime_config["execution_mode"] = args.execution_mode
         runtime_config["smoke_only"] = args.smoke_only
         runtime_config["debug_dump_dir"] = str(output_dir / "debug")
+        runtime_config["task_set"] = args.task_set
         if _is_official_aligned_execution_mode(args.execution_mode):
             variant = OfficialAlignmentVariant(
                 name=args.official_variant_name or "official_alignment_variant",
@@ -287,6 +293,7 @@ def main() -> None:
             adapter.setup(runtime_config)
             results = run_integration_suite(
                 adapter=adapter,
+                method_tier=benchmark_method_tier,
                 sensor_config=sensor_config,
                 task_specs=task_specs,
                 artifact_dir=output_dir / "episodes",
@@ -299,6 +306,7 @@ def main() -> None:
         (output_dir / "run_metadata.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
         results = _setup_failure_results(
             adapter_name=adapter.name,
+            method_tier=benchmark_method_tier,
             sensor_stack=str(sensor_config["sensor_stack"]),
             task_specs=task_specs,
             node=payload["node"],

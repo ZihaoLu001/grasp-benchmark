@@ -15,6 +15,7 @@ class TypesTest(unittest.TestCase):
     def test_episode_results_append_csv(self) -> None:
         result = EpisodeResult(
             method="graspvla",
+            method_tier="graspvla_official",
             track="track_a",
             execution_mode="shared_track_a_sim",
             task="language_conditioned_single_target_pick",

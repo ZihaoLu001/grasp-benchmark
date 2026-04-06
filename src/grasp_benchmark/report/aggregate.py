@@ -28,6 +28,26 @@ PRIMARY_BY_OBJECT_GROUP_TITLE = "Track A-Cal By Object Group"
 STRESS_TITLE = "Track A-Stress Shared Stress Test"
 DIAGNOSTIC_TITLE = "GraspVLA Diagnostic Note"
 TRACK_B_TITLE = "Track B Native Deployment Reference"
+HISTORICAL_TITLE = "Historical / Interim Modular References"
+HEADLINE_METHOD_TIERS = {"graspvla_official", "cgn_full_modular", "anygrasp_full_modular"}
+INTERIM_METHOD_TIERS = {"cgn_raw_interim"}
+
+
+def _infer_method_tier(row: dict[str, object]) -> str:
+    explicit = str(row.get("method_tier", "")).strip()
+    if explicit:
+        return explicit
+    method = str(row.get("method", "")).strip()
+    if method == "graspvla":
+        return "graspvla_official"
+    if method == "cgn":
+        parent_run_id = str(row.get("parent_run_id", "")).strip().lower()
+        if any(token in parent_run_id for token in ("full", "modular")):
+            return "cgn_full_modular"
+        return "cgn_raw_interim"
+    if method == "anygrasp":
+        return "anygrasp_full_modular"
+    return "unknown_method_tier"
 
 
 def _coerce_row(row: dict[str, str]) -> dict[str, object]:
@@ -38,6 +58,7 @@ def _coerce_row(row: dict[str, str]) -> dict[str, object]:
             output[key] = value
         else:
             output[key] = caster(value) if value not in {"", None} else caster(0)
+    output["method_tier"] = _infer_method_tier(output)
     return output
 
 
@@ -106,6 +127,10 @@ def _aggregate(rows: list[dict[str, object]], group_keys: list[str]) -> list[dic
     return summary_rows
 
 
+def _rows_for_method_tiers(rows: list[dict[str, object]], allowed_tiers: set[str]) -> list[dict[str, object]]:
+    return [row for row in rows if str(row.get("method_tier", "")).strip() in allowed_tiers]
+
+
 def _failure_taxonomy(rows: list[dict[str, object]]) -> list[dict[str, object]]:
     counter = Counter()
     for row in rows:
@@ -116,14 +141,15 @@ def _failure_taxonomy(rows: list[dict[str, object]]) -> list[dict[str, object]]:
             continue
         if not stage and not reason:
             continue
-        counter[(row["track"], row["method"], stage, reason)] += 1
+        counter[(row["track"], row["method"], row.get("method_tier", ""), stage, reason)] += 1
 
     taxonomy: list[dict[str, object]] = []
-    for (track, method, stage, reason), count in sorted(counter.items()):
+    for (track, method, method_tier, stage, reason), count in sorted(counter.items()):
         taxonomy.append(
             {
                 "track": track,
                 "method": method,
+                "method_tier": method_tier,
                 "failure_stage": stage,
                 "failure_reason": reason,
                 "count": count,
@@ -175,7 +201,7 @@ def _track_a_rows(
 
 def _by_shard(rows: list[dict[str, object]]) -> list[dict[str, object]]:
     shard_rows = [row for row in rows if str(row.get("shard_id", "")).strip()]
-    return _aggregate(shard_rows, ["track", "method", "parent_run_id", "shard_id", "node", "gpu_id"])
+    return _aggregate(shard_rows, ["track", "method", "method_tier", "parent_run_id", "shard_id", "node", "gpu_id"])
 
 
 def _parse_track_b_reference(summary_path: Path) -> list[dict[str, object]]:
@@ -195,6 +221,7 @@ def _parse_track_b_reference(summary_path: Path) -> list[dict[str, object]]:
                 {
                     "track": track,
                     "method": method,
+                    "method_tier": "graspvla_official",
                     "reference_type": "native_best_case",
                     "benchmark": "playground",
                     "trials": trials,
@@ -213,6 +240,7 @@ def _parse_track_b_reference(summary_path: Path) -> list[dict[str, object]]:
             {
                 "track": track,
                 "method": method,
+                "method_tier": "graspvla_official",
                 "reference_type": "native_best_case",
                 "benchmark": match.group("benchmark"),
                 "trials": int(match.group("trials")),
@@ -260,9 +288,7 @@ def _load_reference_report(path: Path | None) -> dict[str, Any]:
     if path is None or not path.exists():
         return {}
     payload = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(payload, dict):
-        return {}
-    return payload
+    return payload if isinstance(payload, dict) else {}
 
 
 def _write_markdown(
@@ -273,22 +299,29 @@ def _write_markdown(
     taxonomy: list[dict[str, object]],
     track_b_reference: list[dict[str, object]],
     *,
+    interim_summary: list[dict[str, object]],
     parent_run_ids: list[str],
     diagnostic_note: list[str],
     stress_reference: dict[str, Any],
     stress_reference_path: str,
 ) -> None:
-    lines = [
-        "# Aggregate Report",
-        "",
-        f"## {PRIMARY_TITLE}",
-        "",
-    ]
+    lines = ["# Aggregate Report", "", f"## {PRIMARY_TITLE}", ""]
     if parent_run_ids:
         lines.extend([f"_Filtered to parent_run_id(s) `{', '.join(parent_run_ids)}`._", ""])
     lines.extend(
         _markdown_table(
-            ["track", "method", "task", "trials", "success_rate", "mean_spl", "mean_attempts", "mean_inference_ms", "mean_cycle_time_s"],
+            [
+                "track",
+                "method",
+                "method_tier",
+                "task",
+                "trials",
+                "success_rate",
+                "mean_spl",
+                "mean_attempts",
+                "mean_inference_ms",
+                "mean_cycle_time_s",
+            ],
             summary,
         )
     )
@@ -296,46 +329,51 @@ def _write_markdown(
         lines.extend(
             [
                 "",
-                "_Health check triggered: Track A-Cal is still all-zero across methods, so the next action is to audit shared-runner / released-distribution alignment before expanding the benchmark further._",
+                "_Health check triggered: Track A-Cal is still all-zero across headline methods, so the next action is to audit shared-runner / released-distribution alignment before expanding the benchmark further._",
             ]
         )
+
     lines.extend(["", f"## {PRIMARY_BY_CONDITION_TITLE}", ""])
     lines.extend(
         _markdown_table(
-            ["track", "method", "task", "condition", "trials", "success_rate", "mean_attempts"],
+            ["track", "method", "method_tier", "task", "condition", "trials", "success_rate", "mean_attempts"],
             conditions,
         )
     )
+
     lines.extend(["", f"## {PRIMARY_BY_OBJECT_GROUP_TITLE}", ""])
     lines.extend(
         _markdown_table(
-            ["track", "method", "task", "object_group", "trials", "success_rate", "mean_attempts"],
+            ["track", "method", "method_tier", "task", "object_group", "trials", "success_rate", "mean_attempts"],
             object_groups,
+        )
+    )
+
+    lines.extend(["", f"## {HISTORICAL_TITLE}", ""])
+    lines.extend(
+        _markdown_table(
+            ["track", "method", "method_tier", "task", "trials", "success_rate", "mean_attempts"],
+            interim_summary,
         )
     )
 
     lines.extend(["", f"## {STRESS_TITLE}", ""])
     if stress_reference_path:
-        lines.append(f"_Stress reference loaded from `{stress_reference_path}`._")
-        lines.append("")
-    stress_summary = list(stress_reference.get("summary") or [])
+        lines.extend([f"_Stress reference loaded from `{stress_reference_path}`._", ""])
     lines.extend(
         _markdown_table(
             ["track", "method", "task", "trials", "success_rate", "mean_attempts"],
-            stress_summary,
+            list(stress_reference.get("summary") or []),
         )
     )
 
     lines.extend(["", f"## {DIAGNOSTIC_TITLE}", ""])
-    if diagnostic_note:
-        lines.extend(diagnostic_note)
-    else:
-        lines.append("_No diagnostic note provided._")
+    lines.extend(diagnostic_note or ["_No diagnostic note provided._"])
 
     lines.extend(["", f"## {TRACK_B_TITLE}", ""])
     lines.extend(
         _markdown_table(
-            ["track", "method", "benchmark", "trials", "successes", "success_rate", "reference_type"],
+            ["track", "method", "method_tier", "benchmark", "trials", "successes", "success_rate", "reference_type"],
             track_b_reference,
         )
     )
@@ -344,7 +382,8 @@ def _write_markdown(
     if taxonomy:
         for row in taxonomy[:20]:
             lines.append(
-                f"- {row['track']} / {row['method']}: {row['failure_stage']} / {row['failure_reason']} ({row['count']})"
+                f"- {row['track']} / {row['method']} / {row.get('method_tier', '')}: "
+                f"{row['failure_stage']} / {row['failure_reason']} ({row['count']})"
             )
     else:
         lines.append("_No failures recorded._")
@@ -358,6 +397,7 @@ def _render_teacher_summary(
     by_object_group: list[dict[str, object]],
     track_b_reference: list[dict[str, object]],
     *,
+    interim_summary: list[dict[str, object]],
     parent_run_ids: list[str],
     diagnostic_note: list[str],
     stress_reference: dict[str, Any],
@@ -369,8 +409,9 @@ def _render_teacher_summary(
         "",
         "这份总结把三层结果严格分开：",
         "- `Track A-Cal`：共享 benchmark setting 下的主公平结论。",
-        "- `Track A-Stress`：共享协议下的压力测试结果，只做 stress / appendix，不作为第一页 headline claim。",
+        "- `Track A-Stress`：共享协议下的压力测试，只做 stress / appendix，不做 headline claim。",
         "- `Track B`：官方 native reference，只做工程参考，不参与最终公平结论。",
+        "- `Historical / Interim Modular References`：工程调试期的 raw modular 结果，只保留做历史参考。",
         "",
     ]
     if parent_run_id:
@@ -381,20 +422,21 @@ def _render_teacher_summary(
         for row in summary:
             lines.append(
                 "- "
-                f"{row['method']} / {row['task']}: success_rate={row['success_rate']}, trials={row['trials']}, "
-                f"mean_attempts={row['mean_attempts']}, mean_inference_ms={row['mean_inference_ms']}, "
-                f"mean_cycle_time_s={row['mean_cycle_time_s']}"
+                f"{row['method']} / {row['method_tier']} / {row['task']}: success_rate={row['success_rate']}, "
+                f"trials={row['trials']}, mean_attempts={row['mean_attempts']}, "
+                f"mean_inference_ms={row['mean_inference_ms']}, mean_cycle_time_s={row['mean_cycle_time_s']}"
             )
     else:
         lines.append("- 没有找到符合 `shared_track_a_sim` 的正式 `Track A-Cal` 结果。")
     if summary and all(float(row.get("success_rate", 0.0)) == 0.0 for row in summary):
-        lines.append("- 本轮 `Track A-Cal` 仍然是所有方法全 0，已经触发 health check。下一步优先做 shared runner 与 released distribution 的对齐审计，而不是继续扩 benchmark。")
+        lines.append("- 本轮 `Track A-Cal` 仍然是所有 headline 方法全 0，已经触发 health check。下一步优先做 shared runner 与 released distribution 的对齐审计，而不是继续扩 benchmark。")
 
     lines.extend(["", f"## {PRIMARY_BY_CONDITION_TITLE}", ""])
     if by_condition:
         for row in by_condition:
             lines.append(
-                f"- {row['method']} / {row['task']} / {row['condition']}: success_rate={row['success_rate']}, trials={row['trials']}"
+                f"- {row['method']} / {row['method_tier']} / {row['task']} / {row['condition']}: "
+                f"success_rate={row['success_rate']}, trials={row['trials']}"
             )
     else:
         lines.append("- 暂无按 condition 切分的数据。")
@@ -403,10 +445,21 @@ def _render_teacher_summary(
     if by_object_group:
         for row in by_object_group:
             lines.append(
-                f"- {row['method']} / {row['task']} / {row['object_group']}: success_rate={row['success_rate']}, trials={row['trials']}"
+                f"- {row['method']} / {row['method_tier']} / {row['task']} / {row['object_group']}: "
+                f"success_rate={row['success_rate']}, trials={row['trials']}"
             )
     else:
         lines.append("- 暂无按 object group 切分的数据。")
+
+    lines.extend(["", f"## {HISTORICAL_TITLE}", ""])
+    if interim_summary:
+        for row in interim_summary:
+            lines.append(
+                f"- {row['method']} / {row['method_tier']} / {row['task']}: "
+                f"success_rate={row['success_rate']}, trials={row['trials']}, mean_attempts={row['mean_attempts']}"
+            )
+    else:
+        lines.append("- 暂无 interim / raw modular 历史参考。")
 
     lines.extend(["", f"## {STRESS_TITLE}", ""])
     if stress_reference_path:
@@ -422,16 +475,14 @@ def _render_teacher_summary(
         lines.append("- 未提供 `Track A-Stress` 历史参考结果。")
 
     lines.extend(["", f"## {DIAGNOSTIC_TITLE}", ""])
-    if diagnostic_note:
-        lines.extend(diagnostic_note)
-    else:
-        lines.append("- 暂无诊断说明。")
+    lines.extend(diagnostic_note or ["- 暂无诊断说明。"])
 
     lines.extend(["", f"## {TRACK_B_TITLE}", ""])
     if track_b_reference:
         for row in track_b_reference:
             lines.append(
-                f"- {row['benchmark']}: success_rate={row['success_rate']}, trials={row['trials']}, source={row['source_artifact']}"
+                f"- {row['benchmark']} / {row['method_tier']}: success_rate={row['success_rate']}, "
+                f"trials={row['trials']}, source={row['source_artifact']}"
             )
     else:
         lines.append("- 未提供 `Track B` 官方 reference。")
@@ -442,6 +493,7 @@ def _render_teacher_summary(
             "## 解释口径",
             "",
             "- `Track A-Cal` 才是 benchmark setting 下用于公平比较的主榜单。",
+            "- `cgn_raw_interim` 这类 raw modular 结果只保留在历史 / appendix，不进入 headline table。",
             "- `Track A-Stress` 继续保留，但它代表共享协议下的压力测试，不再承担第一页 headline table 的职责。",
             "- `Track B` 只说明方法在作者原生 / 官方协议下的表现，不用于最终公平 claim。",
             "- 如果 `Track A-Cal` 再次出现所有方法全 0，就先审计 shared runner 与 released distribution 的对齐，而不是继续扩 benchmark 范围。",
@@ -500,9 +552,13 @@ def main() -> None:
         explicit_parent_run_id=args.parent_run_id,
     )
     track_a_rows = _track_a_rows(rows, execution_mode=args.track_a_execution_mode, parent_run_ids=parent_run_ids)
-    summary = _aggregate(track_a_rows, ["track", "method", "task"])
-    by_condition = _aggregate(track_a_rows, ["track", "method", "task", "condition"])
-    by_object_group = _aggregate(track_a_rows, ["track", "method", "task", "object_group"])
+    headline_rows = _rows_for_method_tiers(track_a_rows, HEADLINE_METHOD_TIERS)
+    interim_rows = _rows_for_method_tiers(track_a_rows, INTERIM_METHOD_TIERS)
+
+    summary = _aggregate(headline_rows, ["track", "method", "method_tier", "task"])
+    by_condition = _aggregate(headline_rows, ["track", "method", "method_tier", "task", "condition"])
+    by_object_group = _aggregate(headline_rows, ["track", "method", "method_tier", "task", "object_group"])
+    interim_summary = _aggregate(interim_rows, ["track", "method", "method_tier", "task"])
     by_shard = _by_shard(track_a_rows)
     taxonomy = _failure_taxonomy(track_a_rows)
     track_b_reference = _parse_track_b_reference(Path(args.track_b_reference)) if args.track_b_reference else []
@@ -514,6 +570,7 @@ def main() -> None:
     _write_csv(output_dir / "summary.csv", summary)
     _write_csv(output_dir / "by_condition.csv", by_condition)
     _write_csv(output_dir / "by_object_group.csv", by_object_group)
+    _write_csv(output_dir / "historical_interim_summary.csv", interim_summary)
     _write_csv(output_dir / "by_shard.csv", by_shard)
     _write_csv(output_dir / "failure_taxonomy.csv", taxonomy)
     _write_csv(output_dir / "track_b_reference.csv", track_b_reference)
@@ -524,6 +581,7 @@ def main() -> None:
         by_object_group,
         taxonomy,
         track_b_reference,
+        interim_summary=interim_summary,
         parent_run_ids=parent_run_ids,
         diagnostic_note=diagnostic_note,
         stress_reference=stress_reference,
@@ -535,6 +593,7 @@ def main() -> None:
         by_condition,
         by_object_group,
         track_b_reference,
+        interim_summary=interim_summary,
         parent_run_ids=parent_run_ids,
         diagnostic_note=diagnostic_note,
         stress_reference=stress_reference,
@@ -548,6 +607,7 @@ def main() -> None:
                 "summary": summary,
                 "by_condition": by_condition,
                 "by_object_group": by_object_group,
+                "historical_interim_summary": interim_summary,
                 "by_shard": by_shard,
                 "failure_taxonomy": taxonomy,
                 "track_b_reference": track_b_reference,
@@ -560,8 +620,11 @@ def main() -> None:
                 "primary_title": PRIMARY_TITLE,
                 "stress_title": STRESS_TITLE,
                 "track_b_title": TRACK_B_TITLE,
+                "historical_title": HISTORICAL_TITLE,
+                "headline_method_tiers": sorted(HEADLINE_METHOD_TIERS),
             },
             indent=2,
+            ensure_ascii=False,
         ),
         encoding="utf-8",
     )

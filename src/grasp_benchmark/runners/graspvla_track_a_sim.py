@@ -12,10 +12,11 @@ from typing import Any
 
 from grasp_benchmark.adapters import build_adapter
 from grasp_benchmark.adapters.base import AdapterExecutionError, AgentAdapter
+from grasp_benchmark.adapters.modular_components import method_tier as resolve_method_tier
 from grasp_benchmark.config import load_named_config
 from grasp_benchmark.paths import PROJECT_ROOT, ensure_dir
 from grasp_benchmark.task_specs import TrialSpec
-from grasp_benchmark.types import Observation
+from grasp_benchmark.types import EpisodeResult, Observation
 
 
 @dataclass(frozen=True, slots=True)
@@ -1021,6 +1022,7 @@ def _run_shared_track_a_suite_once(
         hold_steps_required = int(hold_steps_override) if hold_steps_override is not None else int(scene_config["hold_steps"])
         results: list[EpisodeResult] = []
         control_freq = int(method_config.get("sim", {}).get("control_freq", 5))
+        benchmark_method_tier = resolve_method_tier(method_config)
         shared_success_definition = {
             "lift_cm_min": round(lift_threshold_m * 100.0, 4),
             "hold_steps": hold_steps_required,
@@ -1153,6 +1155,7 @@ def _run_shared_track_a_suite_once(
                             )
                             result = EpisodeResult(
                                 method=method_name,
+                                method_tier=benchmark_method_tier,
                                 track=trial.track,
                                 execution_mode=execution_mode,
                                 task=trial.task,
@@ -1222,6 +1225,7 @@ def _run_shared_track_a_suite_once(
                     if attempt == trial.attempts_per_trial:
                         result = EpisodeResult(
                             method=method_name,
+                            method_tier=benchmark_method_tier,
                             track=trial.track,
                             execution_mode=execution_mode,
                             task=trial.task,
@@ -1284,6 +1288,7 @@ def _run_shared_track_a_suite_once(
                     if attempt == trial.attempts_per_trial:
                         result = EpisodeResult(
                             method=method_name,
+                            method_tier=benchmark_method_tier,
                             track=trial.track,
                             execution_mode=execution_mode,
                             task=trial.task,

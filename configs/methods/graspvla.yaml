@@ -1,5 +1,6 @@
 name: graspvla
 display_name: GraspVLA
+benchmark_method_tier: graspvla_official
 env_name: gb-core
 preferred_nodes:
   - em14

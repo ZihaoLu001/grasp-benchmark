@@ -52,6 +52,7 @@ def main() -> None:
     depth = payload["depth"]
     K = payload["K"]
     rgb = payload["rgb"] if "rgb" in payload.files else None
+    segmap = payload["segmap"] if "segmap" in payload.files else None
 
     global_config = config_utils.load_config(str(checkpoint_dir), batch_size=args.forward_passes, arg_configs=[])
     grasp_estimator = GraspEstimator(global_config)
@@ -64,23 +65,32 @@ def main() -> None:
     sess = tf.Session(config=config)
     try:
         grasp_estimator.load_weights(sess, saver, str(checkpoint_dir), mode="test")
-        pc_full, _, _ = grasp_estimator.extract_point_clouds(
+        pc_full, pc_segments, _ = grasp_estimator.extract_point_clouds(
             depth,
             K,
-            segmap=None,
+            segmap=segmap,
             rgb=rgb,
             z_range=[args.z_min, args.z_max],
         )
         pred_grasps_cam, scores, _, _ = grasp_estimator.predict_scene_grasps(
             sess,
             pc_full,
-            pc_segments={},
-            local_regions=False,
-            filter_grasps=False,
+            pc_segments=pc_segments,
+            local_regions=segmap is not None,
+            filter_grasps=segmap is not None,
             forward_passes=args.forward_passes,
         )
-        candidates = pred_grasps_cam.get(-1, np.array([]))
-        candidate_scores = scores.get(-1, np.array([]))
+        best_key = -1
+        best_score = None
+        for key, candidate_scores in scores.items():
+            if len(candidate_scores) == 0:
+                continue
+            score = float(np.max(candidate_scores))
+            if best_score is None or score > best_score:
+                best_score = score
+                best_key = key
+        candidates = pred_grasps_cam.get(best_key, np.array([]))
+        candidate_scores = scores.get(best_key, np.array([]))
         if len(candidates) == 0 or len(candidate_scores) == 0:
             result = {
                 "ok": False,
@@ -92,6 +102,7 @@ def main() -> None:
             best_grasp = candidates[best_idx]
             result = {
                 "ok": True,
+                "segment_key": int(best_key),
                 "grasp_count": int(len(candidates)),
                 "best_score": float(candidate_scores[best_idx]),
                 "best_translation": best_grasp[:3, 3].tolist(),
