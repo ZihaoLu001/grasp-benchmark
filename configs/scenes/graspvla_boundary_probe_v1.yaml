@@ -1,0 +1,138 @@
+name: graspvla_boundary_probe_v1
+execution_mode: shared_track_a_sim
+scene_backend: playground_floor_manipulation
+robot_config_relpath: third_party/upstreams/curobo/src/curobo/content/configs/robot/franka.yml
+max_steps: 300
+stabilization_steps: 10
+hold_steps: 10
+camera_names:
+  front: front_view
+  side: side_view
+regions:
+  target_center:
+    - [-0.145, -0.265, -0.095, -0.215]
+  clutter_left:
+    - [-0.26, -0.18, -0.16, -0.08]
+  clutter_right:
+    - [0.03, -0.18, 0.13, -0.08]
+  clutter_back:
+    - [-0.08, -0.08, 0.04, 0.02]
+  clutter_front:
+    - [-0.03, -0.26, 0.07, -0.18]
+conditions:
+  basic:
+    scene_properties:
+      floor_style: gray-floor
+      wall_style: white
+    distractor_count: 0
+    height_offset_cm: 0
+  lighting:
+    scene_properties:
+      floor_style: dark
+      wall_style: dark-blue
+    distractor_count: 0
+    height_offset_cm: 0
+  background:
+    scene_properties:
+      floor_style: blue_gingham
+      wall_style: pink_flower
+    distractor_count: 0
+    height_offset_cm: 0
+  distractors:
+    scene_properties:
+      floor_style: gray-floor
+      wall_style: white
+    distractor_count: 2
+    height_offset_cm: 0
+  height:
+    scene_properties:
+      floor_style: gray-floor
+      wall_style: white
+    distractor_count: 0
+    height_offset_cm: 8
+opaque_scene:
+  scene_properties:
+    floor_style: gray-floor
+    wall_style: white
+  height_offset_cm: 0
+transparent_scene:
+  scene_properties:
+    floor_style: white-marble
+    wall_style: light-blue
+  height_offset_cm: 0
+core_objects:
+  banana:
+    category_name: objaverse_banana
+    source_family: objaverse
+    source_asset: banana_ce1ad6c08a8c4e2f8c08eb910a0f8e1b
+    rotation_axis: z
+    rotation: [1.5707963267948966, 1.5707963267948966]
+  ceramic_bowl:
+    category_name: akita_black_bowl
+    source_family: stable_scanned
+    source_asset: akita_black_bowl
+    rotation_axis: x
+    rotation: [1.5707963267948966, 1.5707963267948966]
+  power_drill:
+    category_name: objaverse_drill
+    source_family: objaverse
+    source_asset: drill_e3b3290b8200475993a37c5c56b18ee1
+    rotation_axis: z
+    rotation: [1.5707963267948966, 1.5707963267948966]
+transparent_objects:
+  clear_plastic_cup:
+    category_name: tracka_clear_plastic_cup
+    source_family: turbosquid
+    source_asset: white_yellow_mug
+    rotation_axis: x
+    rotation: [-1.5707963267948966, -1.5707963267948966]
+    material_override:
+      rgba: [0.82, 0.92, 1.0, 0.22]
+      specular: 0.95
+  glass_bottle:
+    category_name: tracka_glass_bottle
+    source_family: turbosquid
+    source_asset: wine_bottle
+    rotation_axis: x
+    rotation: [0.0, 0.0]
+    material_override:
+      rgba: [0.72, 0.9, 1.0, 0.16]
+      specular: 0.98
+  wine_glass:
+    category_name: tracka_wine_glass
+    source_family: objaverse
+    source_asset: perfume_5353f01d845c4edca00896baa353253c
+    rotation_axis: z
+    rotation: [1.5707963267948966, 1.5707963267948966]
+    material_override:
+      rgba: [0.88, 0.94, 1.0, 0.2]
+      specular: 0.94
+  acrylic_box:
+    category_name: tracka_acrylic_box
+    source_family: objaverse
+    source_asset: box_cdc80b4a96a04cad9c94827ab84575cf
+    rotation_axis: z
+    rotation: [1.5707963267948966, 1.5707963267948966]
+    material_override:
+      rgba: [0.84, 0.92, 1.0, 0.2]
+      specular: 0.9
+distractor_priority:
+  - banana
+  - ceramic_bowl
+  - power_drill
+opaque_distractor_priority:
+  - banana
+  - ceramic_bowl
+  - power_drill
+transparent_distractor_priority:
+  - clear_plastic_cup
+  - glass_bottle
+  - wine_glass
+  - acrylic_box
+seed_base:
+  basic: 12100
+  lighting: 12200
+  background: 12300
+  distractors: 12400
+  height: 12500
+  transparent: 12600

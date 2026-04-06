@@ -101,6 +101,7 @@ class GraspVLAAdapter(AgentAdapter):
         host = str(config.get("host", self.method_config["server"]["host"]))
         port = int(config.get("port", self.method_config["server"]["port"]))
         self._socket.connect(f"tcp://{host}:{port}")
+        self._view_mode = str(config.get("graspvla_view_mode", "dual")).strip().lower()
 
     def reset(self, task_spec: dict[str, Any]) -> None:
         self.task_spec = task_spec
@@ -123,9 +124,19 @@ class GraspVLAAdapter(AgentAdapter):
         return [state_list[:] for _ in range(4)]
 
     def step(self, obs: Observation) -> Action:
+        front_rgb = obs.rgb_front
+        side_rgb = obs.rgb_side
+        if self._view_mode == "front_only_duplicate":
+            side_rgb = obs.rgb_front
+        elif self._view_mode == "front_only_blank":
+            side_rgb = self._np.zeros_like(obs.rgb_front)
+        elif self._view_mode == "side_only_duplicate":
+            front_rgb = obs.rgb_side
+        elif self._view_mode == "side_only_blank":
+            front_rgb = self._np.zeros_like(obs.rgb_side)
         request = {
-            "front_view_image": [obs.rgb_front],
-            "side_view_image": [obs.rgb_side],
+            "front_view_image": [front_rgb],
+            "side_view_image": [side_rgb],
             "proprio_array": self._proprio_history(obs),
             "text": self._instruction or obs.instruction,
         }

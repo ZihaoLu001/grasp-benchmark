@@ -170,6 +170,7 @@ def main() -> None:
     parser.add_argument("--lift-threshold-cm", type=float, default=-1.0)
     parser.add_argument("--hold-steps", type=int, default=-1)
     parser.add_argument("--trace-steps", action="store_true")
+    parser.add_argument("--graspvla-view-mode", default="", help="Optional GraspVLA camera-ablation mode.")
     parser.add_argument("--official-benchmarks", default="libero_object,libero_10,libero_goal")
     parser.add_argument("--official-task-count", type=int, default=2)
     parser.add_argument("--official-seeds", default="0,1,2,3,4,5,6,7,8,9")
@@ -214,6 +215,7 @@ def main() -> None:
         "lift_threshold_cm_override": args.lift_threshold_cm,
         "hold_steps_override": args.hold_steps,
         "trace_steps": args.trace_steps,
+        "graspvla_view_mode": args.graspvla_view_mode,
     }
 
     if args.smoke_only:
@@ -261,6 +263,7 @@ def main() -> None:
         runtime_config["smoke_only"] = args.smoke_only
         runtime_config["debug_dump_dir"] = str(output_dir / "debug")
         runtime_config["task_set"] = args.task_set
+        runtime_config["graspvla_view_mode"] = args.graspvla_view_mode
         if _is_official_aligned_execution_mode(args.execution_mode):
             variant = OfficialAlignmentVariant(
                 name=args.official_variant_name or "official_alignment_variant",
