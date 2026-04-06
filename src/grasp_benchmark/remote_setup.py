@@ -66,6 +66,9 @@ def build_method_install_script(
                 'export CUDAHOSTCXX="${CXX}"',
                 f'python -m pip install -e "{remote_root}/third_party/upstreams/curobo" --no-build-isolation',
                 'SOABI=$(python -c \'import sysconfig; print(sysconfig.get_config_var("SOABI") or "")\')',
+                'OPENSSL_COMPAT_DIR=""',
+                'for candidate in /usr/local/cuda-11.8/nsight-systems-2022.4.2/host-linux-x64 /usr/local/cuda-11.8/nsight-compute-2022.3.0/host/linux-desktop-glibc_2_11_3-x64 /usr/local/cuda-12.1/nsight-systems-2023.1.2/host-linux-x64 /usr/local/cuda-12.1/nsight-compute-2023.1.1/host/linux-desktop-glibc_2_11_3-x64 /usr/local/cuda-12.3/nsight-systems-2023.3.3/host-linux-x64 /usr/local/cuda-12.3/nsight-compute-2023.3.1/host/linux-desktop-glibc_2_11_3-x64; do if [ -f "$candidate/libcrypto.so.1.1" ] && [ -f "$candidate/libssl.so.1.1" ]; then OPENSSL_COMPAT_DIR="$candidate"; break; fi; done',
+                'if [ -n "$OPENSSL_COMPAT_DIR" ]; then ln -sf "$OPENSSL_COMPAT_DIR/libcrypto.so.1.1" "$CONDA_PREFIX/lib/libcrypto.so.1.1"; ln -sf "$OPENSSL_COMPAT_DIR/libssl.so.1.1" "$CONDA_PREFIX/lib/libssl.so.1.1"; fi',
                 f'cp -f "{remote_root}/third_party/upstreams/anygrasp_sdk/grasp_detection/gsnet_versions/gsnet.${{SOABI}}.so" "{remote_root}/third_party/upstreams/anygrasp_sdk/grasp_detection/gsnet.so"',
                 f'cp -f "{remote_root}/third_party/upstreams/anygrasp_sdk/license_registration/lib_cxx_versions/lib_cxx.${{SOABI}}.so" "{remote_root}/third_party/upstreams/anygrasp_sdk/grasp_detection/lib_cxx.so"',
             ]

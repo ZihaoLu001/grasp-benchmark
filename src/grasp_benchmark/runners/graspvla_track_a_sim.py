@@ -6,6 +6,7 @@ import os
 import shutil
 import sys
 import time
+import traceback
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from pathlib import Path
@@ -916,6 +917,7 @@ def _attempt_payload(
     alias_map: dict[str, dict[str, Any]],
     failure_stage: str = "",
     failure_reason: str = "",
+    failure_traceback: str = "",
     step_trace: list[dict[str, Any]] | None = None,
     execution_mode: str = "shared_track_a_sim",
     shared_success_definition: dict[str, Any] | None = None,
@@ -937,6 +939,7 @@ def _attempt_payload(
         "video_path": video_path,
         "failure_stage": failure_stage,
         "failure_reason": failure_reason,
+        "failure_traceback": failure_traceback,
         "scene_recipe": recipe.to_json(),
         "alias_map": alias_map,
         "execution_mode": execution_mode,
@@ -1322,6 +1325,7 @@ def _run_shared_track_a_suite_once(
                         )
                 except Exception as exc:
                     failure_reason = " ".join(f"{type(exc).__name__}: {exc}".split())[:4000]
+                    failure_traceback = traceback.format_exc(limit=50)
                     failure_stage = exc.failure_stage if isinstance(exc, AdapterExecutionError) else "scene_execution"
                     video_path = ""
                     if video_logger is not None:
@@ -1343,6 +1347,7 @@ def _run_shared_track_a_suite_once(
                                 alias_map=alias_map,
                                 failure_stage=failure_stage,
                                 failure_reason=failure_reason,
+                                failure_traceback=failure_traceback,
                                 execution_mode=execution_mode,
                                 shared_success_definition=shared_success_definition,
                                 parent_run_id=parent_run_id,

@@ -144,6 +144,9 @@ class AnyGraspAdapter(_SharedModularAdapterBase):
 
     def setup(self, config: dict[str, Any]) -> None:
         self._setup_shared_modular(config)
+        for alias, target in (("float", float), ("int", int), ("bool", bool)):
+            if not hasattr(self._np, alias):
+                setattr(self._np, alias, target)
         project_root = _project_root(config)
         self._sdk_root = _require_path(
             project_root / "third_party" / "upstreams" / "anygrasp_sdk",

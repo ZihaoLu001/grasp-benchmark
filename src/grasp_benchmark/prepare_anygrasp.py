@@ -17,9 +17,28 @@ def _build_remote_script(cluster_config: dict, method_config: dict) -> str:
     remote_root = cluster_config["remote_root"]
     anygrasp_root = f"{remote_root}/third_party/upstreams/anygrasp_sdk"
     return f"""
-set -euo pipefail
+set -eo pipefail
+ADDR2LINE="${{ADDR2LINE:-addr2line}}"
 source "{miniforge_root}/etc/profile.d/conda.sh"
 conda activate "{env_prefix}"
+OPENSSL_COMPAT_DIR=""
+for candidate in \
+  /usr/local/cuda-11.8/nsight-systems-2022.4.2/host-linux-x64 \
+  /usr/local/cuda-11.8/nsight-compute-2022.3.0/host/linux-desktop-glibc_2_11_3-x64 \
+  /usr/local/cuda-12.1/nsight-systems-2023.1.2/host-linux-x64 \
+  /usr/local/cuda-12.1/nsight-compute-2023.1.1/host/linux-desktop-glibc_2_11_3-x64 \
+  /usr/local/cuda-12.3/nsight-systems-2023.3.3/host-linux-x64 \
+  /usr/local/cuda-12.3/nsight-compute-2023.3.1/host/linux-desktop-glibc_2_11_3-x64
+do
+  if [ -f "$candidate/libcrypto.so.1.1" ] && [ -f "$candidate/libssl.so.1.1" ]; then
+    OPENSSL_COMPAT_DIR="$candidate"
+    break
+  fi
+done
+if [ -n "$OPENSSL_COMPAT_DIR" ]; then
+  ln -sf "$OPENSSL_COMPAT_DIR/libcrypto.so.1.1" "$CONDA_PREFIX/lib/libcrypto.so.1.1"
+  ln -sf "$OPENSSL_COMPAT_DIR/libssl.so.1.1" "$CONDA_PREFIX/lib/libssl.so.1.1"
+fi
 SOABI=$(python -c 'import sysconfig; print(sysconfig.get_config_var("SOABI") or "")')
 if [ -z "$SOABI" ]; then
   echo "__GB_ERROR__=missing_soabi"
@@ -35,7 +54,7 @@ set -e
 echo "__GB_FEATURE_STATUS__=${{FEATURE_STATUS}}"
 printf '__GB_FEATURE_B64__=%s\\n' "$(printf '%s' "$FEATURE_OUTPUT" | base64 -w0)"
 set +e
-IMPORT_OUTPUT=$(cd "{anygrasp_root}/grasp_detection" && PYTHONPATH=. python -c 'from gsnet import AnyGrasp; print("ANYGRASP_IMPORT_OK")' 2>&1)
+IMPORT_OUTPUT=$(cd "{anygrasp_root}/grasp_detection" && PYTHONPATH=. python -c 'import numpy as np; np.float = getattr(np, "float", float); np.int = getattr(np, "int", int); np.bool = getattr(np, "bool", bool); from gsnet import AnyGrasp; print("ANYGRASP_IMPORT_OK")' 2>&1)
 IMPORT_STATUS=$?
 set -e
 echo "__GB_IMPORT_STATUS__=${{IMPORT_STATUS}}"

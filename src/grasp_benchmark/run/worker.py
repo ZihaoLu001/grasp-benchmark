@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import argparse
+import faulthandler
 import json
+import os
+import signal
 import socket
 from pathlib import Path
 
@@ -20,6 +23,24 @@ from grasp_benchmark.runners.graspvla_official_aligned import (
 from grasp_benchmark.runners.graspvla_track_a_sim import run_shared_track_a_suite
 from grasp_benchmark.task_specs import expand_task_set
 from grasp_benchmark.types import EpisodeResult, append_episode_results_csv
+
+
+_FAULT_HANDLER_STREAM = None
+
+
+def _maybe_enable_faulthandler() -> None:
+    global _FAULT_HANDLER_STREAM
+    target = os.environ.get("GB_FAULTHANDLER_PATH", "").strip()
+    if not target:
+        return
+    path = Path(target)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    _FAULT_HANDLER_STREAM = path.open("a", encoding="utf-8")
+    faulthandler.enable(file=_FAULT_HANDLER_STREAM, all_threads=True)
+    try:
+        faulthandler.register(signal.SIGUSR1, file=_FAULT_HANDLER_STREAM, all_threads=True, chain=False)
+    except Exception:
+        pass
 
 
 def _runtime_config(method_config: dict, cluster_config: dict) -> dict:
@@ -131,6 +152,7 @@ def _setup_failure_results(
 
 
 def main() -> None:
+    _maybe_enable_faulthandler()
     parser = argparse.ArgumentParser(description="Remote benchmark worker scaffold.")
     parser.add_argument("--method", required=True)
     parser.add_argument("--task-set", required=True)
