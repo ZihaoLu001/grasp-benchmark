@@ -55,6 +55,8 @@ class _SharedModularAdapterBase(AgentAdapter):
         debug_dump_dir = str(config.get("debug_dump_dir", "")).strip()
         self._debug_dump_dir = Path(debug_dump_dir) if debug_dump_dir else None
         self._planner_config = dict(self.method_config.get("planner", {}))
+        self._single_plan_per_attempt = bool(self._planner_config.get("single_plan_per_attempt", False))
+        self._attempt_complete = False
         self._perception = SharedModularPerception(
             method_config=self.method_config,
             runtime_config=config,
@@ -66,6 +68,10 @@ class _SharedModularAdapterBase(AgentAdapter):
         self.task_spec = task_spec
         self._instruction = str(task_spec.get("instruction", "")).strip()
         self._pending_actions = []
+        self._attempt_complete = False
+
+    def attempt_complete(self) -> bool:
+        return bool(self._attempt_complete)
 
     def _write_debug_payload(self, prefix: str, payload: dict[str, Any]) -> None:
         if self._debug_dump_dir is None:
@@ -86,13 +92,17 @@ class _SharedModularAdapterBase(AgentAdapter):
 
     def step(self, obs: Observation) -> Action:
         if self._pending_actions:
-            return self._pending_actions.pop(0)
+            action = self._pending_actions.pop(0)
+            if self._single_plan_per_attempt and not self._pending_actions:
+                self._attempt_complete = True
+            return action
 
         perception = self._perception.observe(
             task_spec=self.task_spec,
             instruction=self._instruction or obs.instruction,
             obs=obs,
         )
+        self._attempt_complete = False
         payload = self._proposal_payload(obs, perception)
         translation = payload.get("best_translation")
         if translation is None:
@@ -136,7 +146,10 @@ class _SharedModularAdapterBase(AgentAdapter):
                 "Shared modular planner failed to produce any executable actions.",
                 failure_stage="planner_failure",
             )
-        return self._pending_actions.pop(0)
+        action = self._pending_actions.pop(0)
+        if self._single_plan_per_attempt and not self._pending_actions:
+            self._attempt_complete = True
+        return action
 
 
 class AnyGraspAdapter(_SharedModularAdapterBase):

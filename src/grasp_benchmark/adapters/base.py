@@ -37,6 +37,9 @@ class AgentAdapter(ABC):
         policy = self.method_config.get("track_a_input_policy", {})
         return dict(policy) if isinstance(policy, dict) else {}
 
+    def attempt_complete(self) -> bool:
+        return False
+
     @abstractmethod
     def setup(self, config: dict[str, Any]) -> None:
         raise NotImplementedError

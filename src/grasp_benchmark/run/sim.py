@@ -86,11 +86,14 @@ def _select_matrix_hosts(
     method_config: dict,
     available_nodes: dict,
     explicit_nodes: str,
+    explicit_node: str,
 ) -> list[str]:
     records = _available_node_records(available_nodes)
     dispatch_hosts = set(available_nodes.get("dispatch_hosts", []))
     if explicit_nodes:
         requested = [item.strip() for item in explicit_nodes.split(",") if item.strip()]
+    elif explicit_node:
+        requested = [explicit_node]
     else:
         requested = _preferred_matrix_hosts(method_name, method_config)
 
@@ -202,6 +205,7 @@ def _build_matrix_shards(
     parent_run_dir: Path,
     parent_run_id: str,
     explicit_nodes: str,
+    explicit_node: str,
     max_shards: int,
 ) -> list[DispatchShard]:
     selected_hosts = _select_matrix_hosts(
@@ -209,6 +213,7 @@ def _build_matrix_shards(
         method_config=method_config,
         available_nodes=available_nodes,
         explicit_nodes=explicit_nodes,
+        explicit_node=explicit_node,
     )
     records = _available_node_records(available_nodes)
     task_count = len(expand_task_set(load_named_config("tasks", task_set), max_trials=max_trials or None))
@@ -385,6 +390,7 @@ def main() -> None:
             parent_run_dir=run_dir,
             parent_run_id=parent_run_id,
             explicit_nodes=args.nodes,
+            explicit_node=args.node,
             max_shards=args.max_shards,
         )
         manifest["shards"] = [

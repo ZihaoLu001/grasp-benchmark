@@ -47,6 +47,7 @@ segmentation:
   fallback_depth_quantile: 0.1
   fallback_depth_band_m: 0.04
 planner:
+  single_plan_per_attempt: true
   approach_clearance_m: 0.08
   grasp_offset_m: 0.015
   lift_height_m: 0.18

@@ -789,7 +789,14 @@ class SharedTrackAAdapterAgent:
             self._last_gripper = 1.0
         env_action = abs_action.copy()
         env_action[6] = -env_action[6]
-        return env_action, None, {"policy": self._adapter.name, "gripper_command": int(action.gripper)}
+        return env_action, None, {
+            "policy": self._adapter.name,
+            "gripper_command": int(action.gripper),
+            "attempt_complete": self.attempt_complete(),
+        }
+
+    def attempt_complete(self) -> bool:
+        return bool(self._adapter.attempt_complete())
 
     def close(self) -> None:
         self._adapter.close()
@@ -1148,6 +1155,7 @@ def _run_shared_track_a_suite_once(
                         recipe.seed,
                     )
                     max_lift_cm_so_far = 0.0
+                    attempt_complete_early = False
 
                     for _step in range(recipe.max_steps):
                         action, bbox, debug = agent.step(obs, camera_meta)
@@ -1254,6 +1262,9 @@ def _run_shared_track_a_suite_once(
                                 gpu_id=gpu_id,
                             )
                             break
+                        if bool(debug.get("attempt_complete")):
+                            attempt_complete_early = True
+                            break
 
                     if result is not None:
                         break
@@ -1281,7 +1292,11 @@ def _run_shared_track_a_suite_once(
                                 video_path=video_path,
                                 alias_map=alias_map,
                                 failure_stage="task_failure",
-                                failure_reason="Shared success criterion was not met within the Track A step budget.",
+                                failure_reason=(
+                                    "Shared modular baseline exhausted its fixed execution plan without meeting the success criterion."
+                                    if attempt_complete_early
+                                    else "Shared success criterion was not met within the Track A step budget."
+                                ),
                                 step_trace=step_trace if trace_steps else None,
                                 execution_mode=execution_mode,
                                 shared_success_definition=shared_success_definition,
@@ -1314,7 +1329,11 @@ def _run_shared_track_a_suite_once(
                             inference_ms=0.0 if agent is None else agent.mean_inference_ms,
                             cycle_time_s=round(time.perf_counter() - cycle_start, 4),
                             failure_stage="task_failure",
-                            failure_reason="Shared success criterion was not met within the Track A step budget.",
+                            failure_reason=(
+                                "Shared modular baseline exhausted its fixed execution plan without meeting the success criterion."
+                                if attempt_complete_early
+                                else "Shared success criterion was not met within the Track A step budget."
+                            ),
                             collision=False,
                             video_path=video_path,
                             node=node,

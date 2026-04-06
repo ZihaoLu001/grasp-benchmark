@@ -7,7 +7,7 @@ from grasp_benchmark.runners.graspvla_official_aligned import (
     OfficialLiberoTaskSpec,
     select_non_invalid_official_tasks,
 )
-from grasp_benchmark.run.sim import _remote_env_name
+from grasp_benchmark.run.sim import _remote_env_name, _select_matrix_hosts
 from grasp_benchmark.config import load_named_config
 
 
@@ -114,6 +114,24 @@ class OfficialAlignmentSelectionTest(unittest.TestCase):
         )
         self.assertEqual(status["status_code"], "parity_failed")
         self.assertFalse(status["advance_to_attribution"])
+
+    def test_matrix_mode_honors_explicit_single_node_override(self) -> None:
+        available_nodes = {
+            "dispatch_hosts": ["em14", "rll_6000_1"],
+            "nodes": [
+                {"host": "em14", "status": "available", "gpu_names": ["A100"]},
+                {"host": "rll_6000_1", "status": "available", "gpu_names": ["RTX6000"]},
+            ],
+        }
+        method_config = load_named_config("methods", "cgn")
+        selected = _select_matrix_hosts(
+            method_name="cgn",
+            method_config=method_config,
+            available_nodes=available_nodes,
+            explicit_nodes="",
+            explicit_node="em14",
+        )
+        self.assertEqual(selected, ["em14"])
 
 
 if __name__ == "__main__":
