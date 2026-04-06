@@ -577,6 +577,7 @@ class SharedTrackARemoteAgent:
                 "state": self._proprio_history[-1].tolist(),
                 "history": [item.tolist() for item in self._proprio_history],
                 "gripper": int(self._last_gripper),
+                "robot_base_pose_world": camera_meta.get("robot_base_pose_world"),
             },
             instruction=self._instruction,
             timestamp=time.time(),
@@ -691,10 +692,6 @@ class SharedTrackAAdapterAgent:
         return round(sum(self._request_latencies_ms) / len(self._request_latencies_ms), 4)
 
     def _current_proprio(self, obs: dict[str, Any]) -> np.ndarray:
-        eef_pose = _eef_pose_from_obs(obs, self._np)
-        if eef_pose is not None:
-            return self._np.concatenate([eef_pose, self._np.array([self._last_gripper], dtype=self._np.float32)])
-
         current_joint_pos = self._np.asarray(obs["robot0_joint_pos"], dtype=self._np.float32)
         position, quaternion = self._kinematics.fk(current_joint_pos)
         import transforms3d as t3d
@@ -747,6 +744,7 @@ class SharedTrackAAdapterAgent:
                 "state": self._proprio_history[-1].tolist(),
                 "history": [item.tolist() for item in self._proprio_history],
                 "gripper": int(self._last_gripper),
+                "robot_base_pose_world": camera_meta.get("robot_base_pose_world"),
             },
             instruction=self._instruction,
             timestamp=time.time(),
@@ -808,6 +806,14 @@ def _camera_metadata(env: Any, scene_config: dict[str, Any]) -> dict[str, Any]:
     extent = float(env.sim.model.stat.extent)
     far = float(env.sim.model.vis.map.zfar) * extent
     near = float(env.sim.model.vis.map.znear) * extent
+    root_body = env.robots[0].robot_model.root_body
+    base_pos = env.sim.data.get_body_xpos(root_body)
+    base_rot = env.sim.data.get_body_xmat(root_body).reshape(3, 3)
+    base_pose_world = [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]]
+    for row in range(3):
+        for col in range(3):
+            base_pose_world[row][col] = float(base_rot[row, col])
+        base_pose_world[row][3] = float(base_pos[row])
     return {
         "intrinsics_front": {
             "fx": float(front_K[0, 0]),
@@ -825,6 +831,7 @@ def _camera_metadata(env: Any, scene_config: dict[str, Any]) -> dict[str, Any]:
         },
         "extrinsics_front": {"matrix": get_camera_extrinsic_matrix(env.sim, front_name).tolist()},
         "extrinsics_side": {"matrix": get_camera_extrinsic_matrix(env.sim, side_name).tolist()},
+        "robot_base_pose_world": base_pose_world,
         "depth_near_m": near,
         "depth_far_m": far,
     }

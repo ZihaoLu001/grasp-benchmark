@@ -102,6 +102,30 @@ def camera_target_in_world(obs: Observation, translation: Any, np_module: Any) -
     return (extrinsic @ point)[:3]
 
 
+def _world_to_base_matrix(obs: Observation, np_module: Any) -> Any | None:
+    base_pose_world = obs.proprio.get("robot_base_pose_world")
+    if base_pose_world is None:
+        return None
+    matrix = np_module.asarray(base_pose_world, dtype=np_module.float32)
+    if matrix.shape != (4, 4):
+        return None
+    try:
+        return np_module.linalg.inv(matrix)
+    except Exception:
+        return None
+
+
+def world_target_in_base(obs: Observation, target_world: Any, np_module: Any) -> Any:
+    world_to_base = _world_to_base_matrix(obs, np_module)
+    if world_to_base is None:
+        return np_module.asarray(target_world, dtype=np_module.float32)
+    point_world = np_module.asarray(
+        [target_world[0], target_world[1], target_world[2], 1.0],
+        dtype=np_module.float32,
+    )
+    return (world_to_base @ point_world)[:3]
+
+
 def _chunk_delta_actions(
     np_module: Any,
     start_pose: Any,
@@ -190,8 +214,13 @@ def build_shared_pick_plan(
                 failure_stage="planner_failure",
             )
         grasp_world = world_from_camera @ grasp_cam
-        grasp_translation = grasp_world[:3, 3].astype(np_module.float32)
-        grasp_rotation = grasp_world[:3, :3]
+        world_to_base = _world_to_base_matrix(obs, np_module)
+        if world_to_base is not None:
+            grasp_base = world_to_base @ grasp_world
+        else:
+            grasp_base = grasp_world
+        grasp_translation = grasp_base[:3, 3].astype(np_module.float32)
+        grasp_rotation = grasp_base[:3, :3]
         approach_axis = grasp_rotation[:, 2].astype(np_module.float32)
         norm = float(np_module.linalg.norm(approach_axis))
         if norm < 1e-6:
@@ -211,7 +240,8 @@ def build_shared_pick_plan(
         planner_debug = {
             "planner_mode": "grasp_pose",
             "translation_cam": np_module.asarray(grasp_cam[:3, 3], dtype=np_module.float32).tolist(),
-            "target_world": grasp_translation.tolist(),
+            "target_world": grasp_world[:3, 3].astype(np_module.float32).tolist(),
+            "target_base": grasp_translation.tolist(),
             "pregrasp_pose": pregrasp_pose.tolist(),
             "grasp_pose": grasp_pose.tolist(),
             "lift_pose": lift_pose.tolist(),
@@ -229,15 +259,16 @@ def build_shared_pick_plan(
                 "Shared modular planner could not map the target translation into world coordinates.",
                 failure_stage="planner_failure",
             )
+        target_base = world_target_in_base(obs, target_world, np_module)
         hover_z = max(
             float(start_pose[2]) + hover_raise_m,
-            float(target_world[2]) + approach_clearance_m,
+            float(target_base[2]) + approach_clearance_m,
             pregrasp_min_z_m,
         )
-        pregrasp_translation = target_world.copy()
+        pregrasp_translation = target_base.copy()
         pregrasp_translation[2] = hover_z
-        grasp_translation = target_world.copy()
-        grasp_translation[2] = max(0.02, float(target_world[2]) + grasp_offset_m)
+        grasp_translation = target_base.copy()
+        grasp_translation[2] = max(0.02, float(target_base[2]) + grasp_offset_m)
         lift_translation = grasp_translation.copy()
         lift_translation[2] = grasp_translation[2] + lift_height_m
         vertical_hover_translation = start_pose[:3].copy()
@@ -250,6 +281,7 @@ def build_shared_pick_plan(
             "planner_mode": "translation_only",
             "translation_cam": np_module.asarray(translation_cam, dtype=np_module.float32).tolist(),
             "target_world": target_world.tolist(),
+            "target_base": target_base.tolist(),
             "vertical_hover_pose": vertical_hover_pose.tolist(),
             "pregrasp_pose": pregrasp_pose.tolist(),
             "grasp_pose": grasp_pose.tolist(),
