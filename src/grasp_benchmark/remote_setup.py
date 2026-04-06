@@ -50,10 +50,10 @@ def build_method_install_script(
             [
                 'export SKLEARN_ALLOW_DEPRECATED_SKLEARN_PACKAGE_INSTALL=True',
                 'python -m pip install scikit-learn torch torchvision',
-                'python -m pip install "numpy<2" "transformers==4.41.2"',
+                'python -m pip install "numpy<2" "transformers==4.41.2" "numba"',
                 f'python -m pip install -r "{remote_root}/third_party/upstreams/anygrasp_sdk/requirements.txt"',
                 f'python -m pip install -r "{remote_root}/third_party/upstreams/GroundingDINO/requirements.txt"',
-                'python -m pip install "numpy<2" "transformers==4.41.2"',
+                'python -m pip install "numpy<2" "transformers==4.41.2" "numba"',
                 'SOABI=$(python -c \'import sysconfig; print(sysconfig.get_config_var("SOABI") or "")\')',
                 f'cp -f "{remote_root}/third_party/upstreams/anygrasp_sdk/grasp_detection/gsnet_versions/gsnet.${{SOABI}}.so" "{remote_root}/third_party/upstreams/anygrasp_sdk/grasp_detection/gsnet.so"',
                 f'cp -f "{remote_root}/third_party/upstreams/anygrasp_sdk/license_registration/lib_cxx_versions/lib_cxx.${{SOABI}}.so" "{remote_root}/third_party/upstreams/anygrasp_sdk/grasp_detection/lib_cxx.so"',
