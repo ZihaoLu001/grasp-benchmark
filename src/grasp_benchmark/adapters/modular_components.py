@@ -104,25 +104,32 @@ def camera_target_in_world(obs: Observation, translation: Any, np_module: Any) -
 
 def _chunk_delta_actions(
     np_module: Any,
-    start_xyz: Any,
-    goal_xyz: Any,
+    start_pose: Any,
+    goal_pose: Any,
     *,
     chunk_size_m: float,
+    chunk_size_rad: float,
     gripper: int,
 ) -> list[Action]:
-    delta = np_module.asarray(goal_xyz, dtype=np_module.float32) - np_module.asarray(start_xyz, dtype=np_module.float32)
-    max_component = float(np_module.max(np_module.abs(delta)))
-    chunks = max(1, int(np_module.ceil(max_component / max(chunk_size_m, 1e-4))))
-    step_delta = delta / float(chunks)
+    start = np_module.asarray(start_pose, dtype=np_module.float32)
+    goal = np_module.asarray(goal_pose, dtype=np_module.float32)
+    pos_delta = goal[:3] - start[:3]
+    rot_delta = goal[3:6] - start[3:6]
+    max_pos = float(np_module.max(np_module.abs(pos_delta)))
+    max_rot = float(np_module.max(np_module.abs(rot_delta)))
+    pos_chunks = int(np_module.ceil(max_pos / max(chunk_size_m, 1e-4))) if max_pos > 0 else 1
+    rot_chunks = int(np_module.ceil(max_rot / max(chunk_size_rad, 1e-4))) if max_rot > 0 else 1
+    chunks = max(1, pos_chunks, rot_chunks)
+    step_delta = (goal - start) / float(chunks)
     return [
         Action(
             ee_delta=(
                 float(step_delta[0]),
                 float(step_delta[1]),
                 float(step_delta[2]),
-                0.0,
-                0.0,
-                0.0,
+                float(step_delta[3]),
+                float(step_delta[4]),
+                float(step_delta[5]),
             ),
             gripper=gripper,
         )
@@ -134,37 +141,120 @@ def build_shared_pick_plan(
     obs: Observation,
     np_module: Any,
     *,
-    translation_cam: Any,
+    translation_cam: Any | None,
     planner_config: dict[str, Any],
+    grasp_matrix_cam: Any | None = None,
 ) -> list[Action]:
-    target_world = camera_target_in_world(obs, translation_cam, np_module)
-    if target_world is None:
-        raise AdapterExecutionError(
-            "Shared modular planner requires front-camera extrinsics to convert the target into world coordinates.",
-            failure_stage="planner_failure",
-        )
-
     current_pose = current_pose_from_obs(obs, np_module)
-    current_xyz = current_pose[:3]
     approach_clearance_m = float(planner_config.get("approach_clearance_m", 0.08))
     grasp_offset_m = float(planner_config.get("grasp_offset_m", 0.015))
     lift_height_m = float(planner_config.get("lift_height_m", 0.18))
     chunk_size_m = float(planner_config.get("chunk_size_m", 0.04))
+    chunk_size_rad = float(planner_config.get("chunk_size_rad", 0.2))
     close_steps = max(int(planner_config.get("close_steps", 2)), 1)
+    extrinsic_matrix = obs.extrinsics_front.get("matrix")
+    if extrinsic_matrix is None:
+        raise AdapterExecutionError(
+            "Shared modular planner requires front-camera extrinsics to convert the target into world coordinates.",
+            failure_stage="planner_failure",
+        )
+    world_from_camera = np_module.asarray(extrinsic_matrix, dtype=np_module.float32)
+    if world_from_camera.shape != (4, 4):
+        raise AdapterExecutionError(
+            "Shared modular planner requires a 4x4 front-camera extrinsic matrix.",
+            failure_stage="planner_failure",
+        )
 
-    approach_xyz = target_world.copy()
-    approach_xyz[2] = max(float(current_xyz[2]), float(target_world[2]) + approach_clearance_m)
-    grasp_xyz = target_world.copy()
-    grasp_xyz[2] = max(0.02, float(target_world[2]) + grasp_offset_m)
-    lift_xyz = grasp_xyz.copy()
-    lift_xyz[2] = grasp_xyz[2] + lift_height_m
+    start_pose = np_module.asarray(current_pose, dtype=np_module.float32)
+
+    if grasp_matrix_cam is not None:
+        try:
+            import transforms3d as t3d
+        except ImportError as exc:
+            raise AdapterExecutionError(
+                f"Shared modular planner requires transforms3d for grasp-pose execution: {exc}",
+                failure_stage="dependency_setup",
+            ) from exc
+
+        grasp_cam = np_module.asarray(grasp_matrix_cam, dtype=np_module.float32)
+        if grasp_cam.shape != (4, 4):
+            raise AdapterExecutionError(
+                "Shared modular planner expected a 4x4 grasp pose in camera coordinates.",
+                failure_stage="planner_failure",
+            )
+        grasp_world = world_from_camera @ grasp_cam
+        grasp_translation = grasp_world[:3, 3].astype(np_module.float32)
+        grasp_rotation = grasp_world[:3, :3]
+        approach_axis = grasp_rotation[:, 2].astype(np_module.float32)
+        norm = float(np_module.linalg.norm(approach_axis))
+        if norm < 1e-6:
+            raise AdapterExecutionError(
+                "Shared modular planner received an invalid Contact-GraspNet approach direction.",
+                failure_stage="planner_failure",
+            )
+        approach_axis /= norm
+        pregrasp_translation = grasp_translation - approach_clearance_m * approach_axis
+        lift_translation = grasp_translation.copy()
+        lift_translation[2] += lift_height_m
+        grasp_euler = np_module.asarray(t3d.euler.mat2euler(grasp_rotation, axes="sxyz"), dtype=np_module.float32)
+        pregrasp_pose = np_module.concatenate([pregrasp_translation, grasp_euler])
+        grasp_pose = np_module.concatenate([grasp_translation, grasp_euler])
+        lift_pose = np_module.concatenate([lift_translation, grasp_euler])
+    else:
+        if translation_cam is None:
+            raise AdapterExecutionError(
+                "Shared modular planner needs either a target translation or a full grasp pose.",
+                failure_stage="planner_failure",
+            )
+        target_world = camera_target_in_world(obs, translation_cam, np_module)
+        if target_world is None:
+            raise AdapterExecutionError(
+                "Shared modular planner could not map the target translation into world coordinates.",
+                failure_stage="planner_failure",
+            )
+        pregrasp_translation = target_world.copy()
+        pregrasp_translation[2] = max(float(start_pose[2]), float(target_world[2]) + approach_clearance_m)
+        grasp_translation = target_world.copy()
+        grasp_translation[2] = max(0.02, float(target_world[2]) + grasp_offset_m)
+        lift_translation = grasp_translation.copy()
+        lift_translation[2] = grasp_translation[2] + lift_height_m
+        pregrasp_pose = np_module.concatenate([pregrasp_translation, start_pose[3:6]])
+        grasp_pose = np_module.concatenate([grasp_translation, start_pose[3:6]])
+        lift_pose = np_module.concatenate([lift_translation, start_pose[3:6]])
 
     plan: list[Action] = []
-    plan.extend(_chunk_delta_actions(np_module, current_xyz, approach_xyz, chunk_size_m=chunk_size_m, gripper=1))
-    plan.extend(_chunk_delta_actions(np_module, approach_xyz, grasp_xyz, chunk_size_m=chunk_size_m, gripper=1))
+    plan.extend(
+        _chunk_delta_actions(
+            np_module,
+            start_pose,
+            pregrasp_pose,
+            chunk_size_m=chunk_size_m,
+            chunk_size_rad=chunk_size_rad,
+            gripper=1,
+        )
+    )
+    plan.extend(
+        _chunk_delta_actions(
+            np_module,
+            pregrasp_pose,
+            grasp_pose,
+            chunk_size_m=chunk_size_m,
+            chunk_size_rad=chunk_size_rad,
+            gripper=1,
+        )
+    )
     for _ in range(close_steps):
         plan.append(Action(ee_delta=(0.0, 0.0, 0.0, 0.0, 0.0, 0.0), gripper=-1))
-    plan.extend(_chunk_delta_actions(np_module, grasp_xyz, lift_xyz, chunk_size_m=chunk_size_m, gripper=-1))
+    plan.extend(
+        _chunk_delta_actions(
+            np_module,
+            grasp_pose,
+            lift_pose,
+            chunk_size_m=chunk_size_m,
+            chunk_size_rad=chunk_size_rad,
+            gripper=-1,
+        )
+    )
     return plan
 
 

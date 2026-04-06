@@ -114,6 +114,11 @@ class _SharedModularAdapterBase(AgentAdapter):
             self._np,
             translation_cam=self._np.asarray(translation, dtype=self._np.float32),
             planner_config=self._planner_config,
+            grasp_matrix_cam=(
+                self._np.asarray(payload["best_grasp"], dtype=self._np.float32)
+                if payload.get("best_grasp") is not None
+                else None
+            ),
         )
         if not self._pending_actions:
             raise AdapterExecutionError(
