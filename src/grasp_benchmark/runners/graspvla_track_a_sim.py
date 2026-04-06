@@ -662,11 +662,13 @@ class SharedTrackAAdapterAgent:
         runtime_config: dict[str, Any],
     ) -> None:
         import numpy as np
+        import transforms3d as t3d
 
         self._adapter = adapter
         self._instruction = instruction
         self._kinematics = kinematics
         self._np = np
+        self._t3d = t3d
         self._last_gripper = self.GRIPPER_OPEN
         self._proprio_history: list[np.ndarray] = []
         self._request_latencies_ms: list[float] = []
@@ -749,18 +751,35 @@ class SharedTrackAAdapterAgent:
         action[-1] = -1.0
         return action
 
+    def _delta_to_abs(self, delta_action: Any, current_pose: Any) -> Any:
+        current_rot = self._t3d.euler.euler2mat(*current_pose[3:6])
+        next_rot = self._t3d.euler.euler2mat(*delta_action[3:6]) @ current_rot
+        next_trans = current_pose[:3] + delta_action[:3]
+        return self._np.concatenate(
+            [
+                next_trans,
+                self._np.asarray(self._t3d.euler.mat2euler(next_rot), dtype=self._np.float32),
+                [delta_action[6]],
+            ]
+        )
+
     def step(self, obs: dict[str, Any], camera_meta: dict[str, Any]) -> tuple[Any, Any, dict[str, Any]]:
         observation = self._build_observation(obs, camera_meta)
         current_pose = self._np.asarray(observation.proprio["history"][-1][:6], dtype=self._np.float32)
         start = time.perf_counter()
         action = self._adapter.step(observation)
         self._request_latencies_ms.append((time.perf_counter() - start) * 1000.0)
-        abs_action = self._np.concatenate([current_pose + self._np.asarray(action.ee_delta, dtype=self._np.float32), [float(action.gripper)]])
+        delta_action = self._np.concatenate(
+            [self._np.asarray(action.ee_delta, dtype=self._np.float32), [float(action.gripper)]]
+        )
+        abs_action = self._delta_to_abs(delta_action, current_pose)
         if abs_action[6] < 0:
             self._last_gripper = -1.0
         elif abs_action[6] > 0:
             self._last_gripper = 1.0
-        return abs_action, None, {"policy": self._adapter.name, "gripper_command": int(action.gripper)}
+        env_action = abs_action.copy()
+        env_action[6] = -env_action[6]
+        return env_action, None, {"policy": self._adapter.name, "gripper_command": int(action.gripper)}
 
     def close(self) -> None:
         self._adapter.close()
