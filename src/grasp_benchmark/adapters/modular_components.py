@@ -151,6 +151,8 @@ def build_shared_pick_plan(
     grasp_offset_m = float(planner_config.get("grasp_offset_m", 0.015))
     lift_height_m = float(planner_config.get("lift_height_m", 0.18))
     pregrasp_min_z_m = float(planner_config.get("pregrasp_min_z_m", 0.0))
+    split_hover_waypoints = bool(planner_config.get("split_hover_waypoints", False))
+    hover_raise_m = float(planner_config.get("hover_raise_m", 0.08))
     chunk_size_m = float(planner_config.get("chunk_size_m", 0.04))
     chunk_size_rad = float(planner_config.get("chunk_size_rad", 0.2))
     close_steps = max(int(planner_config.get("close_steps", 2)), 1)
@@ -227,16 +229,20 @@ def build_shared_pick_plan(
                 "Shared modular planner could not map the target translation into world coordinates.",
                 failure_stage="planner_failure",
             )
-        pregrasp_translation = target_world.copy()
-        pregrasp_translation[2] = max(
-            float(start_pose[2]),
+        hover_z = max(
+            float(start_pose[2]) + hover_raise_m,
             float(target_world[2]) + approach_clearance_m,
             pregrasp_min_z_m,
         )
+        pregrasp_translation = target_world.copy()
+        pregrasp_translation[2] = hover_z
         grasp_translation = target_world.copy()
         grasp_translation[2] = max(0.02, float(target_world[2]) + grasp_offset_m)
         lift_translation = grasp_translation.copy()
         lift_translation[2] = grasp_translation[2] + lift_height_m
+        vertical_hover_translation = start_pose[:3].copy()
+        vertical_hover_translation[2] = hover_z
+        vertical_hover_pose = np_module.concatenate([vertical_hover_translation, start_pose[3:6]])
         pregrasp_pose = np_module.concatenate([pregrasp_translation, start_pose[3:6]])
         grasp_pose = np_module.concatenate([grasp_translation, start_pose[3:6]])
         lift_pose = np_module.concatenate([lift_translation, start_pose[3:6]])
@@ -244,22 +250,46 @@ def build_shared_pick_plan(
             "planner_mode": "translation_only",
             "translation_cam": np_module.asarray(translation_cam, dtype=np_module.float32).tolist(),
             "target_world": target_world.tolist(),
+            "vertical_hover_pose": vertical_hover_pose.tolist(),
             "pregrasp_pose": pregrasp_pose.tolist(),
             "grasp_pose": grasp_pose.tolist(),
             "lift_pose": lift_pose.tolist(),
+            "split_hover_waypoints": bool(split_hover_waypoints),
         }
 
     plan: list[Action] = []
-    plan.extend(
-        _chunk_delta_actions(
-            np_module,
-            start_pose,
-            pregrasp_pose,
-            chunk_size_m=chunk_size_m,
-            chunk_size_rad=chunk_size_rad,
-            gripper=1,
+    if grasp_matrix_cam is None and split_hover_waypoints:
+        plan.extend(
+            _chunk_delta_actions(
+                np_module,
+                start_pose,
+                vertical_hover_pose,
+                chunk_size_m=chunk_size_m,
+                chunk_size_rad=chunk_size_rad,
+                gripper=1,
+            )
         )
-    )
+        plan.extend(
+            _chunk_delta_actions(
+                np_module,
+                vertical_hover_pose,
+                pregrasp_pose,
+                chunk_size_m=chunk_size_m,
+                chunk_size_rad=chunk_size_rad,
+                gripper=1,
+            )
+        )
+    else:
+        plan.extend(
+            _chunk_delta_actions(
+                np_module,
+                start_pose,
+                pregrasp_pose,
+                chunk_size_m=chunk_size_m,
+                chunk_size_rad=chunk_size_rad,
+                gripper=1,
+            )
+        )
     for _ in range(pregrasp_settle_steps):
         plan.append(Action(ee_delta=(0.0, 0.0, 0.0, 0.0, 0.0, 0.0), gripper=1))
     plan.extend(

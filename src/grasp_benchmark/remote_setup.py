@@ -49,12 +49,14 @@ def build_method_install_script(
         lines.extend(
             [
                 'export SKLEARN_ALLOW_DEPRECATED_SKLEARN_PACKAGE_INSTALL=True',
-                'python -m pip install scikit-learn torch torchvision',
-                'python -m pip install "numpy<2" "transformers==4.41.2" "numba" "termcolor"',
-                'python -m pip install "hydra-core==1.2.0" "gym==0.25.2" "cloudpickle==2.1.0" "transforms3d" "opencv-python==4.6.0.66" "matplotlib" "pyzmq" "Pillow" "future==0.18.2" "easydict==1.9" "mujoco==3.6.0" "h5py"',
+                'python -m pip uninstall -y torch torchvision torchaudio opencv-python opencv-python-headless numpy || true',
+                'python -m pip install "numpy<2" "opencv-python==4.6.0.66"',
+                'python -m pip install "torch==2.2.2" "torchvision==0.17.2" "torchaudio==2.2.2" --index-url https://download.pytorch.org/whl/cu118',
+                'python -m pip install "transformers==4.41.2" "numba" "termcolor"',
+                'python -m pip install "hydra-core==1.2.0" "gym==0.25.2" "cloudpickle==2.1.0" "transforms3d" "opencv-python==4.6.0.66" "matplotlib" "pyzmq" "Pillow" "future==0.18.2" "easydict==1.9" "mujoco==3.1.6" "h5py"',
                 f'python -m pip install -r "{remote_root}/third_party/upstreams/anygrasp_sdk/requirements.txt"',
                 f'python -m pip install -r "{remote_root}/third_party/upstreams/GroundingDINO/requirements.txt"',
-                'python -m pip install "numpy<2" "transformers==4.41.2" "numba" "termcolor"',
+                'python -m pip install "numpy<2" "opencv-python==4.6.0.66" "transformers==4.41.2" "numba" "termcolor"',
                 f'python -m pip install -e "{remote_root}/third_party/upstreams/GraspVLA-playground/third_party/robosuite"',
                 f'python -m pip install -e "{remote_root}/third_party/upstreams/GraspVLA-playground/third_party/bddl"',
                 'if [ -d "/usr/local/cuda-11.8" ]; then export CUDA_HOME=/usr/local/cuda-11.8; else export CUDA_HOME="${CUDA_HOME:-/usr/local/cuda}"; fi',

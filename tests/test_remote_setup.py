@@ -45,7 +45,8 @@ class RemoteSetupTest(unittest.TestCase):
         method_config = load_named_config("methods", "anygrasp")
         script, notes = build_method_install_script(cluster_config, method_config, "anygrasp")
         self.assertIn("GroundingDINO", script)
-        self.assertIn('python -m pip install "numpy<2" "transformers==4.41.2"', script)
+        self.assertIn("--index-url https://download.pytorch.org/whl/cu118", script)
+        self.assertIn('python -m pip install "numpy<2" "opencv-python==4.6.0.66"', script)
         self.assertIn("gsnet.so", script)
         self.assertTrue(notes)
 

@@ -100,7 +100,7 @@ class _SharedModularAdapterBase(AgentAdapter):
                 "The modular grasp pipeline did not produce a target translation for the shared planner.",
                 failure_stage="planner_failure",
             )
-        self._pending_actions, planner_debug = build_shared_pick_plan(
+        planned_actions, planner_debug = build_shared_pick_plan(
             obs,
             self._np,
             translation_cam=self._np.asarray(translation, dtype=self._np.float32),
@@ -112,6 +112,16 @@ class _SharedModularAdapterBase(AgentAdapter):
             ),
             return_debug=True,
         )
+        replan_action_horizon = max(int(self._planner_config.get("replan_action_horizon", 0)), 0)
+        if replan_action_horizon > 0:
+            self._pending_actions = planned_actions[:replan_action_horizon]
+            planner_debug["planned_plan_length"] = int(len(planned_actions))
+            planner_debug["executed_plan_length"] = int(len(self._pending_actions))
+            planner_debug["replan_action_horizon"] = int(replan_action_horizon)
+        else:
+            self._pending_actions = planned_actions
+            planner_debug["planned_plan_length"] = int(len(planned_actions))
+            planner_debug["executed_plan_length"] = int(len(self._pending_actions))
         if self._debug_dump_dir is not None:
             latest_payload = {
                 "instruction": self._instruction or obs.instruction,

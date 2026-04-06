@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import shutil
 import sys
@@ -690,6 +691,10 @@ class SharedTrackAAdapterAgent:
         return round(sum(self._request_latencies_ms) / len(self._request_latencies_ms), 4)
 
     def _current_proprio(self, obs: dict[str, Any]) -> np.ndarray:
+        eef_pose = _eef_pose_from_obs(obs, self._np)
+        if eef_pose is not None:
+            return self._np.concatenate([eef_pose, self._np.array([self._last_gripper], dtype=self._np.float32)])
+
         current_joint_pos = self._np.asarray(obs["robot0_joint_pos"], dtype=self._np.float32)
         position, quaternion = self._kinematics.fk(current_joint_pos)
         import transforms3d as t3d
@@ -838,6 +843,30 @@ def _depth_to_metric(depth_map: Any, camera_meta: dict[str, Any], np_module: Any
     if near <= 0.0 or far <= near:
         return depth
     return near / (1.0 - depth * (1.0 - near / far))
+
+
+def _eef_pose_from_obs(obs: dict[str, Any], np_module: Any) -> Any | None:
+    eef_pos = obs.get("robot0_eef_pos")
+    eef_quat = obs.get("robot0_eef_quat")
+    if eef_pos is None or eef_quat is None:
+        return None
+
+    position = np_module.asarray(eef_pos, dtype=np_module.float32)
+    quaternion = np_module.asarray(eef_quat, dtype=np_module.float32)
+    if position.shape[0] != 3 or quaternion.shape[0] != 4:
+        return None
+    x, y, z, w = [float(value) for value in quaternion]
+    t0 = 2.0 * (w * x + y * z)
+    t1 = 1.0 - 2.0 * (x * x + y * y)
+    roll = math.atan2(t0, t1)
+    t2 = 2.0 * (w * y - z * x)
+    t2 = max(-1.0, min(1.0, t2))
+    pitch = math.asin(t2)
+    t3 = 2.0 * (w * z + x * y)
+    t4 = 1.0 - 2.0 * (y * y + z * z)
+    yaw = math.atan2(t3, t4)
+    euler = np_module.asarray([roll, pitch, yaw], dtype=np_module.float32)
+    return np_module.concatenate([position, euler])
 
 
 def _refresh_obs(env: Any) -> dict[str, Any]:
@@ -1129,10 +1158,17 @@ def _run_shared_track_a_suite_once(
                         target_lift_cm = (target_z - baseline_z[target_instance_name]) * 100.0
                         max_lift_cm_so_far = max(max_lift_cm_so_far, target_lift_cm)
                         if trace_steps:
-                            ee_position, ee_quaternion = kinematics.fk(np.asarray(obs["robot0_joint_pos"], dtype=np.float32))
-                            import transforms3d as t3d
+                            eef_pose = _eef_pose_from_obs(obs, np)
+                            if eef_pose is None:
+                                ee_position, ee_quaternion = kinematics.fk(
+                                    np.asarray(obs["robot0_joint_pos"], dtype=np.float32)
+                                )
+                                import transforms3d as t3d
 
-                            ee_euler = np.asarray(t3d.euler.quat2euler(ee_quaternion, axes="sxyz"), dtype=np.float32)
+                                ee_euler = np.asarray(t3d.euler.quat2euler(ee_quaternion, axes="sxyz"), dtype=np.float32)
+                                ee_pose = np.concatenate([ee_position, ee_euler])
+                            else:
+                                ee_pose = eef_pose
                             current_contacts = int(getattr(env.sim.data, "ncon", 0))
                             slip = target_lift_cm + 0.5 < max_lift_cm_so_far
                             step_trace.append(
@@ -1141,7 +1177,7 @@ def _run_shared_track_a_suite_once(
                                     action=action,
                                     bbox=bbox,
                                     debug=debug,
-                                    ee_pose=np.concatenate([ee_position, ee_euler]),
+                                    ee_pose=ee_pose,
                                     target_z=target_z,
                                     max_lift_cm=max_lift_cm_so_far,
                                     contact=current_contacts > 0,
