@@ -233,14 +233,25 @@ class AnyGraspAdapter(_SharedModularAdapterBase):
                 failure_stage=failure_stage,
             ) from exc
 
-        if len(grasp_group) == 0:
+        if grasp_group is None:
             raise AdapterExecutionError(
-                "AnyGrasp returned zero grasp proposals for the current masked observation.",
+                "AnyGrasp returned no grasp group for the current masked observation.",
                 failure_stage="grasp_proposal",
             )
 
         if hasattr(grasp_group, "nms"):
             grasp_group = grasp_group.nms().sort_by_score()
+        if grasp_group is None:
+            raise AdapterExecutionError(
+                "AnyGrasp post-processing removed every grasp candidate for the current masked observation.",
+                failure_stage="grasp_proposal",
+            )
+
+        if len(grasp_group) == 0:
+            raise AdapterExecutionError(
+                "AnyGrasp returned zero grasp proposals for the current masked observation.",
+                failure_stage="grasp_proposal",
+            )
         best_translation = None
         best_score = 0.0
         if hasattr(grasp_group, "translations"):

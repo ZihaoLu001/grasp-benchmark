@@ -774,8 +774,10 @@ class SharedTrackAAdapterAgent:
         current_pose = self._np.asarray(observation.proprio["history"][-1][:6], dtype=self._np.float32)
         had_pending_actions = bool(getattr(self._adapter, "_pending_actions", []))
         start = time.perf_counter()
-        action = self._adapter.step(observation)
-        self._request_latencies_ms.append((time.perf_counter() - start) * 1000.0)
+        try:
+            action = self._adapter.step(observation)
+        finally:
+            self._request_latencies_ms.append((time.perf_counter() - start) * 1000.0)
         if not had_pending_actions or self._command_pose is None:
             self._command_pose = current_pose.copy()
         delta_action = self._np.concatenate(
