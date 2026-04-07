@@ -50,6 +50,9 @@ class _SharedModularAdapterBase(AgentAdapter):
 
         self.runtime_config = config
         self._np = np
+        for alias, target in (("float", float), ("int", int), ("bool", bool)):
+            if not hasattr(self._np, alias):
+                setattr(self._np, alias, target)
         self._instruction = ""
         self._pending_actions: list[Action] = []
         debug_dump_dir = str(config.get("debug_dump_dir", "")).strip()
@@ -157,9 +160,6 @@ class AnyGraspAdapter(_SharedModularAdapterBase):
 
     def setup(self, config: dict[str, Any]) -> None:
         self._setup_shared_modular(config)
-        for alias, target in (("float", float), ("int", int), ("bool", bool)):
-            if not hasattr(self._np, alias):
-                setattr(self._np, alias, target)
         project_root = _project_root(config)
         self._sdk_root = _require_path(
             project_root / "third_party" / "upstreams" / "anygrasp_sdk",

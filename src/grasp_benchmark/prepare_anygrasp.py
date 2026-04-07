@@ -59,6 +59,11 @@ IMPORT_STATUS=$?
 set -e
 echo "__GB_IMPORT_STATUS__=${{IMPORT_STATUS}}"
 printf '__GB_IMPORT_B64__=%s\\n' "$(printf '%s' "$IMPORT_OUTPUT" | base64 -w0)"
+if [ -f "{anygrasp_root}/grasp_detection/log/checkpoint_detection.tar" ]; then
+  echo "__GB_CHECKPOINT_PRESENT__=1"
+else
+  echo "__GB_CHECKPOINT_PRESENT__=0"
+fi
 """
 
 
@@ -101,6 +106,7 @@ def main() -> None:
         "feature_id": _extract_feature_id(feature_output),
         "import_status": int(parsed.get("__GB_IMPORT_STATUS__", "-1") or -1),
         "import_output": import_output,
+        "checkpoint_present": parsed.get("__GB_CHECKPOINT_PRESENT__", "0") == "1",
         "stderr": result.stderr,
     }
     artifact["license_ready"] = artifact["import_status"] == 0 and "ANYGRASP_IMPORT_OK" in import_output

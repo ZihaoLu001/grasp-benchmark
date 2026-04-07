@@ -43,6 +43,16 @@ def _maybe_enable_faulthandler() -> None:
         pass
 
 
+def _maybe_enable_numpy_compat() -> None:
+    try:
+        import numpy as np
+    except Exception:
+        return
+    for alias, target in (("float", float), ("int", int), ("bool", bool)):
+        if not hasattr(np, alias):
+            setattr(np, alias, target)
+
+
 def _runtime_config(method_config: dict, cluster_config: dict) -> dict:
     runtime = {
         "timeout_ms": 10000,
@@ -153,6 +163,7 @@ def _setup_failure_results(
 
 def main() -> None:
     _maybe_enable_faulthandler()
+    _maybe_enable_numpy_compat()
     parser = argparse.ArgumentParser(description="Remote benchmark worker scaffold.")
     parser.add_argument("--method", required=True)
     parser.add_argument("--task-set", required=True)
