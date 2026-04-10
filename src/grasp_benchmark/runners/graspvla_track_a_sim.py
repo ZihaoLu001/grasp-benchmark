@@ -90,10 +90,16 @@ def _playground_root() -> Path:
 def _ensure_playground_imports(playground_root: Path) -> None:
     playground_path = str(playground_root)
     robosuite_path = str(playground_root / "third_party" / "robosuite")
+    curobo_path = str(PROJECT_ROOT / "third_party" / "upstreams" / "curobo" / "src")
+    if curobo_path not in sys.path:
+        sys.path.insert(0, curobo_path)
     if robosuite_path not in sys.path:
         sys.path.insert(0, robosuite_path)
     if playground_path not in sys.path:
         sys.path.insert(0, playground_path)
+    # Some playground assets are still resolved via cwd-relative paths during import time.
+    if playground_root.exists():
+        os.chdir(playground_root)
 
 
 def _load_scene_config(method_config: dict[str, Any], task_config: dict[str, Any] | None = None) -> dict[str, Any]:
