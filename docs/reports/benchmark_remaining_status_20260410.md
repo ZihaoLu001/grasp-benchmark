@@ -11,6 +11,10 @@
   的第一版公平比较
 - `GraspVLA` 透明物体 shared transparent 子集结果
 - `CGN` 透明物体 shared transparent 子集结果
+- `Track A-Stress` 当前非 `AnyGrasp` 正式结果：
+  - `GraspVLA`
+  - `CGN full modular`
+  的完整 shared stress compare
 
 ## 还没有完整跑完的 benchmark 文档项
 
@@ -19,8 +23,8 @@
    - 当前是 license 和现机器 feature id 不匹配
 
 2. `Track A-Stress` 的完整三方法正式汇总
-   - 现在有历史 `GraspVLA/CGN` 压力测试参考
-   - 但还没有在最终 modular 栈齐备后做成一版完整三方法正式 stress compare
+   - `GraspVLA + CGN full modular` 已完成
+   - 当前只缺 `AnyGrasp`
 
 3. real-world pilot
    - 目前还是 readiness / checklist 状态
@@ -37,11 +41,11 @@
 ## 如果按当前文档优先级继续，下一步顺序应该是
 
 1. 先补齐 `AnyGrasp` 当前节点可用的 license
-2. 跑完透明物体三方法 shared compare
-3. 在不改协议的前提下，补齐 `Track A-Stress` 的最终三方法附录
+2. 补完透明物体三方法 shared compare
+3. 把 `Track A-Stress` 从当前二方法 completed 状态补成三方法 completed 状态
 4. 再决定是真机 pilot 先上，还是直接进入 constraint / affordance 阶段
 
 ## 当前一句话判断
 
 - benchmark 主结构已经成立了，不需要推翻
-- 现在剩下的主要不是“再想方案”，而是把文档里还缺的执行层逐项补齐
+- 现在剩下的主要瓶颈已经收缩到 `AnyGrasp license` 和真机 / Phase 2 这类外部依赖，而不是 simulation 主线本身
