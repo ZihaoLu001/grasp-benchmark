@@ -44,6 +44,20 @@ class TypesTest(unittest.TestCase):
             parent_run_id="parent_001",
             shard_id="shard_000",
             gpu_id="0",
+            instruction_variant_id="canonical",
+            instruction_variant_family="canonical",
+            shift_family="camera_jitter",
+            shift_severity="low",
+            grounding_success=1,
+            mask_nonempty=1,
+            proposal_nonempty=1,
+            plan_success=1,
+            lift_only_success=1,
+            hold_success=1,
+            slip_after_lift=0,
+            collision_count=0,
+            wrong_object=0,
+            wrong_part=0,
         )
         with tempfile.TemporaryDirectory() as tmp_dir:
             path = Path(tmp_dir) / "results.csv"
@@ -55,7 +69,10 @@ class TypesTest(unittest.TestCase):
             self.assertIn("parent_001", text)
             self.assertIn("shard_000", text)
             self.assertIn("12345", text)
-            self.assertIn(",0", text)
+            self.assertIn("instruction_variant_id", text)
+            self.assertIn("camera_jitter", text)
+            self.assertIn("grounding_success", text)
+            self.assertIn("wrong_part", text)
 
 
 if __name__ == "__main__":

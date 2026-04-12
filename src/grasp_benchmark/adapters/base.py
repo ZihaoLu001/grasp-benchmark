@@ -40,6 +40,12 @@ class AgentAdapter(ABC):
     def attempt_complete(self) -> bool:
         return False
 
+    def latest_debug_payload(self) -> dict[str, Any]:
+        return {}
+
+    def latest_stage_metrics(self) -> dict[str, int]:
+        return {}
+
     @abstractmethod
     def setup(self, config: dict[str, Any]) -> None:
         raise NotImplementedError

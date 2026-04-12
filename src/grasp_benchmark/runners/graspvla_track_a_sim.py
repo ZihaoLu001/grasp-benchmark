@@ -33,6 +33,7 @@ class SceneObject:
     rotation_axis: str
     rotation: tuple[float, float]
     material_override: dict[str, Any] | None = None
+    geom_override: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -44,6 +45,10 @@ class SceneRecipe:
     replicate_index: int
     seed: int
     instruction: str
+    instruction_variant_id: str
+    instruction_variant_family: str
+    shift_family: str
+    shift_severity: str
     scene_properties: dict[str, Any]
     objects: tuple[SceneObject, ...]
     target_instance_names: tuple[str, ...]
@@ -62,6 +67,10 @@ class SceneRecipe:
             "replicate_index": self.replicate_index,
             "seed": self.seed,
             "instruction": self.instruction,
+            "instruction_variant_id": self.instruction_variant_id,
+            "instruction_variant_family": self.instruction_variant_family,
+            "shift_family": self.shift_family,
+            "shift_severity": self.shift_severity,
             "scene_properties": self.scene_properties,
             "objects": [
                 {
@@ -75,6 +84,7 @@ class SceneRecipe:
                     "rotation_axis": obj.rotation_axis,
                     "rotation": list(obj.rotation),
                     "material_override": obj.material_override or {},
+                    "geom_override": obj.geom_override or {},
                 }
                 for obj in self.objects
             ],
@@ -118,9 +128,48 @@ def _load_scene_config(method_config: dict[str, Any], task_config: dict[str, Any
 
 
 def _asset_key(object_id: str, task: str, scene_config: dict[str, Any]) -> dict[str, Any]:
+    transparent_objects = scene_config.get("transparent_objects", {})
+    core_objects = scene_config.get("core_objects", {})
+    if object_id in transparent_objects:
+        return dict(transparent_objects[object_id])
+    if object_id in core_objects:
+        return dict(core_objects[object_id])
     if task == "arbitrary_grasping_transparent":
         return dict(scene_config["transparent_objects"][object_id])
     return dict(scene_config["core_objects"][object_id])
+
+
+def _shift_config(scene_config: dict[str, Any], shift_family: str) -> dict[str, Any]:
+    if not shift_family:
+        return {}
+    raw = (scene_config.get("shift_families") or {}).get(shift_family, {})
+    return dict(raw) if isinstance(raw, dict) else {}
+
+
+def _merged_object_overrides(
+    *,
+    spec: dict[str, Any],
+    object_id: str,
+    shift_family: str,
+    shift_config: dict[str, Any],
+) -> tuple[str, dict[str, Any], dict[str, Any]]:
+    material_override = dict(spec.get("material_override") or {})
+    geom_override = dict(spec.get("geom_override") or {})
+    object_overrides = shift_config.get("object_overrides") or {}
+    if isinstance(object_overrides, dict):
+        merged: dict[str, Any] = {}
+        if "*" in object_overrides and isinstance(object_overrides["*"], dict):
+            merged.update(object_overrides["*"])
+        if object_id in object_overrides and isinstance(object_overrides[object_id], dict):
+            merged.update(object_overrides[object_id])
+        if isinstance(merged.get("material_override"), dict):
+            material_override.update(merged["material_override"])
+        if isinstance(merged.get("geom_override"), dict):
+            geom_override.update(merged["geom_override"])
+    category_name = str(spec["category_name"])
+    if shift_family and (material_override or geom_override):
+        category_name = f"{category_name}__{shift_family}"
+    return category_name, material_override, geom_override
 
 
 def _seed_for_trial(scene_config: dict[str, Any], trial: TrialSpec, scene_index: int) -> int:
@@ -141,8 +190,10 @@ def _build_transparent_scene_objects(
     focus_object_id: str,
     *,
     condition: str = "",
+    shift_family: str = "",
 ) -> tuple[SceneObject, ...]:
     transparent_cfg = dict((scene_config.get("transparent_conditions") or {}).get(condition, {}))
+    shift_cfg = _shift_config(scene_config, shift_family)
     ordered = [focus_object_id] + [
         item for item in scene_config.get("transparent_distractor_priority", []) if item != focus_object_id
     ]
@@ -152,18 +203,25 @@ def _build_transparent_scene_objects(
         if index >= len(region_names):
             break
         spec = _asset_key(object_id, "arbitrary_grasping_transparent", scene_config)
+        category_name, material_override, geom_override = _merged_object_overrides(
+            spec=spec,
+            object_id=object_id,
+            shift_family=shift_family,
+            shift_config=shift_cfg,
+        )
         objects.append(
             SceneObject(
                 object_id=object_id,
                 object_label=object_id.replace("_", " "),
-                category_name=str(spec["category_name"]),
+                category_name=category_name,
                 source_family=str(spec["source_family"]),
                 source_asset=str(spec["source_asset"]),
                 instance_name=f"{object_id}_1",
                 region_name=region_names[index],
                 rotation_axis=str(spec["rotation_axis"]),
                 rotation=(float(spec["rotation"][0]), float(spec["rotation"][1])),
-                material_override=dict(spec.get("material_override") or {}),
+                material_override=material_override,
+                geom_override=geom_override,
             )
         )
     return tuple(objects)
@@ -174,8 +232,10 @@ def _build_opaque_scene_objects(
     focus_object_id: str,
     *,
     condition: str = "",
+    shift_family: str = "",
 ) -> tuple[SceneObject, ...]:
     opaque_cfg = dict((scene_config.get("opaque_conditions") or {}).get(condition, {}))
+    shift_cfg = _shift_config(scene_config, shift_family)
     ordered = [focus_object_id] + [
         item for item in scene_config.get("opaque_distractor_priority", scene_config.get("distractor_priority", []))
         if item != focus_object_id
@@ -188,18 +248,25 @@ def _build_opaque_scene_objects(
         if index >= len(region_names):
             break
         spec = _asset_key(object_id, "arbitrary_grasping_common_opaque", scene_config)
+        category_name, material_override, geom_override = _merged_object_overrides(
+            spec=spec,
+            object_id=object_id,
+            shift_family=shift_family,
+            shift_config=shift_cfg,
+        )
         objects.append(
             SceneObject(
                 object_id=object_id,
                 object_label=object_id.replace("_", " "),
-                category_name=str(spec["category_name"]),
+                category_name=category_name,
                 source_family=str(spec["source_family"]),
                 source_asset=str(spec["source_asset"]),
                 instance_name=f"{object_id}_1",
                 region_name=region_names[index],
                 rotation_axis=str(spec["rotation_axis"]),
                 rotation=(float(spec["rotation"][0]), float(spec["rotation"][1])),
-                material_override=dict(spec.get("material_override") or {}),
+                material_override=material_override,
+                geom_override=geom_override,
             )
         )
     return tuple(objects)
@@ -208,10 +275,20 @@ def _build_opaque_scene_objects(
 def build_scene_catalog(task_specs: list[TrialSpec], scene_config: dict[str, Any]) -> dict[str, SceneRecipe]:
     recipes: dict[str, SceneRecipe] = {}
     for index, trial in enumerate(task_specs, start=1):
+        shift_cfg = _shift_config(scene_config, trial.shift_family)
         if trial.task == "arbitrary_grasping_transparent":
-            objects = _build_transparent_scene_objects(scene_config, trial.object_id, condition=trial.condition)
+            objects = _build_transparent_scene_objects(
+                scene_config,
+                trial.object_id,
+                condition=trial.condition,
+                shift_family=trial.shift_family,
+            )
             transparent_scene = dict(scene_config["transparent_scene"])
             transparent_scene.update((scene_config.get("transparent_conditions") or {}).get(trial.condition, {}))
+            transparent_scene["scene_properties"] = {
+                **dict(transparent_scene["scene_properties"]),
+                **dict(shift_cfg.get("scene_properties") or {}),
+            }
             recipe = SceneRecipe(
                 scene_id=trial.scene_id,
                 scene_recipe_id=trial.scene_recipe_id,
@@ -220,6 +297,10 @@ def build_scene_catalog(task_specs: list[TrialSpec], scene_config: dict[str, Any
                 replicate_index=trial.replicate_index,
                 seed=_seed_for_trial(scene_config, trial, index),
                 instruction=trial.instruction,
+                instruction_variant_id=trial.instruction_variant_id,
+                instruction_variant_family=trial.instruction_variant_family,
+                shift_family=trial.shift_family,
+                shift_severity=trial.shift_severity,
                 scene_properties=dict(transparent_scene["scene_properties"]),
                 objects=objects,
                 target_instance_names=(objects[0].instance_name,),
@@ -230,9 +311,18 @@ def build_scene_catalog(task_specs: list[TrialSpec], scene_config: dict[str, Any
                 hold_steps=int(scene_config["hold_steps"]),
             )
         elif trial.task == "arbitrary_grasping_common_opaque":
-            objects = _build_opaque_scene_objects(scene_config, trial.object_id, condition=trial.condition)
+            objects = _build_opaque_scene_objects(
+                scene_config,
+                trial.object_id,
+                condition=trial.condition,
+                shift_family=trial.shift_family,
+            )
             opaque_scene = dict(scene_config["opaque_scene"])
             opaque_scene.update((scene_config.get("opaque_conditions") or {}).get(trial.condition, {}))
+            opaque_scene["scene_properties"] = {
+                **dict(opaque_scene["scene_properties"]),
+                **dict(shift_cfg.get("scene_properties") or {}),
+            }
             recipe = SceneRecipe(
                 scene_id=trial.scene_id,
                 scene_recipe_id=trial.scene_recipe_id,
@@ -241,6 +331,10 @@ def build_scene_catalog(task_specs: list[TrialSpec], scene_config: dict[str, Any
                 replicate_index=trial.replicate_index,
                 seed=_seed_for_trial(scene_config, trial, index),
                 instruction=trial.instruction,
+                instruction_variant_id=trial.instruction_variant_id,
+                instruction_variant_family=trial.instruction_variant_family,
+                shift_family=trial.shift_family,
+                shift_severity=trial.shift_severity,
                 scene_properties=dict(opaque_scene["scene_properties"]),
                 objects=objects,
                 target_instance_names=(objects[0].instance_name,),
@@ -253,18 +347,25 @@ def build_scene_catalog(task_specs: list[TrialSpec], scene_config: dict[str, Any
         else:
             condition_cfg = scene_config["conditions"][trial.condition]
             target_spec = _asset_key(trial.object_id, trial.task, scene_config)
+            category_name, material_override, geom_override = _merged_object_overrides(
+                spec=target_spec,
+                object_id=trial.object_id,
+                shift_family=trial.shift_family,
+                shift_config=shift_cfg,
+            )
             objects = [
                 SceneObject(
                     object_id=trial.object_id,
                     object_label=trial.object_label,
-                    category_name=str(target_spec["category_name"]),
+                    category_name=category_name,
                     source_family=str(target_spec["source_family"]),
                     source_asset=str(target_spec["source_asset"]),
                     instance_name=f"{trial.object_id}_1",
                     region_name="target_center",
                     rotation_axis=str(target_spec["rotation_axis"]),
                     rotation=(float(target_spec["rotation"][0]), float(target_spec["rotation"][1])),
-                    material_override=dict(target_spec.get("material_override") or {}),
+                    material_override=material_override,
+                    geom_override=geom_override,
                 )
             ]
             region_names = list(condition_cfg.get("region_order", ["clutter_left", "clutter_right", "clutter_back", "clutter_front"]))
@@ -276,20 +377,31 @@ def build_scene_catalog(task_specs: list[TrialSpec], scene_config: dict[str, Any
                     break
                 distractor_spec = _asset_key(distractor_id, trial.task, scene_config)
                 region_name = region_names[distractor_index - 1]
+                distractor_category_name, distractor_material_override, distractor_geom_override = _merged_object_overrides(
+                    spec=distractor_spec,
+                    object_id=distractor_id,
+                    shift_family=trial.shift_family,
+                    shift_config=shift_cfg,
+                )
                 objects.append(
                     SceneObject(
                         object_id=distractor_id,
                         object_label=distractor_id.replace("_", " "),
-                        category_name=str(distractor_spec["category_name"]),
+                        category_name=distractor_category_name,
                         source_family=str(distractor_spec["source_family"]),
                         source_asset=str(distractor_spec["source_asset"]),
                         instance_name=f"{distractor_id}_1",
                         region_name=region_name,
                         rotation_axis=str(distractor_spec["rotation_axis"]),
                         rotation=(float(distractor_spec["rotation"][0]), float(distractor_spec["rotation"][1])),
-                        material_override=dict(distractor_spec.get("material_override") or {}),
+                        material_override=distractor_material_override,
+                        geom_override=distractor_geom_override,
                     )
                 )
+            merged_scene_properties = {
+                **dict(condition_cfg["scene_properties"]),
+                **dict(shift_cfg.get("scene_properties") or {}),
+            }
             recipe = SceneRecipe(
                 scene_id=trial.scene_id,
                 scene_recipe_id=trial.scene_recipe_id,
@@ -298,7 +410,11 @@ def build_scene_catalog(task_specs: list[TrialSpec], scene_config: dict[str, Any
                 replicate_index=trial.replicate_index,
                 seed=_seed_for_trial(scene_config, trial, index),
                 instruction=trial.instruction,
-                scene_properties=dict(condition_cfg["scene_properties"]),
+                instruction_variant_id=trial.instruction_variant_id,
+                instruction_variant_family=trial.instruction_variant_family,
+                shift_family=trial.shift_family,
+                shift_severity=trial.shift_severity,
+                scene_properties=merged_scene_properties,
                 objects=tuple(objects),
                 target_instance_names=(objects[0].instance_name,),
                 success_instance_names=(objects[0].instance_name,),
@@ -336,6 +452,20 @@ def _patch_materials(xml_path: Path, material_override: dict[str, Any]) -> None:
                 material.set(key, " ".join(str(item) for item in value))
             else:
                 material.set(key, str(value))
+    tree.write(xml_path, encoding="utf-8")
+
+
+def _patch_geoms(xml_path: Path, geom_override: dict[str, Any]) -> None:
+    if not geom_override:
+        return
+    tree = ET.parse(xml_path)
+    root = tree.getroot()
+    for geom in root.findall(".//geom"):
+        for key, value in geom_override.items():
+            if isinstance(value, (list, tuple)):
+                geom.set(key, " ".join(str(item) for item in value))
+            else:
+                geom.set(key, str(value))
     tree.write(xml_path, encoding="utf-8")
 
 
@@ -389,12 +519,13 @@ def prepare_runtime_assets(
                 "source_family": obj.source_family,
                 "source_asset": obj.source_asset,
             }
-            if not obj.material_override:
-                continue
             dest_dir = runtime_root / obj.category_name
+            if not obj.material_override and not obj.geom_override:
+                continue
             if not dest_dir.exists():
                 shutil.copytree(_source_asset_dir(playground_root, obj.source_family, obj.source_asset), dest_dir)
-                _patch_materials(dest_dir / f"{obj.source_asset}.xml", obj.material_override)
+                _patch_materials(dest_dir / f"{obj.source_asset}.xml", obj.material_override or {})
+                _patch_geoms(dest_dir / f"{obj.source_asset}.xml", obj.geom_override or {})
             _register_runtime_category(
                 category_name=obj.category_name,
                 xml_path=dest_dir / f"{obj.source_asset}.xml",
@@ -552,6 +683,8 @@ class SharedTrackARemoteAgent:
         runtime_config = dict(runtime_config or {})
         self._view_mode = str(runtime_config.get("graspvla_view_mode", "dual")).strip().lower()
         self._camera_jitter_mode = str(runtime_config.get("camera_jitter_mode", "")).strip().lower()
+        self._current_task_spec: dict[str, Any] = {}
+        self._current_shift_family = ""
         self._last_gripper = self.GRIPPER_OPEN
         self._proprio_history: list[np.ndarray] = []
         self._pred_actions: list[tuple[np.ndarray, Any]] = []
@@ -564,9 +697,13 @@ class SharedTrackARemoteAgent:
 
     def reset(self, instruction: str | dict[str, Any]) -> None:
         if isinstance(instruction, dict):
+            self._current_task_spec = dict(instruction)
             self._instruction = str(instruction.get("instruction", self._instruction))
+            self._current_shift_family = str(instruction.get("shift_family", "")).strip()
         else:
             self._instruction = instruction
+            self._current_task_spec = {"instruction": self._instruction}
+            self._current_shift_family = ""
         self._last_gripper = self.GRIPPER_OPEN
         self._proprio_history = []
         self._pred_actions = []
@@ -640,13 +777,19 @@ class SharedTrackARemoteAgent:
             intrinsics_side,
         ) = _apply_camera_jitter(
             self._np,
-            mode=self._camera_jitter_mode,
+            mode="low" if self._current_shift_family == "camera_jitter" else self._camera_jitter_mode,
             rgb_front=rgb_front,
             rgb_side=rgb_side,
             depth_front=front_depth,
             depth_side=side_depth,
             intrinsics_front=intrinsics_front,
             intrinsics_side=intrinsics_side,
+        )
+        front_depth, side_depth = _apply_depth_shift(
+            self._np,
+            shift_family=self._current_shift_family,
+            depth_front=front_depth,
+            depth_side=side_depth,
         )
         proprio_payload = {
             "state": self._proprio_history[-1].tolist(),
@@ -736,7 +879,20 @@ class SharedTrackARemoteAgent:
         action, bbox = self._pred_actions.pop(0)
         action = action.copy()
         action[6] = -action[6]
-        return action, bbox, {"bbox": bbox, "policy": "graspvla_remote_sequence"}
+        return action, bbox, {
+            "bbox": bbox,
+            "policy": "graspvla_remote_sequence",
+            "stage_metrics": {
+                "grounding_success": 1 if bbox is not None else 0,
+                "mask_nonempty": -1,
+                "proposal_nonempty": 1,
+                "plan_success": 1,
+            },
+            "instruction_variant_id": str(self._current_task_spec.get("instruction_variant_id", "")),
+            "instruction_variant_family": str(self._current_task_spec.get("instruction_variant_family", "")),
+            "shift_family": self._current_shift_family,
+            "shift_severity": str(self._current_task_spec.get("shift_severity", "")),
+        }
 
     def close(self) -> None:
         self._socket.close(linger=0)
@@ -765,6 +921,8 @@ class SharedTrackAAdapterAgent:
         self._t3d = t3d
         self._view_mode = str(runtime_config.get("graspvla_view_mode", "dual")).strip().lower()
         self._camera_jitter_mode = str(runtime_config.get("camera_jitter_mode", "")).strip().lower()
+        self._current_task_spec: dict[str, Any] = {}
+        self._current_shift_family = ""
         self._last_gripper = self.GRIPPER_OPEN
         self._command_pose: np.ndarray | None = None
         self._proprio_history: list[np.ndarray] = []
@@ -772,7 +930,9 @@ class SharedTrackAAdapterAgent:
         self._adapter.setup(runtime_config)
 
     def reset(self, task_spec: dict[str, Any]) -> None:
+        self._current_task_spec = dict(task_spec)
         self._instruction = str(task_spec.get("instruction", self._instruction))
+        self._current_shift_family = str(task_spec.get("shift_family", "")).strip()
         self._last_gripper = self.GRIPPER_OPEN
         self._command_pose = None
         self._proprio_history = []
@@ -849,13 +1009,19 @@ class SharedTrackAAdapterAgent:
             intrinsics_side,
         ) = _apply_camera_jitter(
             self._np,
-            mode=self._camera_jitter_mode,
+            mode="low" if self._current_shift_family == "camera_jitter" else self._camera_jitter_mode,
             rgb_front=rgb_front,
             rgb_side=rgb_side,
             depth_front=front_depth,
             depth_side=side_depth,
             intrinsics_front=intrinsics_front,
             intrinsics_side=intrinsics_side,
+        )
+        front_depth, side_depth = _apply_depth_shift(
+            self._np,
+            shift_family=self._current_shift_family,
+            depth_front=front_depth,
+            depth_side=side_depth,
         )
         proprio_payload = {
             "state": self._proprio_history[-1].tolist(),
@@ -928,6 +1094,12 @@ class SharedTrackAAdapterAgent:
             "policy": self._adapter.name,
             "gripper_command": int(action.gripper),
             "attempt_complete": self.attempt_complete(),
+            "adapter_debug": self._adapter.latest_debug_payload(),
+            "stage_metrics": self._adapter.latest_stage_metrics(),
+            "instruction_variant_id": str(self._current_task_spec.get("instruction_variant_id", "")),
+            "instruction_variant_family": str(self._current_task_spec.get("instruction_variant_family", "")),
+            "shift_family": self._current_shift_family,
+            "shift_severity": str(self._current_task_spec.get("shift_severity", "")),
         }
 
     def attempt_complete(self) -> bool:
@@ -1185,6 +1357,29 @@ def _apply_camera_jitter(
     )
 
 
+def _apply_depth_shift(
+    np_module: Any,
+    *,
+    shift_family: str,
+    depth_front: Any,
+    depth_side: Any,
+) -> tuple[Any, Any]:
+    if shift_family != "depth_noise_bias":
+        return depth_front, depth_side
+
+    front = np_module.asarray(depth_front, dtype=np_module.float32).copy()
+    side = np_module.asarray(depth_side, dtype=np_module.float32).copy()
+    valid_front = np_module.isfinite(front) & (front > 1e-6)
+    valid_side = np_module.isfinite(side) & (side > 1e-6)
+    if np_module.any(valid_front):
+        front[valid_front] = np_module.clip(front[valid_front] + 0.01, 1e-6, None)
+        front[valid_front] += np_module.full(front[valid_front].shape, 0.004, dtype=np_module.float32)
+    if np_module.any(valid_side):
+        side[valid_side] = np_module.clip(side[valid_side] + 0.01, 1e-6, None)
+        side[valid_side] += np_module.full(side[valid_side].shape, 0.004, dtype=np_module.float32)
+    return front, side
+
+
 def _attempt_payload(
     *,
     trial: TrialSpec,
@@ -1207,11 +1402,16 @@ def _attempt_payload(
     parent_run_id: str = "",
     shard_id: str = "",
     gpu_id: str = "",
+    stage_metrics: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
     return {
         "scene_id": trial.scene_id,
         "scene_recipe_id": trial.scene_recipe_id,
         "task": trial.task,
+        "instruction_variant_id": trial.instruction_variant_id,
+        "instruction_variant_family": trial.instruction_variant_family,
+        "shift_family": trial.shift_family,
+        "shift_severity": trial.shift_severity,
         "attempt": attempt,
         "replicate_index": trial.replicate_index,
         "seed": trial.seed,
@@ -1233,6 +1433,7 @@ def _attempt_payload(
         "parent_run_id": parent_run_id,
         "shard_id": shard_id,
         "gpu_id": gpu_id,
+        "stage_metrics": dict(stage_metrics or {}),
         "step_trace": list(step_trace or []),
     }
 
@@ -1256,6 +1457,74 @@ def _target_instance_for_trial(recipe: SceneRecipe, trial: TrialSpec) -> str:
     if trial.task in {"arbitrary_grasping_transparent", "arbitrary_grasping_common_opaque"}:
         return recipe.success_instance_names[0]
     return recipe.target_instance_names[0]
+
+
+def _default_stage_metrics() -> dict[str, int]:
+    return {
+        "grounding_success": -1,
+        "mask_nonempty": -1,
+        "proposal_nonempty": -1,
+        "plan_success": -1,
+        "lift_only_success": 0,
+        "hold_success": 0,
+        "slip_after_lift": 0,
+        "collision_count": 0,
+        "wrong_object": 0,
+        "wrong_part": 0,
+    }
+
+
+def _merge_stage_metrics(target: dict[str, int], update: dict[str, Any]) -> None:
+    for key in ("grounding_success", "mask_nonempty", "proposal_nonempty", "plan_success"):
+        if key not in update:
+            continue
+        value = int(update.get(key, -1))
+        if value < 0:
+            continue
+        if int(target.get(key, -1)) < 0:
+            target[key] = value
+        else:
+            target[key] = max(int(target.get(key, 0)), value)
+    for key in ("lift_only_success", "hold_success", "slip_after_lift", "wrong_object", "wrong_part"):
+        if key in update:
+            target[key] = max(int(target.get(key, 0)), int(update.get(key, 0)))
+    if "collision_count" in update:
+        target["collision_count"] = int(target.get("collision_count", 0)) + int(update.get("collision_count", 0))
+
+
+def _lift_only_success(max_lift_cm: float, lift_threshold_cm: float) -> int:
+    return int(float(max_lift_cm) >= float(lift_threshold_cm))
+
+
+def _collision_count_from_trace(step_trace: list[dict[str, Any]]) -> int:
+    return sum(int(bool(entry.get("contact"))) for entry in step_trace)
+
+
+def _slip_from_trace(step_trace: list[dict[str, Any]]) -> int:
+    return int(any(bool(entry.get("slip")) for entry in step_trace))
+
+
+def _wrong_object_flag(
+    *,
+    trial: TrialSpec,
+    recipe: SceneRecipe,
+    baseline_z: dict[str, float],
+    final_z: dict[str, float],
+    lift_threshold_m: float,
+) -> int:
+    if trial.task != "language_conditioned_single_target_pick":
+        return 0
+    target_instance = recipe.target_instance_names[0]
+    for obj in recipe.objects:
+        instance_name = obj.instance_name
+        if instance_name == target_instance:
+            continue
+        lift_m = float(final_z.get(instance_name, baseline_z.get(instance_name, 0.0))) - float(
+            baseline_z.get(instance_name, 0.0)
+        )
+        if lift_m >= float(lift_threshold_m):
+            return 1
+    return 0
 
 
 def _build_shared_agent(
@@ -1299,6 +1568,7 @@ def _step_trace_entry(
     target_z: float,
     max_lift_cm: float,
     contact: bool,
+    contact_count: int,
     slip: bool,
 ) -> dict[str, Any]:
     return {
@@ -1309,6 +1579,7 @@ def _step_trace_entry(
         "target_z": round(float(target_z), 6),
         "max_lift_cm": round(float(max_lift_cm), 6),
         "contact": bool(contact),
+        "contact_count": int(contact_count),
         "slip": bool(slip),
         "debug": _json_safe(dict(debug or {})),
     }
@@ -1386,12 +1657,14 @@ def _run_shared_track_a_suite_once(
             recipe = recipes[trial.scene_id]
             cycle_start = time.perf_counter()
             result = None
+            episode_stage_metrics = _default_stage_metrics()
 
             for attempt in range(1, trial.attempts_per_trial + 1):
                 env = None
                 agent = None
                 video_logger = None
                 step_trace: list[dict[str, Any]] = []
+                attempt_stage_metrics = _default_stage_metrics()
                 try:
                     bddl_path = bddl_root / f"{trial.scene_id}_attempt{attempt:02d}.bddl"
                     write_bddl_for_recipe(recipe, scene_config, bddl_path)
@@ -1423,8 +1696,7 @@ def _run_shared_track_a_suite_once(
                     if recipe.height_offset_cm > 0:
                         obs = _apply_height_offset(env, recipe.target_instance_names[0], recipe.height_offset_cm)
                     baseline_z = {
-                        instance_name: float(np.asarray(obs[f"{instance_name}_pos"])[2])
-                        for instance_name in recipe.success_instance_names
+                        obj.instance_name: float(np.asarray(obs[f"{obj.instance_name}_pos"])[2]) for obj in recipe.objects
                     }
                     final_z = dict(baseline_z)
                     target_instance_name = _target_instance_for_trial(recipe, trial)
@@ -1446,12 +1718,14 @@ def _run_shared_track_a_suite_once(
                             else None
                         )
                         action, bbox, debug = agent.step(obs, camera_meta, gt_masks=gt_masks)
+                        _merge_stage_metrics(attempt_stage_metrics, dict(debug.get("stage_metrics") or {}))
                         obs, _reward, _done, _info = env.step(action)
                         video_logger.log_frame(obs, bbox)
+                        for obj in recipe.objects:
+                            final_z[obj.instance_name] = float(np.asarray(obs[f"{obj.instance_name}_pos"])[2])
                         winner = ""
                         for instance_name in recipe.success_instance_names:
-                            current_z = float(np.asarray(obs[f"{instance_name}_pos"])[2])
-                            final_z[instance_name] = current_z
+                            current_z = final_z[instance_name]
                             if current_z - baseline_z[instance_name] >= lift_threshold_m:
                                 hold_counts[instance_name] += 1
                                 if hold_counts[instance_name] >= hold_steps_required:
@@ -1486,6 +1760,7 @@ def _run_shared_track_a_suite_once(
                                     target_z=target_z,
                                     max_lift_cm=max_lift_cm_so_far,
                                     contact=current_contacts > 0,
+                                    contact_count=current_contacts,
                                     slip=slip,
                                 )
                             )
@@ -1494,6 +1769,21 @@ def _run_shared_track_a_suite_once(
                             video_path = str(Path(video_logger.new_video_name).relative_to(artifact_dir))
                             lift_cm = round((final_z[winner] - baseline_z[winner]) * 100.0, 4)
                             hold_s = round(hold_counts[winner] / control_freq, 4)
+                            attempt_stage_metrics["lift_only_success"] = _lift_only_success(
+                                max_lift_cm_so_far,
+                                lift_threshold_m * 100.0,
+                            )
+                            attempt_stage_metrics["hold_success"] = 1
+                            attempt_stage_metrics["slip_after_lift"] = _slip_from_trace(step_trace)
+                            attempt_stage_metrics["collision_count"] = _collision_count_from_trace(step_trace)
+                            attempt_stage_metrics["wrong_object"] = _wrong_object_flag(
+                                trial=trial,
+                                recipe=recipe,
+                                baseline_z=baseline_z,
+                                final_z=final_z,
+                                lift_threshold_m=lift_threshold_m,
+                            )
+                            _merge_stage_metrics(episode_stage_metrics, attempt_stage_metrics)
                             (episodes_dir / f"{trial.scene_id}_attempt{attempt:02d}.json").write_text(
                                 json.dumps(
                                     _attempt_payload(
@@ -1514,6 +1804,7 @@ def _run_shared_track_a_suite_once(
                                         parent_run_id=parent_run_id,
                                         shard_id=shard_id,
                                         gpu_id=gpu_id,
+                                        stage_metrics=attempt_stage_metrics,
                                     ),
                                     indent=2,
                                 ),
@@ -1531,6 +1822,10 @@ def _run_shared_track_a_suite_once(
                                 object_group=trial.object_group,
                                 condition=trial.condition,
                                 instruction=trial.instruction,
+                                instruction_variant_id=trial.instruction_variant_id,
+                                instruction_variant_family=trial.instruction_variant_family,
+                                shift_family=trial.shift_family,
+                                shift_severity=trial.shift_severity,
                                 sensor_stack=str(sensor_config["sensor_stack"]),
                                 attempts=attempt,
                                 success=True,
@@ -1550,6 +1845,16 @@ def _run_shared_track_a_suite_once(
                                 parent_run_id=parent_run_id,
                                 shard_id=shard_id,
                                 gpu_id=gpu_id,
+                                grounding_success=episode_stage_metrics["grounding_success"],
+                                mask_nonempty=episode_stage_metrics["mask_nonempty"],
+                                proposal_nonempty=episode_stage_metrics["proposal_nonempty"],
+                                plan_success=episode_stage_metrics["plan_success"],
+                                lift_only_success=episode_stage_metrics["lift_only_success"],
+                                hold_success=episode_stage_metrics["hold_success"],
+                                slip_after_lift=episode_stage_metrics["slip_after_lift"],
+                                collision_count=episode_stage_metrics["collision_count"],
+                                wrong_object=episode_stage_metrics["wrong_object"],
+                                wrong_part=episode_stage_metrics["wrong_part"],
                             )
                             break
                         if bool(debug.get("attempt_complete")):
@@ -1567,6 +1872,18 @@ def _run_shared_track_a_suite_once(
                         max((final_z[name] - baseline_z[name]) * 100.0 for name in recipe.success_instance_names),
                         4,
                     )
+                    attempt_stage_metrics["lift_only_success"] = _lift_only_success(max_lift_cm, lift_threshold_m * 100.0)
+                    attempt_stage_metrics["hold_success"] = 0
+                    attempt_stage_metrics["slip_after_lift"] = _slip_from_trace(step_trace)
+                    attempt_stage_metrics["collision_count"] = _collision_count_from_trace(step_trace)
+                    attempt_stage_metrics["wrong_object"] = _wrong_object_flag(
+                        trial=trial,
+                        recipe=recipe,
+                        baseline_z=baseline_z,
+                        final_z=final_z,
+                        lift_threshold_m=lift_threshold_m,
+                    )
+                    _merge_stage_metrics(episode_stage_metrics, attempt_stage_metrics)
                     (episodes_dir / f"{trial.scene_id}_attempt{attempt:02d}.json").write_text(
                         json.dumps(
                             _attempt_payload(
@@ -1593,6 +1910,7 @@ def _run_shared_track_a_suite_once(
                                 parent_run_id=parent_run_id,
                                 shard_id=shard_id,
                                 gpu_id=gpu_id,
+                                stage_metrics=attempt_stage_metrics,
                             ),
                             indent=2,
                         ),
@@ -1611,6 +1929,10 @@ def _run_shared_track_a_suite_once(
                             object_group=trial.object_group,
                             condition=trial.condition,
                             instruction=trial.instruction,
+                            instruction_variant_id=trial.instruction_variant_id,
+                            instruction_variant_family=trial.instruction_variant_family,
+                            shift_family=trial.shift_family,
+                            shift_severity=trial.shift_severity,
                             sensor_stack=str(sensor_config["sensor_stack"]),
                             attempts=attempt,
                             success=False,
@@ -1634,11 +1956,30 @@ def _run_shared_track_a_suite_once(
                             parent_run_id=parent_run_id,
                             shard_id=shard_id,
                             gpu_id=gpu_id,
+                            grounding_success=episode_stage_metrics["grounding_success"],
+                            mask_nonempty=episode_stage_metrics["mask_nonempty"],
+                            proposal_nonempty=episode_stage_metrics["proposal_nonempty"],
+                            plan_success=episode_stage_metrics["plan_success"],
+                            lift_only_success=episode_stage_metrics["lift_only_success"],
+                            hold_success=episode_stage_metrics["hold_success"],
+                            slip_after_lift=episode_stage_metrics["slip_after_lift"],
+                            collision_count=episode_stage_metrics["collision_count"],
+                            wrong_object=episode_stage_metrics["wrong_object"],
+                            wrong_part=episode_stage_metrics["wrong_part"],
                         )
                 except Exception as exc:
                     failure_reason = " ".join(f"{type(exc).__name__}: {exc}".split())[:4000]
                     failure_traceback = traceback.format_exc(limit=50)
                     failure_stage = exc.failure_stage if isinstance(exc, AdapterExecutionError) else "scene_execution"
+                    if failure_stage == "grounding_error":
+                        attempt_stage_metrics["grounding_success"] = 0
+                    elif failure_stage == "segmentation_error":
+                        attempt_stage_metrics["mask_nonempty"] = 0
+                    elif failure_stage == "grasp_proposal":
+                        attempt_stage_metrics["proposal_nonempty"] = 0
+                    elif failure_stage == "planner_failure":
+                        attempt_stage_metrics["plan_success"] = 0
+                    _merge_stage_metrics(episode_stage_metrics, attempt_stage_metrics)
                     video_path = ""
                     if video_logger is not None:
                         video_logger.stop_recording(success=False)
@@ -1665,6 +2006,7 @@ def _run_shared_track_a_suite_once(
                                 parent_run_id=parent_run_id,
                                 shard_id=shard_id,
                                 gpu_id=gpu_id,
+                                stage_metrics=attempt_stage_metrics,
                             ),
                             indent=2,
                         ),
@@ -1683,6 +2025,10 @@ def _run_shared_track_a_suite_once(
                             object_group=trial.object_group,
                             condition=trial.condition,
                             instruction=trial.instruction,
+                            instruction_variant_id=trial.instruction_variant_id,
+                            instruction_variant_family=trial.instruction_variant_family,
+                            shift_family=trial.shift_family,
+                            shift_severity=trial.shift_severity,
                             sensor_stack=str(sensor_config["sensor_stack"]),
                             attempts=attempt,
                             success=False,
@@ -1702,6 +2048,16 @@ def _run_shared_track_a_suite_once(
                             parent_run_id=parent_run_id,
                             shard_id=shard_id,
                             gpu_id=gpu_id,
+                            grounding_success=episode_stage_metrics["grounding_success"],
+                            mask_nonempty=episode_stage_metrics["mask_nonempty"],
+                            proposal_nonempty=episode_stage_metrics["proposal_nonempty"],
+                            plan_success=episode_stage_metrics["plan_success"],
+                            lift_only_success=episode_stage_metrics["lift_only_success"],
+                            hold_success=episode_stage_metrics["hold_success"],
+                            slip_after_lift=episode_stage_metrics["slip_after_lift"],
+                            collision_count=episode_stage_metrics["collision_count"],
+                            wrong_object=episode_stage_metrics["wrong_object"],
+                            wrong_part=episode_stage_metrics["wrong_part"],
                         )
                 finally:
                     if agent is not None:

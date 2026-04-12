@@ -1,0 +1,52 @@
+name: phase2_pilot_v1
+track: track_a_phase2
+scene_catalog: graspvla_phase2_pilot_v1
+catalog:
+  phase2_objects:
+    - id: clear_plastic_cup
+      label: clear plastic cup
+    - id: power_drill
+      label: power drill
+task_groups:
+  - name: mug_handle_grasp
+    object_group: phase2_objects
+    object_ids:
+      - clear_plastic_cup
+    instruction_template: "pick up the mug by the handle"
+    attempts_per_trial: 3
+    conditions:
+      - name: part_basic
+        variant_count: 8
+  - name: avoid_inside_cup
+    object_group: phase2_objects
+    object_ids:
+      - clear_plastic_cup
+    instruction_template: "pick up the mug without touching inside the cup"
+    attempts_per_trial: 3
+    conditions:
+      - name: part_basic
+        variant_count: 8
+  - name: power_drill_handle_grasp
+    object_group: phase2_objects
+    object_ids:
+      - power_drill
+    instruction_template: "pick up the power drill by the handle"
+    attempts_per_trial: 3
+    conditions:
+      - name: part_basic
+        variant_count: 8
+object_groups:
+  - phase2_objects
+metrics:
+  - task_success
+  - wrong_part
+  - inference_latency
+  - cycle_time
+failure_taxonomy:
+  - grounding_error
+  - segmentation_error
+  - bad_grasp_proposal
+  - planner_failure
+  - collision
+  - slip
+  - wrong_part

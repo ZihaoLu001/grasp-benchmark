@@ -65,6 +65,20 @@ class EpisodeResult:
     parent_run_id: str = ""
     shard_id: str = ""
     gpu_id: str = ""
+    instruction_variant_id: str = ""
+    instruction_variant_family: str = ""
+    shift_family: str = ""
+    shift_severity: str = ""
+    grounding_success: int = -1
+    mask_nonempty: int = -1
+    proposal_nonempty: int = -1
+    plan_success: int = -1
+    lift_only_success: int = 0
+    hold_success: int = 0
+    slip_after_lift: int = 0
+    collision_count: int = 0
+    wrong_object: int = 0
+    wrong_part: int = 0
 
     @classmethod
     def fieldnames(cls) -> list[str]:
@@ -80,6 +94,10 @@ class EpisodeResult:
             "object_group",
             "condition",
             "instruction",
+            "instruction_variant_id",
+            "instruction_variant_family",
+            "shift_family",
+            "shift_severity",
             "sensor_stack",
             "attempts",
             "success",
@@ -99,6 +117,16 @@ class EpisodeResult:
             "parent_run_id",
             "shard_id",
             "gpu_id",
+            "grounding_success",
+            "mask_nonempty",
+            "proposal_nonempty",
+            "plan_success",
+            "lift_only_success",
+            "hold_success",
+            "slip_after_lift",
+            "collision_count",
+            "wrong_object",
+            "wrong_part",
         ]
 
     def to_row(self) -> dict[str, Any]:

@@ -24,12 +24,35 @@ NUMERIC_FIELDS = {
     "collision": int,
     "replicate_index": int,
     "seed": int,
+    "grounding_success": int,
+    "mask_nonempty": int,
+    "proposal_nonempty": int,
+    "plan_success": int,
+    "lift_only_success": int,
+    "hold_success": int,
+    "slip_after_lift": int,
+    "collision_count": int,
+    "wrong_object": int,
+    "wrong_part": int,
 }
 
 HEADLINE_TIER_ORDER = [
     "graspvla_official",
     "cgn_full_modular",
     "anygrasp_full_modular",
+]
+
+STAGE_METRIC_FIELDS = [
+    "grounding_success",
+    "mask_nonempty",
+    "proposal_nonempty",
+    "plan_success",
+    "lift_only_success",
+    "hold_success",
+    "slip_after_lift",
+    "collision_count",
+    "wrong_object",
+    "wrong_part",
 ]
 
 
@@ -216,6 +239,127 @@ def _aggregate(rows: list[dict[str, object]], group_keys: list[str]) -> list[dic
     return summary_rows
 
 
+def _mean_applicable_metric(group: list[dict[str, object]], key: str) -> tuple[float | str, int]:
+    values = [int(item.get(key, -1)) for item in group if int(item.get(key, -1)) >= 0]
+    if not values:
+        return ("", 0)
+    return (round(sum(values) / len(values), 4), len(values))
+
+
+def _aggregate_stage_metrics(rows: list[dict[str, object]], group_keys: list[str]) -> list[dict[str, object]]:
+    grouped: dict[tuple[object, ...], list[dict[str, object]]] = defaultdict(list)
+    for row in rows:
+        grouped[tuple(row.get(key, "") for key in group_keys)].append(row)
+    output: list[dict[str, object]] = []
+    for key, group in sorted(grouped.items()):
+        row = {group_keys[index]: value for index, value in enumerate(key)}
+        row["trials"] = len(group)
+        for metric_name in STAGE_METRIC_FIELDS:
+            mean_value, applicable = _mean_applicable_metric(group, metric_name)
+            row[f"{metric_name}_mean"] = mean_value
+            row[f"{metric_name}_applicable"] = applicable
+        output.append(row)
+    return output
+
+
+def _instruction_robustness_summary(rows: list[dict[str, object]]) -> list[dict[str, object]]:
+    if not rows:
+        return []
+    base_groups: dict[tuple[str, str, str, str, int], dict[str, int]] = defaultdict(dict)
+    for row in rows:
+        variant_family = str(row.get("instruction_variant_family", "")).strip() or "canonical"
+        key = (
+            str(row.get("method_tier", "")).strip(),
+            str(row.get("task", "")).strip(),
+            str(row.get("condition", "")).strip(),
+            str(row.get("scene_recipe_id", "")).strip(),
+            int(row.get("replicate_index", 0) or 0),
+        )
+        base_groups[key][variant_family] = int(row.get("success", 0))
+
+    summary_groups: dict[tuple[str, str, str, str], list[dict[str, object]]] = defaultdict(list)
+    for (method_tier, task, condition, _scene_recipe_id, _replicate_index), family_success in base_groups.items():
+        canonical = family_success.get("canonical", 0)
+        worst_case = min(family_success.values()) if family_success else 0
+        consistency = int(len(set(family_success.values())) == 1) if family_success else 0
+        for family, success in family_success.items():
+            summary_groups[(method_tier, task, condition, family)].append(
+                {
+                    "success": success,
+                    "canonical_success": canonical,
+                    "worst_case_success": worst_case,
+                    "consistency": consistency,
+                }
+            )
+
+    output: list[dict[str, object]] = []
+    for (method_tier, task, condition, family), group in sorted(summary_groups.items()):
+        trials = len(group)
+        success_rate = _mean([float(item["success"]) for item in group])
+        canonical_success_rate = _mean([float(item["canonical_success"]) for item in group])
+        output.append(
+            {
+                "method_tier": method_tier,
+                "task": task,
+                "condition": condition,
+                "instruction_variant_family": family,
+                "trials": trials,
+                "success_rate": success_rate,
+                "canonical_success_rate": canonical_success_rate,
+                "canonical_to_variant_success_drop": round(success_rate - canonical_success_rate, 4),
+                "paraphrase_consistency_rate": _mean([float(item["consistency"]) for item in group]),
+                "worst_case_success_rate": _mean([float(item["worst_case_success"]) for item in group]),
+            }
+        )
+    return output
+
+
+def _sim2real_proxy_summary(rows: list[dict[str, object]]) -> list[dict[str, object]]:
+    summary = _aggregate(rows, ["method_tier", "task", "condition", "shift_family", "shift_severity"])
+    grouped: dict[tuple[str, str, str], list[dict[str, object]]] = defaultdict(list)
+    for row in summary:
+        grouped[
+            (
+                str(row.get("method_tier", "")).strip(),
+                str(row.get("task", "")).strip(),
+                str(row.get("condition", "")).strip(),
+            )
+        ].append(row)
+    for group_rows in grouped.values():
+        best_rate = max((float(item.get("success_rate", 0.0)) for item in group_rows), default=0.0)
+        for row in group_rows:
+            row["perturbation_gap_vs_best"] = round(float(row.get("success_rate", 0.0)) - best_rate, 4)
+    return summary
+
+
+def _rank_stability_summary(rows: list[dict[str, object]]) -> list[dict[str, object]]:
+    if not rows:
+        return []
+    grouped: dict[tuple[str, str], list[dict[str, object]]] = defaultdict(list)
+    for row in rows:
+        grouped[(str(row.get("task", "")).strip(), str(row.get("condition", "")).strip())].append(row)
+    output: list[dict[str, object]] = []
+    for (task, condition), group in sorted(grouped.items()):
+        by_shift: dict[str, list[tuple[str, float]]] = defaultdict(list)
+        for row in group:
+            by_shift[str(row.get("shift_family", "")).strip()].append(
+                (str(row.get("method_tier", "")).strip(), float(row.get("success_rate", 0.0)))
+            )
+        orderings = []
+        for shift_family, items in sorted(by_shift.items()):
+            ordering = tuple(method for method, _score in sorted(items, key=lambda item: (-item[1], item[0])))
+            orderings.append((shift_family, ordering))
+        output.append(
+            {
+                "task": task,
+                "condition": condition,
+                "shift_families": ",".join(shift for shift, _ordering in orderings),
+                "rank_stability": int(len({ordering for _shift, ordering in orderings}) <= 1),
+            }
+        )
+    return output
+
+
 def _failure_taxonomy(rows: list[dict[str, object]]) -> list[dict[str, object]]:
     counter = Counter()
     for row in rows:
@@ -375,6 +519,11 @@ def _render_report(
     stress_summary: list[dict[str, object]],
     stress_by_condition: list[dict[str, object]],
     stress_by_object_group: list[dict[str, object]],
+    instruction_summary: list[dict[str, object]],
+    sim2real_summary: list[dict[str, object]],
+    sim2real_rank_stability: list[dict[str, object]],
+    phase2_summary: list[dict[str, object]],
+    stage_metrics_summary: list[dict[str, object]],
     native_appendix_summary: list[dict[str, object]],
     native_appendix_by_condition: list[dict[str, object]],
     pairwise_stats: list[dict[str, object]],
@@ -385,14 +534,25 @@ def _render_report(
     alignment_summary: dict[str, object],
     cal_parent_run_ids: list[str],
     stress_parent_run_ids: list[str],
+    instruction_parent_run_ids: list[str],
+    sim2real_parent_run_ids: list[str],
+    phase2_parent_run_ids: list[str],
     native_appendix_parent_run_ids: list[str],
     cal_task_sets: list[str],
     stress_task_sets: list[str],
+    instruction_task_sets: list[str],
+    sim2real_task_sets: list[str],
+    phase2_task_sets: list[str],
     native_appendix_task_sets: list[str],
 ) -> str:
     cal_label = "Track A-Cal Shared Benchmark"
-    stress_label = "Track A-Stress Appendix"
+    stress_label = "Track A-Stress Shared Stress Test"
     protocol_label = "GraspVLA Protocol / Transfer Audit"
+    instruction_label = "Instruction Robustness"
+    sim2real_label = "Sim-to-Real Proxy Robustness"
+    stage_metrics_label = "Stage-Level Diagnostic Metrics"
+    phase2_label = "Phase 2 Pilot"
+    native_label = "Track B Native-Like Appendix"
     lines = [
         "# CoRL 2026 Simulator Bundle",
         "",
@@ -415,7 +575,6 @@ def _render_report(
         _markdown_table(
             [
                 "track",
-                "method",
                 "method_tier",
                 "task",
                 "trials",
@@ -524,14 +683,17 @@ def _render_report(
     lines.extend(_markdown_table(["track", "method_tier", "failure_stage", "failure_reason", "count"], failure_taxonomy))
     lines.extend(["", f"## {protocol_label}", ""])
     if protocol_probe:
-        overall = list(protocol_probe.get("overall") or [])
-        lines.extend(_markdown_table(["variant", "success_rate", "mean_attempts"], overall))
+        lines.extend(_markdown_table(["variant", "success_rate", "mean_attempts"], list(protocol_probe.get("overall") or [])))
     else:
         lines.append("_No protocol or transfer-audit summary supplied._")
     lines.extend(["", "## CGN Bottleneck Audit", ""])
     if cgn_bottleneck:
-        summary = list(cgn_bottleneck.get("summary") or cgn_bottleneck.get("overall") or [])
-        lines.extend(_markdown_table(["variant", "success_rate", "mean_attempts"], summary))
+        lines.extend(
+            _markdown_table(
+                ["variant", "success_rate", "mean_attempts"],
+                list(cgn_bottleneck.get("summary") or cgn_bottleneck.get("overall") or []),
+            )
+        )
     else:
         lines.append("_No CGN bottleneck summary supplied._")
     lines.extend(["", "## GraspVLA Official Alignment", ""])
@@ -552,16 +714,14 @@ def _render_report(
             track_b_reference,
         )
     )
-    lines.extend(["", "## Track B Native Appendix", ""])
+    lines.extend(["", f"## {native_label}", ""])
     if native_appendix_summary:
-        lines.extend(
-            [
-                f"_parent_run_id(s): `{', '.join(native_appendix_parent_run_ids)}`_",
-                "",
-                f"_task_set(s): `{', '.join(native_appendix_task_sets)}`_",
-                "",
-            ]
-        )
+        if native_appendix_parent_run_ids:
+            lines.append(f"_parent_run_id(s): `{', '.join(native_appendix_parent_run_ids)}`_")
+            lines.append("")
+        if native_appendix_task_sets:
+            lines.append(f"_task_set(s): `{', '.join(native_appendix_task_sets)}`_")
+            lines.append("")
         lines.extend(
             _markdown_table(
                 [
@@ -582,7 +742,7 @@ def _render_report(
                 native_appendix_summary,
             )
         )
-        lines.extend(["", "### Track B Native Appendix By Condition", ""])
+        lines.extend(["", f"### {native_label} By Condition", ""])
         lines.extend(
             _markdown_table(
                 [
@@ -601,6 +761,101 @@ def _render_report(
         )
     else:
         lines.append("_No native appendix rows supplied._")
+    lines.extend(["", f"## {instruction_label}", ""])
+    if instruction_parent_run_ids:
+        lines.append(f"_parent_run_id(s): `{', '.join(instruction_parent_run_ids)}`_")
+        lines.append("")
+    if instruction_task_sets:
+        lines.append(f"_task_set(s): `{', '.join(instruction_task_sets)}`_")
+        lines.append("")
+    lines.extend(
+        _markdown_table(
+            [
+                "method_tier",
+                "task",
+                "condition",
+                "instruction_variant_family",
+                "trials",
+                "success_rate",
+                "canonical_success_rate",
+                "canonical_to_variant_success_drop",
+                "paraphrase_consistency_rate",
+                "worst_case_success_rate",
+            ],
+            instruction_summary,
+        )
+    )
+    lines.extend(["", f"## {sim2real_label}", ""])
+    if sim2real_parent_run_ids:
+        lines.append(f"_parent_run_id(s): `{', '.join(sim2real_parent_run_ids)}`_")
+        lines.append("")
+    if sim2real_task_sets:
+        lines.append(f"_task_set(s): `{', '.join(sim2real_task_sets)}`_")
+        lines.append("")
+    lines.extend(
+        _markdown_table(
+            [
+                "method_tier",
+                "task",
+                "condition",
+                "shift_family",
+                "shift_severity",
+                "trials",
+                "success_rate",
+                "wilson_ci_low",
+                "wilson_ci_high",
+                "perturbation_gap_vs_best",
+            ],
+            sim2real_summary,
+        )
+    )
+    lines.extend(["", f"### {sim2real_label} Rank Stability", ""])
+    lines.extend(_markdown_table(["task", "condition", "shift_families", "rank_stability"], sim2real_rank_stability))
+    lines.extend(["", f"## {stage_metrics_label}", ""])
+    lines.extend(
+        _markdown_table(
+            [
+                "track",
+                "method_tier",
+                "task",
+                "condition",
+                "trials",
+                "grounding_success_mean",
+                "mask_nonempty_mean",
+                "proposal_nonempty_mean",
+                "plan_success_mean",
+                "lift_only_success_mean",
+                "hold_success_mean",
+                "slip_after_lift_mean",
+                "wrong_object_mean",
+                "wrong_part_mean",
+            ],
+            stage_metrics_summary,
+        )
+    )
+    lines.extend(["", f"## {phase2_label}", ""])
+    if phase2_parent_run_ids:
+        lines.append(f"_parent_run_id(s): `{', '.join(phase2_parent_run_ids)}`_")
+        lines.append("")
+    if phase2_task_sets:
+        lines.append(f"_task_set(s): `{', '.join(phase2_task_sets)}`_")
+        lines.append("")
+    lines.extend(
+        _markdown_table(
+            [
+                "track",
+                "method_tier",
+                "task",
+                "trials",
+                "successes",
+                "success_rate",
+                "wilson_ci_low",
+                "wilson_ci_high",
+                "mean_attempts",
+            ],
+            phase2_summary,
+        )
+    )
     return "\n".join(lines) + "\n"
 
 
@@ -608,6 +863,9 @@ def _render_teacher_summary(
     *,
     cal_summary: list[dict[str, object]],
     stress_summary: list[dict[str, object]],
+    instruction_summary: list[dict[str, object]],
+    sim2real_summary: list[dict[str, object]],
+    phase2_summary: list[dict[str, object]],
     native_appendix_summary: list[dict[str, object]],
     pairwise_stats: list[dict[str, object]],
     protocol_probe: dict[str, object],
@@ -615,51 +873,92 @@ def _render_teacher_summary(
     track_b_reference: list[dict[str, object]],
     cal_task_sets: list[str],
     stress_task_sets: list[str],
+    instruction_task_sets: list[str],
+    sim2real_task_sets: list[str],
+    phase2_task_sets: list[str],
     native_appendix_task_sets: list[str],
 ) -> str:
     total_cal_trials = sum(int(row.get("trials", 0)) for row in cal_summary)
     total_cal_successes = sum(int(row.get("successes", 0)) for row in cal_summary)
+    total_stress_trials = sum(int(row.get("trials", 0)) for row in stress_summary)
+    total_stress_successes = sum(int(row.get("successes", 0)) for row in stress_summary)
+
+    def _snapshot(rows: list[dict[str, object]], label: str) -> list[str]:
+        output: list[str] = []
+        for row in rows:
+            method = str(row.get("method_tier", "")).strip()
+            task = str(row.get("task", "")).strip()
+            if not method or not task:
+                continue
+            output.append(
+                f"- {label}: `{method}` 在 `{task}` 上为 `{row.get('successes', 0)}/{row.get('trials', 0)}` "
+                f"(`{row.get('success_rate', 0.0)}`)"
+            )
+        return output
+
     lines = [
         "# CoRL 2026 仿真阶段总结",
         "",
-        "- 论文主 framing 固定为 `shared benchmark + protocol audit`，不是只看 scoreboard。",
-        "- `Track A-Cal` 是唯一主公平榜单，`Track A-Stress` 只放 appendix，`Track B` 只做 native reference。",
+        "- 论文 framing 固定为 `shared benchmark + protocol audit`，不是只看 scoreboard，也不是只做 release 诊断。",
+        "- `Track A-Cal v3` 是唯一 headline fair table；`Track A-Stress v4`、instruction robustness、sim-to-real proxy、Phase 2 pilot 和 `Track B` 都是补强层。",
+        "- `AnyGrasp` 在没有 node-matched 新 license 前不进入 submission 版主结论。",
     ]
     if total_cal_trials:
-        lines.append(
-            f"- 当前主榜单已累计写入 `{total_cal_successes}/{total_cal_trials}` 的正式结果。"
-        )
+        lines.append(f"- 当前主榜单累计写入 `{total_cal_successes}/{total_cal_trials}` 的正式 paired 结果。")
+    if total_stress_trials:
+        lines.append(f"- 当前 hardest-slice appendix 已累计写入 `{total_stress_successes}/{total_stress_trials}` 的结果。")
     if cal_task_sets:
-        lines.append(f"- 当前这份 bundle 吃进去的主榜单 task set 是 `{', '.join(cal_task_sets)}`。")
+        lines.append(f"- 当前主榜单 task set: `{', '.join(cal_task_sets)}`。")
+    if stress_task_sets:
+        lines.append(f"- 当前 stress task set: `{', '.join(stress_task_sets)}`。")
+    if instruction_task_sets:
+        lines.append(f"- 当前 instruction robustness task set: `{', '.join(instruction_task_sets)}`。")
+    if sim2real_task_sets:
+        lines.append(f"- 当前 sim-to-real proxy task set: `{', '.join(sim2real_task_sets)}`。")
+    if phase2_task_sets:
+        lines.append(f"- 当前 phase 2 pilot task set: `{', '.join(phase2_task_sets)}`。")
     if pairwise_stats:
         best = pairwise_stats[0]
         lines.append(
-            f"- 目前 paper bundle 已经能输出配对统计：例如 `{best['method_a']} vs {best['method_b']}` 的 paired scenes 为 `{best['paired_scenes']}`，McNemar p 值为 `{best['mcnemar_p_exact']}`。"
+            f"- 当前 paper bundle 已输出配对统计：`{best['method_a']} vs {best['method_b']}` 有 `{best['paired_scenes']}` 个 paired scenes，McNemar exact p 值为 `{best['mcnemar_p_exact']}`。"
         )
     if protocol_probe:
-        lines.append("- GraspVLA 的 protocol / transfer audit 会单独进入 audit section，不混入主榜单。")
+        lines.append("- GraspVLA 的 protocol / transfer audit 单独进入 audit section，不混入 headline 结果。")
     if cgn_bottleneck:
-        lines.append("- CGN bottleneck 会拆成 grounding / proposal / success semantics 三层解释。")
-    if stress_summary:
-        lines.append("- `Track A-Stress` 当前也会单独汇总，避免再把 stress 结果误当 headline claim。")
-    if stress_task_sets:
-        lines.append(f"- 当前这份 bundle 吃进去的 stress task set 是 `{', '.join(stress_task_sets)}`。")
+        lines.append("- CGN bottleneck 会拆开 grounding、proposal、planning 和 strict success semantics 来解释，不把低分归因成一个简单配置错误。")
+    if instruction_summary:
+        lines.append(
+            f"- instruction robustness 已进入 bundle，当前共有 `{sum(int(row.get('trials', 0)) for row in instruction_summary)}` 个方法-变体汇总单元。"
+        )
+    if sim2real_summary:
+        lines.append(
+            f"- sim-to-real proxy 已进入 bundle，当前共有 `{sum(int(row.get('trials', 0)) for row in sim2real_summary)}` 个方法-扰动汇总单元。"
+        )
+    if phase2_summary:
+        lines.append(
+            f"- Phase 2 pilot 已进入 extension section，当前共有 `{sum(int(row.get('trials', 0)) for row in phase2_summary)}` 个方法-任务汇总单元。"
+        )
     if track_b_reference:
-        lines.append("- `Track B` 继续只保留 native reference，用来解释公开 release 的上限。")
+        lines.append("- `Track B` 继续只保留 native reference，用来解释公开 release 的能力上限，不参与公平主结论。")
     if native_appendix_summary:
-        lines.append("- `CGN native appendix` 也已经正式接入 bundle，用来回答 modular baseline 是否只是在 shared lane 里吃亏。")
+        lines.append("- `CGN native-like appendix` 已经接入 bundle，用来回答 modular baseline 是否只是因为 shared lane 才显得过低。")
     if native_appendix_task_sets:
-        lines.append(f"- 当前 native appendix task set 是 `{', '.join(native_appendix_task_sets)}`。")
+        lines.append(f"- 当前 native-like appendix task set: `{', '.join(native_appendix_task_sets)}`。")
     lines.extend(
         [
             "",
             "## 这份 bundle 的用途",
             "",
-            "- `paper_ready_report.md` 直接给论文写作和组会汇报用。",
-            "- `paper_summary.csv` 和 `paper_stats.json` 提供主表、统计显著性和 appendix 结构化数据。",
-            "- `figures/` 下面的 CSV 可以直接喂给后续画图脚本。",
+            "- `paper_ready_report.md` 直接用于论文写作、组会汇报和导师过稿。",
+            "- `paper_summary.csv` 与 `paper_stats.json` 提供主表、统计检验和 appendix 的结构化数据。",
+            "- `figures/` 下的 CSV 可直接喂给后续画图脚本。",
+            "",
+            "## 主结果快照",
+            "",
         ]
     )
+    lines.extend(_snapshot(cal_summary, "Track A-Cal"))
+    lines.extend(_snapshot(stress_summary, "Track A-Stress"))
     return "\n".join(lines) + "\n"
 
 
@@ -674,6 +973,9 @@ def main() -> None:
     parser.add_argument("--execution-mode", default="shared_track_a_sim")
     parser.add_argument("--track-a-cal-parent-run-id", default="")
     parser.add_argument("--track-a-stress-parent-run-id", default="")
+    parser.add_argument("--instruction-parent-run-id", default="")
+    parser.add_argument("--sim2real-parent-run-id", default="")
+    parser.add_argument("--phase2-parent-run-id", default="")
     parser.add_argument("--track-b-reference", default="")
     parser.add_argument("--track-b-native-parent-run-id", default="")
     parser.add_argument("--protocol-probe-summary", default="")
@@ -697,6 +999,24 @@ def main() -> None:
         execution_mode=args.execution_mode,
         explicit=args.track_a_stress_parent_run_id,
     )
+    instruction_parent_run_ids = _resolve_parent_run_ids(
+        rows,
+        track="track_a_instruction",
+        execution_mode=args.execution_mode,
+        explicit=args.instruction_parent_run_id,
+    )
+    sim2real_parent_run_ids = _resolve_parent_run_ids(
+        rows,
+        track="track_a_transfer",
+        execution_mode=args.execution_mode,
+        explicit=args.sim2real_parent_run_id,
+    )
+    phase2_parent_run_ids = _resolve_parent_run_ids(
+        rows,
+        track="track_a_phase2",
+        execution_mode=args.execution_mode,
+        explicit=args.phase2_parent_run_id,
+    )
     native_appendix_parent_run_ids = _resolve_parent_run_ids(
         rows,
         track="track_b_native",
@@ -710,6 +1030,15 @@ def main() -> None:
     stress_rows = _headline_rows(
         _filter_rows(rows, track="track_a_stress", execution_mode=args.execution_mode, parent_run_ids=stress_parent_run_ids)
     )
+    instruction_rows = _headline_rows(
+        _filter_rows(rows, track="track_a_instruction", execution_mode=args.execution_mode, parent_run_ids=instruction_parent_run_ids)
+    )
+    sim2real_rows = _headline_rows(
+        _filter_rows(rows, track="track_a_transfer", execution_mode=args.execution_mode, parent_run_ids=sim2real_parent_run_ids)
+    )
+    phase2_rows = _headline_rows(
+        _filter_rows(rows, track="track_a_phase2", execution_mode=args.execution_mode, parent_run_ids=phase2_parent_run_ids)
+    )
     native_appendix_rows = _filter_rows(
         rows,
         track="track_b_native",
@@ -722,6 +1051,13 @@ def main() -> None:
 
     cal_task_sets = sorted({str(row.get("task_set", "")).strip() for row in cal_rows if str(row.get("task_set", "")).strip()})
     stress_task_sets = sorted({str(row.get("task_set", "")).strip() for row in stress_rows if str(row.get("task_set", "")).strip()})
+    instruction_task_sets = sorted(
+        {str(row.get("task_set", "")).strip() for row in instruction_rows if str(row.get("task_set", "")).strip()}
+    )
+    sim2real_task_sets = sorted(
+        {str(row.get("task_set", "")).strip() for row in sim2real_rows if str(row.get("task_set", "")).strip()}
+    )
+    phase2_task_sets = sorted({str(row.get("task_set", "")).strip() for row in phase2_rows if str(row.get("task_set", "")).strip()})
     native_appendix_task_sets = sorted(
         {str(row.get("task_set", "")).strip() for row in native_appendix_rows if str(row.get("task_set", "")).strip()}
     )
@@ -732,13 +1068,23 @@ def main() -> None:
     stress_summary = _aggregate(stress_rows, ["track", "method", "method_tier", "task"])
     stress_by_condition = _aggregate(stress_rows, ["track", "method", "method_tier", "task", "condition"])
     stress_by_object_group = _aggregate(stress_rows, ["track", "method", "method_tier", "task", "object_group"])
+    instruction_summary = _instruction_robustness_summary(instruction_rows)
+    sim2real_summary = _sim2real_proxy_summary(sim2real_rows)
+    sim2real_rank_stability = _rank_stability_summary(sim2real_summary)
+    phase2_summary = _aggregate(phase2_rows, ["track", "method", "method_tier", "task"])
+    stage_metrics_summary = _aggregate_stage_metrics(
+        cal_rows + stress_rows + instruction_rows + sim2real_rows + phase2_rows + native_appendix_rows,
+        ["track", "method", "method_tier", "task", "condition"],
+    )
     native_appendix_summary = _aggregate(native_appendix_rows, ["track", "method", "method_tier", "task"])
     native_appendix_by_condition = _aggregate(
         native_appendix_rows,
         ["track", "method", "method_tier", "task", "condition"],
     )
     pairwise_stats = _pairwise_stats(cal_rows)
-    failure_taxonomy = _failure_taxonomy(cal_rows + stress_rows)
+    failure_taxonomy = _failure_taxonomy(
+        cal_rows + stress_rows + instruction_rows + sim2real_rows + phase2_rows + native_appendix_rows
+    )
     track_b_reference = _parse_track_b_reference(Path(args.track_b_reference)) if args.track_b_reference else []
     protocol_probe = _load_json(args.protocol_probe_summary)
     cgn_bottleneck = _load_json(args.cgn_bottleneck_summary)
@@ -750,6 +1096,9 @@ def main() -> None:
     paper_summary_rows = (
         _paper_rows("track_a_cal", cal_summary)
         + _paper_rows("track_a_stress", stress_summary)
+        + _paper_rows("instruction_robustness", instruction_summary)
+        + _paper_rows("sim2real_proxy", sim2real_summary)
+        + _paper_rows("phase2_pilot", phase2_summary)
         + _paper_rows("track_b_native_appendix", native_appendix_summary)
         + track_b_reference
     )
@@ -768,12 +1117,29 @@ def main() -> None:
             "by_condition": stress_by_condition,
             "by_object_group": stress_by_object_group,
         },
+        "instruction_robustness": {
+            "parent_run_ids": instruction_parent_run_ids,
+            "task_sets": instruction_task_sets,
+            "summary": instruction_summary,
+        },
+        "sim2real_proxy": {
+            "parent_run_ids": sim2real_parent_run_ids,
+            "task_sets": sim2real_task_sets,
+            "summary": sim2real_summary,
+            "rank_stability": sim2real_rank_stability,
+        },
+        "phase2_pilot": {
+            "parent_run_ids": phase2_parent_run_ids,
+            "task_sets": phase2_task_sets,
+            "summary": phase2_summary,
+        },
         "track_b_native_appendix": {
             "parent_run_ids": native_appendix_parent_run_ids,
             "task_sets": native_appendix_task_sets,
             "summary": native_appendix_summary,
             "by_condition": native_appendix_by_condition,
         },
+        "stage_metrics_summary": stage_metrics_summary,
         "pairwise_stats": pairwise_stats,
         "failure_taxonomy": failure_taxonomy,
         "track_b_reference": track_b_reference,
@@ -792,6 +1158,11 @@ def main() -> None:
             stress_summary=stress_summary,
             stress_by_condition=stress_by_condition,
             stress_by_object_group=stress_by_object_group,
+            instruction_summary=instruction_summary,
+            sim2real_summary=sim2real_summary,
+            sim2real_rank_stability=sim2real_rank_stability,
+            phase2_summary=phase2_summary,
+            stage_metrics_summary=stage_metrics_summary,
             native_appendix_summary=native_appendix_summary,
             native_appendix_by_condition=native_appendix_by_condition,
             pairwise_stats=pairwise_stats,
@@ -802,9 +1173,15 @@ def main() -> None:
             alignment_summary=alignment_summary,
             cal_parent_run_ids=cal_parent_run_ids,
             stress_parent_run_ids=stress_parent_run_ids,
+            instruction_parent_run_ids=instruction_parent_run_ids,
+            sim2real_parent_run_ids=sim2real_parent_run_ids,
+            phase2_parent_run_ids=phase2_parent_run_ids,
             native_appendix_parent_run_ids=native_appendix_parent_run_ids,
             cal_task_sets=cal_task_sets,
             stress_task_sets=stress_task_sets,
+            instruction_task_sets=instruction_task_sets,
+            sim2real_task_sets=sim2real_task_sets,
+            phase2_task_sets=phase2_task_sets,
             native_appendix_task_sets=native_appendix_task_sets,
         ),
         encoding="utf-8",
@@ -812,6 +1189,9 @@ def main() -> None:
     teacher_summary = _render_teacher_summary(
         cal_summary=cal_summary,
         stress_summary=stress_summary,
+        instruction_summary=instruction_summary,
+        sim2real_summary=sim2real_summary,
+        phase2_summary=phase2_summary,
         native_appendix_summary=native_appendix_summary,
         pairwise_stats=pairwise_stats,
         protocol_probe=protocol_probe,
@@ -819,6 +1199,9 @@ def main() -> None:
         track_b_reference=track_b_reference,
         cal_task_sets=cal_task_sets,
         stress_task_sets=stress_task_sets,
+        instruction_task_sets=instruction_task_sets,
+        sim2real_task_sets=sim2real_task_sets,
+        phase2_task_sets=phase2_task_sets,
         native_appendix_task_sets=native_appendix_task_sets,
     )
     (output_dir / "teacher_summary_zh.md").write_text(
@@ -829,6 +1212,9 @@ def main() -> None:
         _render_teacher_summary(
             cal_summary=cal_summary,
             stress_summary=stress_summary,
+            instruction_summary=instruction_summary,
+            sim2real_summary=sim2real_summary,
+            phase2_summary=phase2_summary,
             native_appendix_summary=native_appendix_summary,
             pairwise_stats=pairwise_stats,
             protocol_probe=protocol_probe,
@@ -836,6 +1222,9 @@ def main() -> None:
             track_b_reference=track_b_reference,
             cal_task_sets=cal_task_sets,
             stress_task_sets=stress_task_sets,
+            instruction_task_sets=instruction_task_sets,
+            sim2real_task_sets=sim2real_task_sets,
+            phase2_task_sets=phase2_task_sets,
             native_appendix_task_sets=native_appendix_task_sets,
         ),
         encoding="utf-8",
@@ -847,6 +1236,11 @@ def main() -> None:
     _write_csv(figures_dir / "track_a_stress_summary.csv", stress_summary)
     _write_csv(figures_dir / "track_a_stress_by_condition.csv", stress_by_condition)
     _write_csv(figures_dir / "track_a_stress_by_object_group.csv", stress_by_object_group)
+    _write_csv(figures_dir / "instruction_robustness_summary.csv", instruction_summary)
+    _write_csv(figures_dir / "sim2real_proxy_summary.csv", sim2real_summary)
+    _write_csv(figures_dir / "stage_metrics_summary.csv", stage_metrics_summary)
+    _write_csv(figures_dir / "phase2_pilot_summary.csv", phase2_summary)
+    _write_csv(figures_dir / "sim2real_rank_stability.csv", sim2real_rank_stability)
     _write_csv(figures_dir / "track_b_native_appendix_summary.csv", native_appendix_summary)
     _write_csv(figures_dir / "track_b_native_appendix_by_condition.csv", native_appendix_by_condition)
     _write_csv(figures_dir / "pairwise_stats.csv", pairwise_stats)
@@ -859,6 +1253,9 @@ def main() -> None:
                 "output_dir": str(output_dir),
                 "cal_parent_run_ids": cal_parent_run_ids,
                 "stress_parent_run_ids": stress_parent_run_ids,
+                "instruction_parent_run_ids": instruction_parent_run_ids,
+                "sim2real_parent_run_ids": sim2real_parent_run_ids,
+                "phase2_parent_run_ids": phase2_parent_run_ids,
                 "track_b_native_parent_run_ids": native_appendix_parent_run_ids,
             },
             indent=2,

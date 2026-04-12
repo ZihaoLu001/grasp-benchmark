@@ -155,6 +155,69 @@ class TaskSpecTest(unittest.TestCase):
         self.assertEqual(sum(1 for trial in trials if trial.condition == "transparent_pose_bank"), 24)
         self.assertEqual(trials[0].track, "track_b_native")
 
+    def test_instruction_robustness_v1_creates_30_trials_with_instruction_variants(self) -> None:
+        task_config = load_named_config("tasks", "instruction_robustness_v1")
+        trials = expand_task_set(task_config)
+
+        self.assertEqual(len(trials), 30)
+        self.assertEqual(sum(1 for trial in trials if trial.condition == "basic"), 15)
+        self.assertEqual(sum(1 for trial in trials if trial.condition == "distractors_light"), 15)
+        self.assertEqual(trials[0].instruction_variant_id, "canonical")
+        self.assertEqual(trials[1].instruction_variant_id, "lexical")
+        self.assertEqual(trials[2].instruction_variant_id, "compositional")
+        self.assertEqual(trials[0].instruction_variant_family, "canonical")
+        self.assertEqual(trials[1].instruction_variant_family, "lexical_paraphrase")
+        self.assertIn("grab", trials[1].instruction)
+        self.assertTrue(trials[0].scene_id.endswith("__iv_canonical"))
+
+    def test_sim2real_proxy_v1_creates_48_trials_with_shift_metadata(self) -> None:
+        task_config = load_named_config("tasks", "sim2real_proxy_v1")
+        trials = expand_task_set(task_config)
+
+        self.assertEqual(len(trials), 48)
+        self.assertEqual(sum(1 for trial in trials if trial.condition == "basic"), 16)
+        self.assertEqual(sum(1 for trial in trials if trial.condition == "distractors_heavy"), 16)
+        self.assertEqual(sum(1 for trial in trials if trial.condition == "transparent_pose_bank"), 16)
+        self.assertEqual(trials[0].shift_family, "camera_jitter")
+        self.assertEqual(trials[0].shift_severity, "low")
+        self.assertTrue(trials[0].scene_id.endswith("__sf_camera_jitter"))
+        self.assertEqual(
+            {trial.shift_family for trial in trials[:4]},
+            {"camera_jitter", "rgb_lighting_background", "depth_noise_bias", "friction_material_shift"},
+        )
+
+    def test_track_a_stress_v4_creates_168_trials(self) -> None:
+        task_config = load_named_config("tasks", "track_a_stress_v4")
+        trials = expand_task_set(task_config)
+
+        self.assertEqual(len(trials), 168)
+        self.assertEqual(sum(1 for trial in trials if trial.condition == "distractors_heavy"), 40)
+        self.assertEqual(sum(1 for trial in trials if trial.condition == "occlusion_bank"), 40)
+        self.assertEqual(sum(1 for trial in trials if trial.condition == "opaque_clutter"), 40)
+        self.assertEqual(sum(1 for trial in trials if trial.condition == "transparent_pose_bank"), 48)
+        self.assertEqual(trials[-1].replicate_index, 12)
+
+    def test_phase2_pilot_v1_creates_24_trials(self) -> None:
+        task_config = load_named_config("tasks", "phase2_pilot_v1")
+        trials = expand_task_set(task_config)
+
+        self.assertEqual(len(trials), 24)
+        self.assertEqual(sum(1 for trial in trials if trial.task == "mug_handle_grasp"), 8)
+        self.assertEqual(sum(1 for trial in trials if trial.task == "avoid_inside_cup"), 8)
+        self.assertEqual(sum(1 for trial in trials if trial.task == "power_drill_handle_grasp"), 8)
+        self.assertEqual({trial.condition for trial in trials}, {"part_basic"})
+
+    def test_track_b_cgn_native_v2_creates_138_trials(self) -> None:
+        task_config = load_named_config("tasks", "track_b_cgn_native_v2")
+        trials = expand_task_set(task_config)
+
+        self.assertEqual(len(trials), 138)
+        self.assertEqual(sum(1 for trial in trials if trial.condition == "basic"), 30)
+        self.assertEqual(sum(1 for trial in trials if trial.condition == "distractors_light"), 30)
+        self.assertEqual(sum(1 for trial in trials if trial.condition == "opaque_basic"), 30)
+        self.assertEqual(sum(1 for trial in trials if trial.condition == "transparent_pose_bank"), 48)
+        self.assertEqual(trials[0].track, "track_b_native")
+
 
 if __name__ == "__main__":
     unittest.main()

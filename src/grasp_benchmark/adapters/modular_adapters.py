@@ -38,6 +38,15 @@ def _workspace_limits(sensor_config: dict[str, Any]) -> list[float]:
 
 
 class _SharedModularAdapterBase(AgentAdapter):
+    def _reset_latest_payloads(self) -> None:
+        self._latest_debug_payload: dict[str, Any] = {}
+        self._latest_stage_metrics = {
+            "grounding_success": -1,
+            "mask_nonempty": 0,
+            "proposal_nonempty": 0,
+            "plan_success": 0,
+        }
+
     def _setup_shared_modular(self, config: dict[str, Any]) -> None:
         try:
             import cv2
@@ -70,6 +79,7 @@ class _SharedModularAdapterBase(AgentAdapter):
             np_module=np,
             cv2_module=cv2,
         )
+        self._reset_latest_payloads()
 
     def reset(self, task_spec: dict[str, Any]) -> None:
         self.task_spec = task_spec
@@ -77,9 +87,16 @@ class _SharedModularAdapterBase(AgentAdapter):
         self._pending_actions = []
         self._candidate_payloads = []
         self._attempt_complete = False
+        self._reset_latest_payloads()
 
     def attempt_complete(self) -> bool:
         return bool(self._attempt_complete)
+
+    def latest_debug_payload(self) -> dict[str, Any]:
+        return dict(self._latest_debug_payload)
+
+    def latest_stage_metrics(self) -> dict[str, int]:
+        return dict(self._latest_stage_metrics)
 
     def _write_debug_payload(self, prefix: str, payload: dict[str, Any]) -> None:
         if self._debug_dump_dir is None:
@@ -141,22 +158,41 @@ class _SharedModularAdapterBase(AgentAdapter):
             return action
 
         self._attempt_complete = False
+        self._reset_latest_payloads()
         perception = None
         payload = None
-        if self._candidate_payloads:
-            candidate = self._candidate_payloads.pop(0)
-            planned_actions, planner_debug = self._plan_candidate(obs, candidate)
-        else:
-            perception = self._perception.observe(
-                task_spec=self.task_spec,
-                instruction=self._instruction or obs.instruction,
-                obs=obs,
-            )
-            payload = self._proposal_payload(obs, perception)
-            candidates = self._candidate_sequence(payload)
-            candidate = candidates[0]
-            self._candidate_payloads = candidates[1:]
-            planned_actions, planner_debug = self._plan_candidate(obs, candidate)
+        try:
+            if self._candidate_payloads:
+                candidate = self._candidate_payloads.pop(0)
+                self._latest_stage_metrics["proposal_nonempty"] = 1
+                planned_actions, planner_debug = self._plan_candidate(obs, candidate)
+            else:
+                perception = self._perception.observe(
+                    task_spec=self.task_spec,
+                    instruction=self._instruction or obs.instruction,
+                    obs=obs,
+                )
+                if str(self.task_spec.get("task", "")).strip() == "language_conditioned_single_target_pick":
+                    self._latest_stage_metrics["grounding_success"] = 1 if perception.detection is not None else 0
+                self._latest_stage_metrics["mask_nonempty"] = int(bool(perception.debug.get("mask_pixels", 0)))
+                payload = self._proposal_payload(obs, perception)
+                self._latest_stage_metrics["proposal_nonempty"] = 1
+                candidates = self._candidate_sequence(payload)
+                candidate = candidates[0]
+                self._candidate_payloads = candidates[1:]
+                planned_actions, planner_debug = self._plan_candidate(obs, candidate)
+        except AdapterExecutionError as exc:
+            if exc.failure_stage == "grounding_error":
+                self._latest_stage_metrics["grounding_success"] = 0
+            elif exc.failure_stage == "segmentation_error":
+                if self._latest_stage_metrics["grounding_success"] < 0 and str(self.task_spec.get("task", "")).strip() == "language_conditioned_single_target_pick":
+                    self._latest_stage_metrics["grounding_success"] = 0
+                self._latest_stage_metrics["mask_nonempty"] = 0
+            elif exc.failure_stage == "grasp_proposal":
+                self._latest_stage_metrics["proposal_nonempty"] = 0
+            elif exc.failure_stage == "planner_failure":
+                self._latest_stage_metrics["plan_success"] = 0
+            raise
         replan_action_horizon = max(int(self._planner_config.get("replan_action_horizon", 0)), 0)
         if replan_action_horizon > 0:
             self._pending_actions = planned_actions[:replan_action_horizon]
@@ -167,6 +203,7 @@ class _SharedModularAdapterBase(AgentAdapter):
             self._pending_actions = planned_actions
             planner_debug["planned_plan_length"] = int(len(planned_actions))
             planner_debug["executed_plan_length"] = int(len(self._pending_actions))
+        self._latest_stage_metrics["plan_success"] = 1 if self._pending_actions else 0
         if self._debug_dump_dir is not None:
             latest_payload = {
                 "instruction": self._instruction or obs.instruction,
@@ -175,8 +212,20 @@ class _SharedModularAdapterBase(AgentAdapter):
                 "proposal": candidate,
                 "remaining_candidate_count": len(self._candidate_payloads),
                 "planner": planner_debug,
+                "stage_metrics": self._latest_stage_metrics,
             }
+            self._latest_debug_payload = dict(latest_payload)
             self._write_debug_payload(f"{self.name}_perception_", latest_payload)
+        else:
+            self._latest_debug_payload = {
+                "instruction": self._instruction or obs.instruction,
+                "task_spec": self.task_spec,
+                "perception": {} if perception is None else perception.debug,
+                "proposal": candidate,
+                "remaining_candidate_count": len(self._candidate_payloads),
+                "planner": planner_debug,
+                "stage_metrics": dict(self._latest_stage_metrics),
+            }
         if not self._pending_actions:
             raise AdapterExecutionError(
                 "Shared modular planner failed to produce any executable actions.",
