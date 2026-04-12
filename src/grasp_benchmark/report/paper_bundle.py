@@ -133,6 +133,9 @@ def _iter_result_rows(root: Path) -> list[dict[str, object]]:
 
 
 def _parse_parent_run_ids(value: str) -> list[str]:
+    normalized = value.strip().lower()
+    if normalized in {"__none__", "none", "null"}:
+        return []
     return [item.strip() for item in value.split(",") if item.strip()]
 
 
