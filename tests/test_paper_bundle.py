@@ -131,7 +131,7 @@ class PaperBundleTest(unittest.TestCase):
             teacher_text = (output_dir / "teacher_summary_zh.md").read_text(encoding="utf-8")
             self.assertIn("论文主 framing 固定为 `shared benchmark + protocol audit`", teacher_text)
             report_text = (output_dir / "paper_ready_report.md").read_text(encoding="utf-8")
-            self.assertIn("## Track A-Cal v2 Shared Benchmark", report_text)
+            self.assertIn("## Track A-Cal Shared Benchmark", report_text)
             self.assertIn("## Track B Native Appendix", report_text)
             stats_payload = json.loads((output_dir / "paper_stats.json").read_text(encoding="utf-8"))
             self.assertIn("pairwise_stats", stats_payload)

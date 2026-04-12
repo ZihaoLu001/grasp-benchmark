@@ -355,6 +355,9 @@ def _render_report(
     stress_task_sets: list[str],
     native_appendix_task_sets: list[str],
 ) -> str:
+    cal_label = "Track A-Cal Shared Benchmark"
+    stress_label = "Track A-Stress Appendix"
+    protocol_label = "GraspVLA Protocol / Transfer Audit"
     lines = [
         "# CoRL 2026 Simulator Bundle",
         "",
@@ -364,7 +367,7 @@ def _render_report(
         "- Under the frozen shared protocol, public GraspVLA is compared against the public CGN modular lane on the same paired scenes.",
         "- The modular gap should be interpreted with both scoreboard evidence and bottleneck/audit evidence.",
         "",
-        "## Track A-Cal v2 Shared Benchmark",
+        f"## {cal_label}",
         "",
     ]
     if cal_parent_run_ids:
@@ -393,7 +396,7 @@ def _render_report(
             cal_summary,
         )
     )
-    lines.extend(["", "## Track A-Cal v2 Pairwise Statistics", ""])
+    lines.extend(["", f"## {cal_label} Pairwise Statistics", ""])
     lines.extend(
         _markdown_table(
             [
@@ -411,7 +414,7 @@ def _render_report(
             pairwise_stats,
         )
     )
-    lines.extend(["", "## Track A-Cal v2 By Condition", ""])
+    lines.extend(["", f"## {cal_label} By Condition", ""])
     lines.extend(
         _markdown_table(
             [
@@ -428,7 +431,7 @@ def _render_report(
             cal_by_condition,
         )
     )
-    lines.extend(["", "## Track A-Cal v2 By Object Group", ""])
+    lines.extend(["", f"## {cal_label} By Object Group", ""])
     lines.extend(
         _markdown_table(
             [
@@ -445,7 +448,7 @@ def _render_report(
             cal_by_object_group,
         )
     )
-    lines.extend(["", "## Track A-Stress v2 Appendix", ""])
+    lines.extend(["", f"## {stress_label}", ""])
     if stress_parent_run_ids:
         lines.append(f"_parent_run_id(s): `{', '.join(stress_parent_run_ids)}`_")
         lines.append("")
@@ -468,14 +471,14 @@ def _render_report(
             stress_summary,
         )
     )
-    lines.extend(["", "## Track A-Stress v2 By Condition", ""])
+    lines.extend(["", f"## {stress_label} By Condition", ""])
     lines.extend(
         _markdown_table(
             ["track", "method_tier", "task", "condition", "trials", "success_rate", "wilson_ci_low", "wilson_ci_high"],
             stress_by_condition,
         )
     )
-    lines.extend(["", "## Track A-Stress v2 By Object Group", ""])
+    lines.extend(["", f"## {stress_label} By Object Group", ""])
     lines.extend(
         _markdown_table(
             ["track", "method_tier", "task", "object_group", "trials", "success_rate", "wilson_ci_low", "wilson_ci_high"],
@@ -484,12 +487,12 @@ def _render_report(
     )
     lines.extend(["", "## Failure Taxonomy", ""])
     lines.extend(_markdown_table(["track", "method_tier", "failure_stage", "failure_reason", "count"], failure_taxonomy))
-    lines.extend(["", "## GraspVLA Protocol Audit", ""])
+    lines.extend(["", f"## {protocol_label}", ""])
     if protocol_probe:
         overall = list(protocol_probe.get("overall") or [])
         lines.extend(_markdown_table(["variant", "success_rate", "mean_attempts"], overall))
     else:
-        lines.append("_No protocol probe summary supplied._")
+        lines.append("_No protocol or transfer-audit summary supplied._")
     lines.extend(["", "## CGN Bottleneck Audit", ""])
     if cgn_bottleneck:
         summary = list(cgn_bottleneck.get("summary") or cgn_bottleneck.get("overall") or [])
@@ -584,7 +587,7 @@ def _render_teacher_summary(
         "# CoRL 2026 仿真阶段总结",
         "",
         "- 论文主 framing 固定为 `shared benchmark + protocol audit`，不是只看 scoreboard。",
-        "- `Track A-Cal v2` 是唯一主公平榜单，`Track A-Stress v2` 只放 appendix，`Track B` 只做 native reference。",
+        "- `Track A-Cal` 是唯一主公平榜单，`Track A-Stress` 只放 appendix，`Track B` 只做 native reference。",
     ]
     if cal_headline:
         lines.append(
@@ -598,11 +601,11 @@ def _render_teacher_summary(
             f"- 目前 paper bundle 已经能输出配对统计：例如 `{best['method_a']} vs {best['method_b']}` 的 paired scenes 为 `{best['paired_scenes']}`，McNemar p 值为 `{best['mcnemar_p_exact']}`。"
         )
     if protocol_probe:
-        lines.append("- GraspVLA 的 protocol probe v2 会单独进入 audit section，不混入主榜单。")
+        lines.append("- GraspVLA 的 protocol / transfer audit 会单独进入 audit section，不混入主榜单。")
     if cgn_bottleneck:
         lines.append("- CGN bottleneck 会拆成 grounding / proposal / success semantics 三层解释。")
     if stress_summary:
-        lines.append(f"- `Track A-Stress v2` 当前也会单独汇总，避免再把 stress 结果误当 headline claim。")
+        lines.append("- `Track A-Stress` 当前也会单独汇总，避免再把 stress 结果误当 headline claim。")
     if stress_task_sets:
         lines.append(f"- 当前这份 bundle 吃进去的 stress task set 是 `{', '.join(stress_task_sets)}`。")
     if track_b_reference:
