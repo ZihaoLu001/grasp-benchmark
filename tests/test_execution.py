@@ -77,6 +77,9 @@ class ExecutionTest(unittest.TestCase):
             self.assertTrue(results[0].success)
             self.assertEqual(results[0].attempts, 1)
             self.assertEqual(results[0].execution_mode, "integration_fixture")
+            self.assertEqual(results[0].scene_recipe_id, trial[0].scene_recipe_id)
+            self.assertEqual(results[0].replicate_index, trial[0].replicate_index)
+            self.assertEqual(results[0].seed, trial[0].seed)
             self.assertTrue((Path(tmp_dir) / results[0].video_path).exists())
 
     def test_integration_suite_records_failure_reason(self) -> None:
@@ -140,6 +143,9 @@ class ExecutionTest(unittest.TestCase):
         self.assertEqual(results[0].failure_stage, "model_assets")
         self.assertIn("missing checkpoint", results[0].failure_reason)
         self.assertEqual(results[0].execution_mode, "integration_fixture")
+        self.assertEqual(results[0].scene_recipe_id, trial[0].scene_recipe_id)
+        self.assertEqual(results[0].replicate_index, trial[0].replicate_index)
+        self.assertEqual(results[0].seed, trial[0].seed)
 
 
 if __name__ == "__main__":

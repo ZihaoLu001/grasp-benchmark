@@ -73,7 +73,7 @@ def _infer_parent_run_id(path: Path) -> str:
 
 def _iter_csv_rows(root: Path) -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
-    for path in sorted(root.rglob("*.csv")):
+    for path in sorted(root.rglob("results.csv")):
         inferred_parent_run_id = _infer_parent_run_id(path)
         with path.open("r", encoding="utf-8", newline="") as handle:
             reader = csv.DictReader(handle)

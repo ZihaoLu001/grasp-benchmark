@@ -6,6 +6,7 @@ import json
 import os
 import signal
 import socket
+from dataclasses import replace
 from pathlib import Path
 
 from grasp_benchmark.adapters import build_adapter
@@ -65,6 +66,14 @@ def _runtime_config(method_config: dict, cluster_config: dict) -> dict:
     if isinstance(server, dict):
         runtime.update(server)
     return runtime
+
+
+def _task_runtime_overrides(method_config: dict, task_set: str) -> dict:
+    overrides = method_config.get("task_runtime_overrides", {})
+    if not isinstance(overrides, dict):
+        return {}
+    selected = overrides.get(task_set, {})
+    return dict(selected) if isinstance(selected, dict) else {}
 
 
 def _shard_task_specs(task_specs: list, shard_index: int, shard_count: int) -> list:
@@ -135,6 +144,7 @@ def _setup_failure_results(
                 execution_mode=execution_mode,
                 task=trial.task,
                 scene_id=trial.scene_id,
+                scene_recipe_id=trial.scene_recipe_id,
                 object_id=trial.object_id,
                 object_group=trial.object_group,
                 condition=trial.condition,
@@ -153,6 +163,8 @@ def _setup_failure_results(
                 video_path="",
                 node=node,
                 commit=commit,
+                replicate_index=trial.replicate_index,
+                seed=trial.seed,
                 parent_run_id=parent_run_id,
                 shard_id=shard_id,
                 gpu_id=gpu_id,
@@ -180,8 +192,13 @@ def main() -> None:
     parser.add_argument("--robot-config-override", default="")
     parser.add_argument("--lift-threshold-cm", type=float, default=-1.0)
     parser.add_argument("--hold-steps", type=int, default=-1)
+    parser.add_argument("--attempt-budget-override", type=int, default=-1)
     parser.add_argument("--trace-steps", action="store_true")
     parser.add_argument("--graspvla-view-mode", default="", help="Optional GraspVLA camera-ablation mode.")
+    parser.add_argument("--camera-jitter-mode", default="", help="Optional observation-space camera jitter mode.")
+    parser.add_argument("--segmentation-mode", default="", help="Optional modular perception mode, e.g. oracle_gt.")
+    parser.add_argument("--oracle-grasp-mode", default="", help="Optional proposal override mode, e.g. topdown_centroid.")
+    parser.add_argument("--native-multiview-fusion", action="store_true", help="Enable CGN native multi-view fused-depth mode.")
     parser.add_argument("--official-benchmarks", default="libero_object,libero_10,libero_goal")
     parser.add_argument("--official-task-count", type=int, default=2)
     parser.add_argument("--official-seeds", default="0,1,2,3,4,5,6,7,8,9")
@@ -225,8 +242,13 @@ def main() -> None:
         "robot_config_override": args.robot_config_override,
         "lift_threshold_cm_override": args.lift_threshold_cm,
         "hold_steps_override": args.hold_steps,
+        "attempt_budget_override": args.attempt_budget_override,
         "trace_steps": args.trace_steps,
         "graspvla_view_mode": args.graspvla_view_mode,
+        "camera_jitter_mode": args.camera_jitter_mode,
+        "segmentation_mode": args.segmentation_mode,
+        "oracle_grasp_mode": args.oracle_grasp_mode,
+        "native_multiview_fusion": args.native_multiview_fusion,
     }
 
     if args.smoke_only:
@@ -259,6 +281,10 @@ def main() -> None:
     else:
         max_trials = args.max_trials or None
         all_task_specs = expand_task_set(task_config, max_trials=max_trials)
+        if args.attempt_budget_override > 0:
+            all_task_specs = [
+                replace(task_spec, attempts_per_trial=int(args.attempt_budget_override)) for task_spec in all_task_specs
+            ]
         task_specs = _shard_task_specs(all_task_specs, args.shard_index, args.shard_count)
         task_specs = _filter_scene_ids(task_specs, args.scene_ids)
         payload["expanded_trial_count"] = len(all_task_specs)
@@ -269,12 +295,17 @@ def main() -> None:
     benchmark_method_tier = resolve_method_tier(method_config)
     try:
         runtime_config = _runtime_config(method_config, cluster_config)
+        runtime_config.update(_task_runtime_overrides(method_config, args.task_set))
         runtime_config["gpu_id"] = args.gpu_id
         runtime_config["execution_mode"] = args.execution_mode
         runtime_config["smoke_only"] = args.smoke_only
         runtime_config["debug_dump_dir"] = str(output_dir / "debug")
         runtime_config["task_set"] = args.task_set
         runtime_config["graspvla_view_mode"] = args.graspvla_view_mode
+        runtime_config["camera_jitter_mode"] = args.camera_jitter_mode
+        runtime_config["segmentation_mode"] = args.segmentation_mode
+        runtime_config["oracle_grasp_mode"] = args.oracle_grasp_mode
+        runtime_config["native_multiview_fusion"] = args.native_multiview_fusion
         if _is_official_aligned_execution_mode(args.execution_mode):
             variant = OfficialAlignmentVariant(
                 name=args.official_variant_name or "official_alignment_variant",

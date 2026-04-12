@@ -20,6 +20,7 @@ class TypesTest(unittest.TestCase):
             execution_mode="shared_track_a_sim",
             task="language_conditioned_single_target_pick",
             scene_id="scene_001",
+            scene_recipe_id="scene_001",
             object_id="mug_001",
             object_group="ycb_core",
             condition="basic",
@@ -38,6 +39,8 @@ class TypesTest(unittest.TestCase):
             video_path="",
             node="em14",
             commit="deadbeef",
+            replicate_index=2,
+            seed=12345,
             parent_run_id="parent_001",
             shard_id="shard_000",
             gpu_id="0",
@@ -51,6 +54,7 @@ class TypesTest(unittest.TestCase):
             self.assertIn("shared_track_a_sim", text)
             self.assertIn("parent_001", text)
             self.assertIn("shard_000", text)
+            self.assertIn("12345", text)
             self.assertIn(",0", text)
 
 

@@ -55,9 +55,13 @@ class _SharedModularAdapterBase(AgentAdapter):
                 setattr(self._np, alias, target)
         self._instruction = ""
         self._pending_actions: list[Action] = []
+        self._candidate_payloads: list[dict[str, Any]] = []
         debug_dump_dir = str(config.get("debug_dump_dir", "")).strip()
         self._debug_dump_dir = Path(debug_dump_dir) if debug_dump_dir else None
         self._planner_config = dict(self.method_config.get("planner", {}))
+        planner_overrides = config.get("planner_overrides", {})
+        if isinstance(planner_overrides, dict):
+            self._planner_config.update(planner_overrides)
         self._single_plan_per_attempt = bool(self._planner_config.get("single_plan_per_attempt", False))
         self._attempt_complete = False
         self._perception = SharedModularPerception(
@@ -71,6 +75,7 @@ class _SharedModularAdapterBase(AgentAdapter):
         self.task_spec = task_spec
         self._instruction = str(task_spec.get("instruction", "")).strip()
         self._pending_actions = []
+        self._candidate_payloads = []
         self._attempt_complete = False
 
     def attempt_complete(self) -> bool:
@@ -93,21 +98,20 @@ class _SharedModularAdapterBase(AgentAdapter):
     def _proposal_payload(self, obs: Observation, perception: PerceptionResult) -> dict[str, Any]:
         raise NotImplementedError
 
-    def step(self, obs: Observation) -> Action:
-        if self._pending_actions:
-            action = self._pending_actions.pop(0)
-            if self._single_plan_per_attempt and not self._pending_actions:
-                self._attempt_complete = True
-            return action
+    def _candidate_sequence(self, payload: dict[str, Any]) -> list[dict[str, Any]]:
+        candidates = payload.get("candidate_grasps")
+        if isinstance(candidates, list) and candidates:
+            normalized: list[dict[str, Any]] = []
+            for candidate in candidates:
+                if not isinstance(candidate, dict):
+                    continue
+                normalized.append(dict(candidate))
+            if normalized:
+                return normalized
+        return [dict(payload)]
 
-        perception = self._perception.observe(
-            task_spec=self.task_spec,
-            instruction=self._instruction or obs.instruction,
-            obs=obs,
-        )
-        self._attempt_complete = False
-        payload = self._proposal_payload(obs, perception)
-        translation = payload.get("best_translation")
+    def _plan_candidate(self, obs: Observation, candidate: dict[str, Any]) -> tuple[list[Action], dict[str, Any]]:
+        translation = candidate.get("best_translation")
         if translation is None:
             raise AdapterExecutionError(
                 "The modular grasp pipeline did not produce a target translation for the shared planner.",
@@ -119,12 +123,40 @@ class _SharedModularAdapterBase(AgentAdapter):
             translation_cam=self._np.asarray(translation, dtype=self._np.float32),
             planner_config=self._planner_config,
             grasp_matrix_cam=(
-                self._np.asarray(payload["best_grasp"], dtype=self._np.float32)
-                if self._planner_config.get("use_grasp_pose", True) and payload.get("best_grasp") is not None
+                self._np.asarray(candidate["best_grasp"], dtype=self._np.float32)
+                if self._planner_config.get("use_grasp_pose", True) and candidate.get("best_grasp") is not None
                 else None
             ),
             return_debug=True,
         )
+        planner_debug["proposal_source"] = str(candidate.get("proposal_source", "model"))
+        planner_debug["proposal_score"] = float(candidate.get("best_score", 0.0))
+        return planned_actions, planner_debug
+
+    def step(self, obs: Observation) -> Action:
+        if self._pending_actions:
+            action = self._pending_actions.pop(0)
+            if self._single_plan_per_attempt and not self._pending_actions and not self._candidate_payloads:
+                self._attempt_complete = True
+            return action
+
+        self._attempt_complete = False
+        perception = None
+        payload = None
+        if self._candidate_payloads:
+            candidate = self._candidate_payloads.pop(0)
+            planned_actions, planner_debug = self._plan_candidate(obs, candidate)
+        else:
+            perception = self._perception.observe(
+                task_spec=self.task_spec,
+                instruction=self._instruction or obs.instruction,
+                obs=obs,
+            )
+            payload = self._proposal_payload(obs, perception)
+            candidates = self._candidate_sequence(payload)
+            candidate = candidates[0]
+            self._candidate_payloads = candidates[1:]
+            planned_actions, planner_debug = self._plan_candidate(obs, candidate)
         replan_action_horizon = max(int(self._planner_config.get("replan_action_horizon", 0)), 0)
         if replan_action_horizon > 0:
             self._pending_actions = planned_actions[:replan_action_horizon]
@@ -139,8 +171,9 @@ class _SharedModularAdapterBase(AgentAdapter):
             latest_payload = {
                 "instruction": self._instruction or obs.instruction,
                 "task_spec": self.task_spec,
-                "perception": perception.debug,
-                "proposal": payload,
+                "perception": {} if perception is None else perception.debug,
+                "proposal": candidate,
+                "remaining_candidate_count": len(self._candidate_payloads),
                 "planner": planner_debug,
             }
             self._write_debug_payload(f"{self.name}_perception_", latest_payload)
@@ -150,7 +183,7 @@ class _SharedModularAdapterBase(AgentAdapter):
                 failure_stage="planner_failure",
             )
         action = self._pending_actions.pop(0)
-        if self._single_plan_per_attempt and not self._pending_actions:
+        if self._single_plan_per_attempt and not self._pending_actions and not self._candidate_payloads:
             self._attempt_complete = True
         return action
 
@@ -319,46 +352,92 @@ class ContactGraspNetAdapter(_SharedModularAdapterBase):
         stride_key = "formal_downsample_stride" if is_formal_track_a else "smoke_downsample_stride"
         self._downsample_stride = max(int(self.method_config.get(stride_key, 1)), 1)
         self._gpu_id = str(config.get("gpu_id", "0") or "0")
+        self._native_top_k = max(int(config.get("native_top_k", 1)), 1)
+
+    def _oracle_topdown_payload(self, obs: Observation, perception: PerceptionResult) -> dict[str, Any]:
+        points = self._np.asarray(perception.points, dtype=self._np.float32)
+        if points.ndim != 2 or points.shape[0] == 0 or points.shape[1] < 3:
+            raise AdapterExecutionError(
+                "Oracle grasp mode requires a non-empty masked point cloud.",
+                failure_stage="grasp_proposal",
+            )
+        extrinsic = self._np.asarray(obs.extrinsics_front.get("matrix"), dtype=self._np.float32)
+        if extrinsic.shape != (4, 4):
+            raise AdapterExecutionError(
+                "Oracle grasp mode requires a 4x4 front-camera extrinsic matrix.",
+                failure_stage="planner_failure",
+            )
+        centroid_cam = self._np.mean(points[:, :3], axis=0).astype(self._np.float32)
+        point_cam = self._np.asarray([centroid_cam[0], centroid_cam[1], centroid_cam[2], 1.0], dtype=self._np.float32)
+        centroid_world = (extrinsic @ point_cam)[:3]
+        grasp_world = self._np.eye(4, dtype=self._np.float32)
+        grasp_world[:3, :3] = self._np.asarray(
+            [
+                [1.0, 0.0, 0.0],
+                [0.0, -1.0, 0.0],
+                [0.0, 0.0, -1.0],
+            ],
+            dtype=self._np.float32,
+        )
+        grasp_world[:3, 3] = centroid_world
+        camera_from_world = self._np.linalg.inv(extrinsic)
+        grasp_cam = camera_from_world @ grasp_world
+        return {
+            "best_translation": centroid_cam.tolist(),
+            "best_grasp": grasp_cam.tolist(),
+            "best_score": 1.0,
+            "proposal_source": "oracle_topdown_centroid",
+            "masked_point_count": int(points.shape[0]),
+        }
 
     def _proposal_payload(self, obs: Observation, perception: PerceptionResult) -> dict[str, Any]:
+        oracle_grasp_mode = str(self.runtime_config.get("oracle_grasp_mode", "")).strip().lower()
+        if oracle_grasp_mode == "topdown_centroid":
+            return self._oracle_topdown_payload(obs, perception)
         if os.name == "nt":
             raise AdapterExecutionError(
                 "Contact-GraspNet legacy-env execution is only supported on the Linux cluster nodes.",
                 failure_stage="legacy_runtime",
             )
 
-        depth = self._np.asarray(obs.depth_front, dtype=self._np.float32)
-        rgb = self._np.asarray(obs.rgb_front, dtype=self._np.uint8)
-        segmap = self._np.asarray(perception.segmap, dtype=self._np.uint8)
-        if self._downsample_stride > 1:
-            depth = depth[:: self._downsample_stride, :: self._downsample_stride]
-            rgb = rgb[:: self._downsample_stride, :: self._downsample_stride, :]
-            segmap = segmap[:: self._downsample_stride, :: self._downsample_stride]
-
-        K = self._np.array(
-            [
-                [float(obs.intrinsics_front.get("fx", 0.0)), 0.0, float(obs.intrinsics_front.get("cx", 0.0))],
-                [0.0, float(obs.intrinsics_front.get("fy", 0.0)), float(obs.intrinsics_front.get("cy", 0.0))],
-                [0.0, 0.0, 1.0],
-            ],
-            dtype=self._np.float32,
-        )
-        if self._downsample_stride > 1:
-            K[0, 0] /= self._downsample_stride
-            K[1, 1] /= self._downsample_stride
-            K[0, 2] /= self._downsample_stride
-            K[1, 2] /= self._downsample_stride
-        if K[0, 0] <= 0 or K[1, 1] <= 0:
-            raise AdapterExecutionError(
-                "Contact-GraspNet requires positive camera intrinsics.",
-                failure_stage="observation",
-            )
-
         with tempfile.TemporaryDirectory(prefix="gb-cgn-") as tmp_dir:
             tmp_path = Path(tmp_dir)
             input_path = tmp_path / "input.npz"
             output_path = tmp_path / "output.json"
-            self._np.savez(input_path, depth=depth, K=K, rgb=rgb, segmap=segmap)
+            if bool(self.runtime_config.get("native_multiview_fusion", False)):
+                self._np.savez(
+                    input_path,
+                    points=self._np.asarray(perception.points, dtype=self._np.float32),
+                    colors=self._np.asarray(perception.colors, dtype=self._np.float32),
+                )
+            else:
+                depth = self._np.asarray(obs.depth_front, dtype=self._np.float32)
+                rgb = self._np.asarray(obs.rgb_front, dtype=self._np.uint8)
+                segmap = self._np.asarray(perception.segmap, dtype=self._np.uint8)
+                if self._downsample_stride > 1:
+                    depth = depth[:: self._downsample_stride, :: self._downsample_stride]
+                    rgb = rgb[:: self._downsample_stride, :: self._downsample_stride, :]
+                    segmap = segmap[:: self._downsample_stride, :: self._downsample_stride]
+
+                K = self._np.array(
+                    [
+                        [float(obs.intrinsics_front.get("fx", 0.0)), 0.0, float(obs.intrinsics_front.get("cx", 0.0))],
+                        [0.0, float(obs.intrinsics_front.get("fy", 0.0)), float(obs.intrinsics_front.get("cy", 0.0))],
+                        [0.0, 0.0, 1.0],
+                    ],
+                    dtype=self._np.float32,
+                )
+                if self._downsample_stride > 1:
+                    K[0, 0] /= self._downsample_stride
+                    K[1, 1] /= self._downsample_stride
+                    K[0, 2] /= self._downsample_stride
+                    K[1, 2] /= self._downsample_stride
+                if K[0, 0] <= 0 or K[1, 1] <= 0:
+                    raise AdapterExecutionError(
+                        "Contact-GraspNet requires positive camera intrinsics.",
+                        failure_stage="observation",
+                    )
+                self._np.savez(input_path, depth=depth, K=K, rgb=rgb, segmap=segmap)
             runner_cmd = [
                 "bash",
                 "-lc",
@@ -375,6 +454,7 @@ class ContactGraspNetAdapter(_SharedModularAdapterBase):
                     f'--forward-passes {self._forward_passes} '
                     f'--z-min {self._z_min} '
                     f'--z-max {self._z_max} '
+                    f'--top-k {self._native_top_k} '
                     f'--cuda-visible-devices {self._gpu_id}'
                 ),
             ]
@@ -449,6 +529,9 @@ class ContactGraspNetAdapter(_SharedModularAdapterBase):
                     str(payload.get("failure_reason", "Contact-GraspNet produced no valid grasp.")),
                     failure_stage=str(payload.get("failure_stage", "grasp_proposal")),
                 )
+            candidates = payload.get("candidate_grasps")
+            if isinstance(candidates, list) and candidates:
+                payload["candidate_grasps"] = [dict(candidate) for candidate in candidates if isinstance(candidate, dict)]
             return payload
 
     def close(self) -> None:

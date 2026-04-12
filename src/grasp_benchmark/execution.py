@@ -13,7 +13,10 @@ from grasp_benchmark.types import EpisodeResult, Observation
 
 
 def _seed_for_trial(trial: TrialSpec, attempt: int) -> int:
-    digest = sha256(f"{trial.scene_id}:{trial.object_id}:{attempt}".encode("utf-8")).digest()
+    if trial.seed > 0:
+        digest = sha256(f"{trial.seed}:{attempt}".encode("utf-8")).digest()
+    else:
+        digest = sha256(f"{trial.scene_id}:{trial.object_id}:{attempt}".encode("utf-8")).digest()
     return int.from_bytes(digest[:8], byteorder="little", signed=False)
 
 
@@ -109,6 +112,9 @@ def execute_integration_trial(
                 attempt,
                 {
                     "scene_id": trial.scene_id,
+                    "scene_recipe_id": trial.scene_recipe_id,
+                    "replicate_index": trial.replicate_index,
+                    "seed": trial.seed,
                     "attempt": attempt,
                     "instruction": trial.instruction,
                     "ee_delta": list(action.ee_delta),
@@ -123,6 +129,7 @@ def execute_integration_trial(
                 execution_mode=execution_mode,
                 task=trial.task,
                 scene_id=trial.scene_id,
+                scene_recipe_id=trial.scene_recipe_id,
                 object_id=trial.object_id,
                 object_group=trial.object_group,
                 condition=trial.condition,
@@ -141,6 +148,8 @@ def execute_integration_trial(
                 video_path=str(artifact_path.relative_to(artifact_dir.parent)),
                 node=node,
                 commit=commit,
+                replicate_index=trial.replicate_index,
+                seed=trial.seed,
             )
         except AdapterExecutionError as exc:
             inference_ms = (time.perf_counter() - inference_start) * 1000.0
@@ -152,6 +161,9 @@ def execute_integration_trial(
                 attempt,
                 {
                     "scene_id": trial.scene_id,
+                    "scene_recipe_id": trial.scene_recipe_id,
+                    "replicate_index": trial.replicate_index,
+                    "seed": trial.seed,
                     "attempt": attempt,
                     "instruction": trial.instruction,
                     "error": last_failure,
@@ -170,6 +182,9 @@ def execute_integration_trial(
                 attempt,
                 {
                     "scene_id": trial.scene_id,
+                    "scene_recipe_id": trial.scene_recipe_id,
+                    "replicate_index": trial.replicate_index,
+                    "seed": trial.seed,
                     "attempt": attempt,
                     "instruction": trial.instruction,
                     "error": last_failure,
@@ -187,6 +202,7 @@ def execute_integration_trial(
         execution_mode=execution_mode,
         task=trial.task,
         scene_id=trial.scene_id,
+        scene_recipe_id=trial.scene_recipe_id,
         object_id=trial.object_id,
         object_group=trial.object_group,
         condition=trial.condition,
@@ -205,6 +221,8 @@ def execute_integration_trial(
         video_path="",
         node=node,
         commit=commit,
+        replicate_index=trial.replicate_index,
+        seed=trial.seed,
     )
 
 

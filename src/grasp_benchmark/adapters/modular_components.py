@@ -31,6 +31,9 @@ class PerceptionResult:
     mask: Any
     detection: DetectionResult | None
     debug: dict[str, Any]
+    side_mask: Any | None = None
+    side_points: Any | None = None
+    side_colors: Any | None = None
 
 
 def method_tier(method_config: dict[str, Any]) -> str:
@@ -360,24 +363,38 @@ def build_shared_pick_plan(
     return plan
 
 
-def point_cloud_from_mask(obs: Observation, mask: Any, np_module: Any) -> tuple[Any, Any]:
-    depth = np_module.asarray(obs.depth_front, dtype=np_module.float32)
-    colors = np_module.asarray(obs.rgb_front, dtype=np_module.float32)
+def point_cloud_from_view_mask(
+    obs: Observation,
+    mask: Any,
+    np_module: Any,
+    *,
+    view: str,
+) -> tuple[Any, Any]:
+    if view == "side":
+        depth = np_module.asarray(obs.depth_side, dtype=np_module.float32)
+        colors = np_module.asarray(obs.rgb_side, dtype=np_module.float32)
+        intrinsics = obs.intrinsics_side
+        view_label = "Side"
+    else:
+        depth = np_module.asarray(obs.depth_front, dtype=np_module.float32)
+        colors = np_module.asarray(obs.rgb_front, dtype=np_module.float32)
+        intrinsics = obs.intrinsics_front
+        view_label = "Front"
     if depth.ndim != 2:
-        raise AdapterExecutionError("Front depth frame must be a 2D array.", failure_stage="observation")
+        raise AdapterExecutionError(f"{view_label} depth frame must be a 2D array.", failure_stage="observation")
     if colors.ndim != 3 or colors.shape[:2] != depth.shape:
         raise AdapterExecutionError(
-            "Front RGB frame must match the front depth resolution.",
+            f"{view_label} RGB frame must match the {view} depth resolution.",
             failure_stage="observation",
         )
 
-    fx = float(obs.intrinsics_front.get("fx", 0.0))
-    fy = float(obs.intrinsics_front.get("fy", 0.0))
-    cx = float(obs.intrinsics_front.get("cx", depth.shape[1] / 2))
-    cy = float(obs.intrinsics_front.get("cy", depth.shape[0] / 2))
+    fx = float(intrinsics.get("fx", 0.0))
+    fy = float(intrinsics.get("fy", 0.0))
+    cx = float(intrinsics.get("cx", depth.shape[1] / 2))
+    cy = float(intrinsics.get("cy", depth.shape[0] / 2))
     if fx <= 0 or fy <= 0:
         raise AdapterExecutionError(
-            "Camera intrinsics must include positive fx/fy values.",
+            f"{view_label} camera intrinsics must include positive fx/fy values.",
             failure_stage="observation",
         )
 
@@ -398,6 +415,50 @@ def point_cloud_from_mask(obs: Observation, mask: Any, np_module: Any) -> tuple[
     if rgb.max(initial=0.0) > 1.0:
         rgb = rgb / 255.0
     return points, rgb.astype(np_module.float32)
+
+
+def point_cloud_from_mask(obs: Observation, mask: Any, np_module: Any) -> tuple[Any, Any]:
+    return point_cloud_from_view_mask(obs, mask, np_module, view="front")
+
+
+def _transform_points(points: Any, transform: Any, np_module: Any) -> Any:
+    if points.size == 0:
+        return points.astype(np_module.float32)
+    homogeneous = np_module.concatenate(
+        [np_module.asarray(points, dtype=np_module.float32), np_module.ones((points.shape[0], 1), dtype=np_module.float32)],
+        axis=1,
+    )
+    transformed = (np_module.asarray(transform, dtype=np_module.float32) @ homogeneous.T).T
+    return transformed[:, :3].astype(np_module.float32)
+
+
+def _camera_to_front_frame(obs: Observation, points: Any, np_module: Any, *, view: str) -> Any:
+    if view == "front":
+        return np_module.asarray(points, dtype=np_module.float32)
+    front_extrinsic = np_module.asarray(obs.extrinsics_front.get("matrix"), dtype=np_module.float32)
+    side_extrinsic = np_module.asarray(obs.extrinsics_side.get("matrix"), dtype=np_module.float32)
+    if front_extrinsic.shape != (4, 4) or side_extrinsic.shape != (4, 4):
+        raise AdapterExecutionError(
+            "Native multi-view fusion requires 4x4 camera extrinsic matrices for both front and side cameras.",
+            failure_stage="observation",
+        )
+    world_points = _transform_points(points, side_extrinsic, np_module)
+    front_from_world = np_module.linalg.inv(front_extrinsic)
+    return _transform_points(world_points, front_from_world, np_module)
+
+
+def _mask_bbox_xyxy(mask: Any, np_module: Any) -> tuple[int, int, int, int]:
+    ys, xs = np_module.where(np_module.asarray(mask, dtype=bool))
+    if xs.size == 0 or ys.size == 0:
+        raise AdapterExecutionError(
+            "Oracle segmentation mask is empty.",
+            failure_stage="segmentation_error",
+        )
+    x1 = int(xs.min())
+    y1 = int(ys.min())
+    x2 = int(xs.max()) + 1
+    y2 = int(ys.max()) + 1
+    return (x1, y1, x2, y2)
 
 
 def build_depth_mask_from_bbox(
@@ -693,6 +754,8 @@ class SharedModularPerception:
         self._runtime_config = runtime_config
         self._np = np_module
         self._cv2 = cv2_module
+        self._segmentation_mode = str(runtime_config.get("segmentation_mode", "")).strip().lower()
+        self._native_multiview_fusion = bool(runtime_config.get("native_multiview_fusion", False))
         task_set = str(runtime_config.get("task_set", "")).strip()
         self._catalog_labels_by_group: dict[str, list[str]] = {}
         if task_set:
@@ -705,13 +768,95 @@ class SharedModularPerception:
         )
         self._segmentation_config = dict(method_config.get("segmentation", {}))
 
+    def _side_detection_mask(
+        self,
+        *,
+        task_spec: dict[str, Any],
+        instruction: str,
+        task_name: str,
+        obs: Observation,
+    ) -> tuple[Any | None, dict[str, Any]]:
+        if not self._native_multiview_fusion:
+            return None, {}
+        depth_side = self._np.asarray(obs.depth_side, dtype=self._np.float32)
+        rgb_side = self._np.asarray(obs.rgb_side, dtype=self._np.uint8)
+        if depth_side.size == 0 or rgb_side.size == 0:
+            return None, {}
+
+        if task_name == "language_conditioned_single_target_pick":
+            target_label = str(task_spec.get("object_label", "")).strip() or instruction
+            detections = self._detector.detect_with_classes(rgb_side, [target_label])
+            if not detections:
+                return None, {"side_detection": {"status": "not_found", "target_label": target_label}}
+            detection = detections[0]
+            mask, seg_debug = build_depth_mask_from_bbox(
+                depth_side,
+                detection.bbox_xyxy,
+                self._np,
+                self._cv2,
+                min_pixels=int(self._segmentation_config.get("min_pixels", 64)),
+                depth_quantile=float(self._segmentation_config.get("depth_quantile", 0.2)),
+                depth_band_m=float(self._segmentation_config.get("depth_band_m", 0.03)),
+            )
+            seg_debug["side_detection"] = {
+                "bbox_xyxy": list(detection.bbox_xyxy),
+                "score": round(detection.score, 4),
+                "label": detection.label,
+                "phrase": detection.phrase,
+            }
+            return mask, seg_debug
+
+        mask, seg_debug = build_foreground_mask(
+            depth_side,
+            self._np,
+            self._cv2,
+            min_pixels=int(self._segmentation_config.get("min_pixels", 64)),
+            depth_quantile=float(self._segmentation_config.get("fallback_depth_quantile", 0.1)),
+            depth_band_m=float(self._segmentation_config.get("fallback_depth_band_m", 0.04)),
+        )
+        seg_debug["side_detection"] = {"status": "foreground_fallback"}
+        return mask, seg_debug
+
     def observe(self, *, task_spec: dict[str, Any], instruction: str, obs: Observation) -> PerceptionResult:
         task_name = str(task_spec.get("task", ""))
         rgb = self._np.asarray(obs.rgb_front, dtype=self._np.uint8)
         depth = self._np.asarray(obs.depth_front, dtype=self._np.float32)
 
         detection: DetectionResult | None = None
-        if task_name == "language_conditioned_single_target_pick":
+        if self._segmentation_mode == "oracle_gt":
+            if task_name == "language_conditioned_single_target_pick":
+                mask_key = "sim_gt_target_mask_front"
+                target_label = str(task_spec.get("object_label", "")).strip() or instruction
+                detection_label = target_label
+            else:
+                mask_key = "sim_gt_success_mask_front"
+                detection_label = str(task_spec.get("object_label", "")).strip() or str(task_spec.get("object_group", "")).strip()
+            raw_mask = obs.proprio.get(mask_key)
+            if raw_mask is None:
+                raise AdapterExecutionError(
+                    f"Missing simulator GT segmentation payload: {mask_key}",
+                    failure_stage="segmentation_error",
+                )
+            mask = self._np.asarray(raw_mask, dtype=bool)
+            if mask.shape != depth.shape:
+                raise AdapterExecutionError(
+                    f"Simulator GT segmentation payload {mask_key} does not match the front depth shape.",
+                    failure_stage="segmentation_error",
+                )
+            bbox_xyxy = _mask_bbox_xyxy(mask, self._np)
+            detection = DetectionResult(
+                bbox_xyxy=bbox_xyxy,
+                score=1.0,
+                label=detection_label or "oracle_gt",
+                phrase="oracle_gt",
+                prompt="oracle_gt",
+            )
+            seg_debug = {
+                "segmentation_source": "oracle_gt",
+                "bbox_xyxy": list(bbox_xyxy),
+                "mask_pixels": int(mask.sum()),
+            }
+        elif task_name == "language_conditioned_single_target_pick":
             target_label = str(task_spec.get("object_label", "")).strip() or instruction
             detections = self._detector.detect_with_classes(rgb, [target_label])
             if not detections:
@@ -753,8 +898,31 @@ class SharedModularPerception:
                     depth_band_m=float(self._segmentation_config.get("fallback_depth_band_m", 0.04)),
                 )
         points, colors = point_cloud_from_mask(obs, mask, self._np)
+        side_mask = None
+        side_points = None
+        side_colors = None
+        if self._native_multiview_fusion:
+            side_mask, side_debug = self._side_detection_mask(
+                task_spec=task_spec,
+                instruction=instruction,
+                task_name=task_name,
+                obs=obs,
+            )
+            debug = dict(seg_debug)
+            debug.update(side_debug)
+            if side_mask is not None:
+                raw_side_points, side_colors = point_cloud_from_view_mask(obs, side_mask, self._np, view="side")
+                side_points = _camera_to_front_frame(obs, raw_side_points, self._np, view="side")
+                points = self._np.concatenate([points, side_points], axis=0)
+                colors = self._np.concatenate([colors, side_colors], axis=0)
+                debug["point_cloud_mode"] = "front_plus_side_fused_in_front_frame"
+                debug["front_point_count"] = int(points.shape[0] - side_points.shape[0])
+                debug["side_point_count"] = int(side_points.shape[0])
+            else:
+                debug["point_cloud_mode"] = "front_only_fallback"
+        else:
+            debug = dict(seg_debug)
         segmap = mask.astype("uint8")
-        debug = dict(seg_debug)
         if detection is not None:
             debug["detection"] = {
                 "bbox_xyxy": list(detection.bbox_xyxy),
@@ -769,4 +937,7 @@ class SharedModularPerception:
             mask=mask,
             detection=detection,
             debug=debug,
+            side_mask=side_mask,
+            side_points=side_points,
+            side_colors=side_colors,
         )

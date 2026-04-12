@@ -17,7 +17,10 @@ sim:
   scene_catalog: graspvla_track_a_playground_v1
   scene_catalog_by_task_set:
     track_a_cal_v1: graspvla_track_a_playground_cal_v1
+    track_a_cal_v2: graspvla_track_a_playground_cal_v2
     track_a_v2: graspvla_track_a_playground_v2
+    track_a_stress_v2: graspvla_track_a_playground_stress_v2
+    protocol_probe_v2: graspvla_track_a_playground_probe_v2
 track_a_input_policy:
   observation_contract: shared_observation
   consumes:

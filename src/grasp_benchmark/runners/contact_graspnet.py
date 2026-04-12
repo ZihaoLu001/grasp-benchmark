@@ -18,6 +18,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--forward-passes", type=int, default=1)
     parser.add_argument("--z-min", type=float, default=0.2)
     parser.add_argument("--z-max", type=float, default=1.1)
+    parser.add_argument("--top-k", type=int, default=1)
     parser.add_argument("--cuda-visible-devices", default="0")
     return parser
 
@@ -49,8 +50,11 @@ def main() -> None:
     from contact_grasp_estimator import GraspEstimator
 
     payload = np.load(input_path, allow_pickle=False)
-    depth = payload["depth"]
-    K = payload["K"]
+    use_raw_points = "points" in payload.files
+    points = payload["points"] if use_raw_points else None
+    colors = payload["colors"] if "colors" in payload.files else None
+    depth = payload["depth"] if "depth" in payload.files else None
+    K = payload["K"] if "K" in payload.files else None
     rgb = payload["rgb"] if "rgb" in payload.files else None
     segmap = payload["segmap"] if "segmap" in payload.files else None
 
@@ -65,19 +69,23 @@ def main() -> None:
     sess = tf.Session(config=config)
     try:
         grasp_estimator.load_weights(sess, saver, str(checkpoint_dir), mode="test")
-        pc_full, pc_segments, _ = grasp_estimator.extract_point_clouds(
-            depth,
-            K,
-            segmap=segmap,
-            rgb=rgb,
-            z_range=[args.z_min, args.z_max],
-        )
+        if use_raw_points:
+            pc_full = points.astype(np.float32)
+            pc_segments = {}
+        else:
+            pc_full, pc_segments, _ = grasp_estimator.extract_point_clouds(
+                depth,
+                K,
+                segmap=segmap,
+                rgb=rgb,
+                z_range=[args.z_min, args.z_max],
+            )
         pred_grasps_cam, scores, _, _ = grasp_estimator.predict_scene_grasps(
             sess,
             pc_full,
             pc_segments=pc_segments,
-            local_regions=segmap is not None,
-            filter_grasps=segmap is not None,
+            local_regions=(segmap is not None) and not use_raw_points,
+            filter_grasps=(segmap is not None) and not use_raw_points,
             forward_passes=args.forward_passes,
         )
         best_key = -1
@@ -98,8 +106,21 @@ def main() -> None:
                 "failure_reason": "Contact-GraspNet returned zero grasp proposals.",
             }
         else:
-            best_idx = int(np.argmax(candidate_scores))
+            ranking = np.argsort(candidate_scores)[::-1]
+            best_idx = int(ranking[0])
             best_grasp = candidates[best_idx]
+            top_k = max(int(args.top_k), 1)
+            candidate_payloads = []
+            for rank_idx in ranking[:top_k]:
+                grasp = candidates[int(rank_idx)]
+                candidate_payloads.append(
+                    {
+                        "best_score": float(candidate_scores[int(rank_idx)]),
+                        "best_translation": grasp[:3, 3].tolist(),
+                        "best_grasp": grasp.tolist(),
+                        "proposal_source": "contact_graspnet",
+                    }
+                )
             result = {
                 "ok": True,
                 "segment_key": int(best_key),
@@ -107,6 +128,7 @@ def main() -> None:
                 "best_score": float(candidate_scores[best_idx]),
                 "best_translation": best_grasp[:3, 3].tolist(),
                 "best_grasp": best_grasp.tolist(),
+                "candidate_grasps": candidate_payloads,
             }
     except Exception as exc:
         result = {

@@ -38,8 +38,10 @@ class SceneObject:
 @dataclass(frozen=True, slots=True)
 class SceneRecipe:
     scene_id: str
+    scene_recipe_id: str
     task: str
     condition: str
+    replicate_index: int
     seed: int
     instruction: str
     scene_properties: dict[str, Any]
@@ -54,8 +56,10 @@ class SceneRecipe:
     def to_json(self) -> dict[str, Any]:
         return {
             "scene_id": self.scene_id,
+            "scene_recipe_id": self.scene_recipe_id,
             "task": self.task,
             "condition": self.condition,
+            "replicate_index": self.replicate_index,
             "seed": self.seed,
             "instruction": self.instruction,
             "scene_properties": self.scene_properties,
@@ -120,6 +124,8 @@ def _asset_key(object_id: str, task: str, scene_config: dict[str, Any]) -> dict[
 
 
 def _seed_for_trial(scene_config: dict[str, Any], trial: TrialSpec, scene_index: int) -> int:
+    if getattr(trial, "seed", 0):
+        return int(trial.seed)
     if trial.task == "arbitrary_grasping_transparent":
         return int(scene_config["seed_base"]["transparent"]) + scene_index
     return int(scene_config["seed_base"][trial.condition]) + scene_index
@@ -130,13 +136,21 @@ def _build_core_distractors(scene_config: dict[str, Any], target_object_id: str,
     return distractors[:count]
 
 
-def _build_transparent_scene_objects(scene_config: dict[str, Any], focus_object_id: str) -> tuple[SceneObject, ...]:
+def _build_transparent_scene_objects(
+    scene_config: dict[str, Any],
+    focus_object_id: str,
+    *,
+    condition: str = "",
+) -> tuple[SceneObject, ...]:
+    transparent_cfg = dict((scene_config.get("transparent_conditions") or {}).get(condition, {}))
     ordered = [focus_object_id] + [
         item for item in scene_config.get("transparent_distractor_priority", []) if item != focus_object_id
     ]
-    region_names = ["target_center", "clutter_left", "clutter_right", "clutter_back"]
+    region_names = list(transparent_cfg.get("region_order", ["target_center", "clutter_left", "clutter_right", "clutter_back"]))
     objects: list[SceneObject] = []
     for index, object_id in enumerate(ordered):
+        if index >= len(region_names):
+            break
         spec = _asset_key(object_id, "arbitrary_grasping_transparent", scene_config)
         objects.append(
             SceneObject(
@@ -155,15 +169,24 @@ def _build_transparent_scene_objects(scene_config: dict[str, Any], focus_object_
     return tuple(objects)
 
 
-def _build_opaque_scene_objects(scene_config: dict[str, Any], focus_object_id: str) -> tuple[SceneObject, ...]:
+def _build_opaque_scene_objects(
+    scene_config: dict[str, Any],
+    focus_object_id: str,
+    *,
+    condition: str = "",
+) -> tuple[SceneObject, ...]:
+    opaque_cfg = dict((scene_config.get("opaque_conditions") or {}).get(condition, {}))
     ordered = [focus_object_id] + [
         item for item in scene_config.get("opaque_distractor_priority", scene_config.get("distractor_priority", []))
         if item != focus_object_id
     ]
-    ordered = ordered[:4]
-    region_names = ["target_center", "clutter_left", "clutter_right", "clutter_back"]
+    distractor_count = max(int(opaque_cfg.get("distractor_count", 3)), 0)
+    ordered = ordered[: 1 + distractor_count]
+    region_names = list(opaque_cfg.get("region_order", ["target_center", "clutter_left", "clutter_right", "clutter_back"]))
     objects: list[SceneObject] = []
     for index, object_id in enumerate(ordered):
+        if index >= len(region_names):
+            break
         spec = _asset_key(object_id, "arbitrary_grasping_common_opaque", scene_config)
         objects.append(
             SceneObject(
@@ -186,12 +209,15 @@ def build_scene_catalog(task_specs: list[TrialSpec], scene_config: dict[str, Any
     recipes: dict[str, SceneRecipe] = {}
     for index, trial in enumerate(task_specs, start=1):
         if trial.task == "arbitrary_grasping_transparent":
-            objects = _build_transparent_scene_objects(scene_config, trial.object_id)
-            transparent_scene = scene_config["transparent_scene"]
+            objects = _build_transparent_scene_objects(scene_config, trial.object_id, condition=trial.condition)
+            transparent_scene = dict(scene_config["transparent_scene"])
+            transparent_scene.update((scene_config.get("transparent_conditions") or {}).get(trial.condition, {}))
             recipe = SceneRecipe(
                 scene_id=trial.scene_id,
+                scene_recipe_id=trial.scene_recipe_id,
                 task=trial.task,
                 condition=trial.condition,
+                replicate_index=trial.replicate_index,
                 seed=_seed_for_trial(scene_config, trial, index),
                 instruction=trial.instruction,
                 scene_properties=dict(transparent_scene["scene_properties"]),
@@ -204,12 +230,15 @@ def build_scene_catalog(task_specs: list[TrialSpec], scene_config: dict[str, Any
                 hold_steps=int(scene_config["hold_steps"]),
             )
         elif trial.task == "arbitrary_grasping_common_opaque":
-            objects = _build_opaque_scene_objects(scene_config, trial.object_id)
-            opaque_scene = scene_config["opaque_scene"]
+            objects = _build_opaque_scene_objects(scene_config, trial.object_id, condition=trial.condition)
+            opaque_scene = dict(scene_config["opaque_scene"])
+            opaque_scene.update((scene_config.get("opaque_conditions") or {}).get(trial.condition, {}))
             recipe = SceneRecipe(
                 scene_id=trial.scene_id,
+                scene_recipe_id=trial.scene_recipe_id,
                 task=trial.task,
                 condition=trial.condition,
+                replicate_index=trial.replicate_index,
                 seed=_seed_for_trial(scene_config, trial, index),
                 instruction=trial.instruction,
                 scene_properties=dict(opaque_scene["scene_properties"]),
@@ -238,12 +267,15 @@ def build_scene_catalog(task_specs: list[TrialSpec], scene_config: dict[str, Any
                     material_override=dict(target_spec.get("material_override") or {}),
                 )
             ]
+            region_names = list(condition_cfg.get("region_order", ["clutter_left", "clutter_right", "clutter_back", "clutter_front"]))
             for distractor_index, distractor_id in enumerate(
                 _build_core_distractors(scene_config, trial.object_id, int(condition_cfg.get("distractor_count", 0))),
                 start=1,
             ):
+                if distractor_index - 1 >= len(region_names):
+                    break
                 distractor_spec = _asset_key(distractor_id, trial.task, scene_config)
-                region_name = ("clutter_left", "clutter_right", "clutter_back")[distractor_index - 1]
+                region_name = region_names[distractor_index - 1]
                 objects.append(
                     SceneObject(
                         object_id=distractor_id,
@@ -260,8 +292,10 @@ def build_scene_catalog(task_specs: list[TrialSpec], scene_config: dict[str, Any
                 )
             recipe = SceneRecipe(
                 scene_id=trial.scene_id,
+                scene_recipe_id=trial.scene_recipe_id,
                 task=trial.task,
                 condition=trial.condition,
+                replicate_index=trial.replicate_index,
                 seed=_seed_for_trial(scene_config, trial, index),
                 instruction=trial.instruction,
                 scene_properties=dict(condition_cfg["scene_properties"]),
@@ -498,7 +532,15 @@ class SharedTrackARemoteAgent:
     GRIPPER_OPEN = 1.0
     GRIP_TRANSITION_ACTIONS = 4
 
-    def __init__(self, *, instruction: str, host: str, port: int, kinematics: SharedFrankaKinematics) -> None:
+    def __init__(
+        self,
+        *,
+        instruction: str,
+        host: str,
+        port: int,
+        kinematics: SharedFrankaKinematics,
+        runtime_config: dict[str, Any] | None = None,
+    ) -> None:
         import numpy as np
         import transforms3d as t3d
         import zmq
@@ -507,6 +549,9 @@ class SharedTrackARemoteAgent:
         self._kinematics = kinematics
         self._np = np
         self._t3d = t3d
+        runtime_config = dict(runtime_config or {})
+        self._view_mode = str(runtime_config.get("graspvla_view_mode", "dual")).strip().lower()
+        self._camera_jitter_mode = str(runtime_config.get("camera_jitter_mode", "")).strip().lower()
         self._last_gripper = self.GRIPPER_OPEN
         self._proprio_history: list[np.ndarray] = []
         self._pred_actions: list[tuple[np.ndarray, Any]] = []
@@ -545,7 +590,12 @@ class SharedTrackARemoteAgent:
             ]
         )
 
-    def _build_observation(self, obs: dict[str, Any], camera_meta: dict[str, Any]) -> Observation:
+    def _build_observation(
+        self,
+        obs: dict[str, Any],
+        camera_meta: dict[str, Any],
+        gt_masks: dict[str, Any] | None = None,
+    ) -> Observation:
         current_proprio = self._current_proprio(obs)
         self._proprio_history.append(current_proprio)
         while len(self._proprio_history) < self.PROPRIO_HISTORY_SIZE:
@@ -571,21 +621,51 @@ class SharedTrackARemoteAgent:
                 camera_meta,
                 self._np,
             )
+        intrinsics_front = dict(camera_meta["intrinsics_front"])
+        intrinsics_side = dict(camera_meta["intrinsics_side"])
+        rgb_front, rgb_side, front_depth, side_depth = _apply_view_mode(
+            self._np,
+            view_mode=self._view_mode,
+            rgb_front=rgb_front,
+            rgb_side=rgb_side,
+            depth_front=front_depth,
+            depth_side=side_depth,
+        )
+        (
+            rgb_front,
+            rgb_side,
+            front_depth,
+            side_depth,
+            intrinsics_front,
+            intrinsics_side,
+        ) = _apply_camera_jitter(
+            self._np,
+            mode=self._camera_jitter_mode,
+            rgb_front=rgb_front,
+            rgb_side=rgb_side,
+            depth_front=front_depth,
+            depth_side=side_depth,
+            intrinsics_front=intrinsics_front,
+            intrinsics_side=intrinsics_side,
+        )
+        proprio_payload = {
+            "state": self._proprio_history[-1].tolist(),
+            "history": [item.tolist() for item in self._proprio_history],
+            "gripper": int(self._last_gripper),
+            "robot_base_pose_world": camera_meta.get("robot_base_pose_world"),
+        }
+        if gt_masks:
+            proprio_payload.update(gt_masks)
         return Observation(
             rgb_front=rgb_front,
             rgb_side=rgb_side,
             depth_front=front_depth,
             depth_side=side_depth,
-            intrinsics_front=dict(camera_meta["intrinsics_front"]),
-            intrinsics_side=dict(camera_meta["intrinsics_side"]),
+            intrinsics_front=intrinsics_front,
+            intrinsics_side=intrinsics_side,
             extrinsics_front=dict(camera_meta["extrinsics_front"]),
             extrinsics_side=dict(camera_meta["extrinsics_side"]),
-            proprio={
-                "state": self._proprio_history[-1].tolist(),
-                "history": [item.tolist() for item in self._proprio_history],
-                "gripper": int(self._last_gripper),
-                "robot_base_pose_world": camera_meta.get("robot_base_pose_world"),
-            },
+            proprio=proprio_payload,
             instruction=self._instruction,
             timestamp=time.time(),
         )
@@ -644,8 +724,13 @@ class SharedTrackARemoteAgent:
         action[-1] = -1.0
         return action
 
-    def step(self, obs: dict[str, Any], camera_meta: dict[str, Any]) -> tuple[Any, Any, dict[str, Any]]:
-        observation = self._build_observation(obs, camera_meta)
+    def step(
+        self,
+        obs: dict[str, Any],
+        camera_meta: dict[str, Any],
+        gt_masks: dict[str, Any] | None = None,
+    ) -> tuple[Any, Any, dict[str, Any]]:
+        observation = self._build_observation(obs, camera_meta, gt_masks=gt_masks)
         if not self._pred_actions:
             self._post_and_get(observation)
         action, bbox = self._pred_actions.pop(0)
@@ -678,6 +763,8 @@ class SharedTrackAAdapterAgent:
         self._kinematics = kinematics
         self._np = np
         self._t3d = t3d
+        self._view_mode = str(runtime_config.get("graspvla_view_mode", "dual")).strip().lower()
+        self._camera_jitter_mode = str(runtime_config.get("camera_jitter_mode", "")).strip().lower()
         self._last_gripper = self.GRIPPER_OPEN
         self._command_pose: np.ndarray | None = None
         self._proprio_history: list[np.ndarray] = []
@@ -712,7 +799,12 @@ class SharedTrackAAdapterAgent:
             ]
         )
 
-    def _build_observation(self, obs: dict[str, Any], camera_meta: dict[str, Any]) -> Observation:
+    def _build_observation(
+        self,
+        obs: dict[str, Any],
+        camera_meta: dict[str, Any],
+        gt_masks: dict[str, Any] | None = None,
+    ) -> Observation:
         current_proprio = self._current_proprio(obs)
         self._proprio_history.append(current_proprio)
         while len(self._proprio_history) < self.PROPRIO_HISTORY_SIZE:
@@ -738,21 +830,51 @@ class SharedTrackAAdapterAgent:
                 camera_meta,
                 self._np,
             )
+        intrinsics_front = dict(camera_meta["intrinsics_front"])
+        intrinsics_side = dict(camera_meta["intrinsics_side"])
+        rgb_front, rgb_side, front_depth, side_depth = _apply_view_mode(
+            self._np,
+            view_mode=self._view_mode,
+            rgb_front=rgb_front,
+            rgb_side=rgb_side,
+            depth_front=front_depth,
+            depth_side=side_depth,
+        )
+        (
+            rgb_front,
+            rgb_side,
+            front_depth,
+            side_depth,
+            intrinsics_front,
+            intrinsics_side,
+        ) = _apply_camera_jitter(
+            self._np,
+            mode=self._camera_jitter_mode,
+            rgb_front=rgb_front,
+            rgb_side=rgb_side,
+            depth_front=front_depth,
+            depth_side=side_depth,
+            intrinsics_front=intrinsics_front,
+            intrinsics_side=intrinsics_side,
+        )
+        proprio_payload = {
+            "state": self._proprio_history[-1].tolist(),
+            "history": [item.tolist() for item in self._proprio_history],
+            "gripper": int(self._last_gripper),
+            "robot_base_pose_world": camera_meta.get("robot_base_pose_world"),
+        }
+        if gt_masks:
+            proprio_payload.update(gt_masks)
         return Observation(
             rgb_front=rgb_front,
             rgb_side=rgb_side,
             depth_front=front_depth,
             depth_side=side_depth,
-            intrinsics_front=dict(camera_meta["intrinsics_front"]),
-            intrinsics_side=dict(camera_meta["intrinsics_side"]),
+            intrinsics_front=intrinsics_front,
+            intrinsics_side=intrinsics_side,
             extrinsics_front=dict(camera_meta["extrinsics_front"]),
             extrinsics_side=dict(camera_meta["extrinsics_side"]),
-            proprio={
-                "state": self._proprio_history[-1].tolist(),
-                "history": [item.tolist() for item in self._proprio_history],
-                "gripper": int(self._last_gripper),
-                "robot_base_pose_world": camera_meta.get("robot_base_pose_world"),
-            },
+            proprio=proprio_payload,
             instruction=self._instruction,
             timestamp=time.time(),
         )
@@ -775,8 +897,13 @@ class SharedTrackAAdapterAgent:
             ]
         )
 
-    def step(self, obs: dict[str, Any], camera_meta: dict[str, Any]) -> tuple[Any, Any, dict[str, Any]]:
-        observation = self._build_observation(obs, camera_meta)
+    def step(
+        self,
+        obs: dict[str, Any],
+        camera_meta: dict[str, Any],
+        gt_masks: dict[str, Any] | None = None,
+    ) -> tuple[Any, Any, dict[str, Any]]:
+        observation = self._build_observation(obs, camera_meta, gt_masks=gt_masks)
         current_pose = self._np.asarray(observation.proprio["history"][-1][:6], dtype=self._np.float32)
         had_pending_actions = bool(getattr(self._adapter, "_pending_actions", []))
         start = time.perf_counter()
@@ -917,6 +1044,139 @@ def _stabilize_scene(env: Any, agent: SharedTrackARemoteAgent, obs: dict[str, An
     return current_obs
 
 
+def _requires_segmentation_frames(runtime_config: dict[str, Any]) -> bool:
+    segmentation_mode = str(runtime_config.get("segmentation_mode", "")).strip().lower()
+    return segmentation_mode == "oracle_gt" or bool(runtime_config.get("need_segmentation_obs", False))
+
+
+def _union_instance_mask(
+    env: Any,
+    segmentation_image: Any,
+    instance_names: tuple[str, ...],
+    np_module: Any,
+) -> Any:
+    segmentation_by_instance = env.get_segmentation_instances(segmentation_image.copy())
+    mask = np_module.zeros_like(segmentation_image, dtype=bool)
+    for instance_name in instance_names:
+        instance_mask = segmentation_by_instance.get(instance_name)
+        if instance_mask is None:
+            continue
+        mask |= np_module.asarray(instance_mask) > 0
+    return mask.astype(np_module.uint8)
+
+
+def _gt_masks_for_recipe(env: Any, obs: dict[str, Any], recipe: SceneRecipe, scene_config: dict[str, Any], np_module: Any) -> dict[str, Any]:
+    payload: dict[str, Any] = {}
+    for view_name in ("front", "side"):
+        camera_name = str(scene_config["camera_names"][view_name])
+        obs_key = f"{camera_name}_segmentation_instance"
+        segmentation_frame = obs.get(obs_key)
+        if segmentation_frame is None:
+            continue
+        segmentation_image = np_module.asarray(segmentation_frame[::-1]).squeeze(-1).copy()
+        payload[f"sim_gt_target_mask_{view_name}"] = _union_instance_mask(
+            env,
+            segmentation_image,
+            recipe.target_instance_names,
+            np_module,
+        )
+        payload[f"sim_gt_success_mask_{view_name}"] = _union_instance_mask(
+            env,
+            segmentation_image,
+            recipe.success_instance_names,
+            np_module,
+        )
+    return payload
+
+
+def _shift_frame(np_module: Any, frame: Any, *, dx: int, dy: int, fill_value: float = 0.0) -> Any:
+    output = np_module.full_like(frame, fill_value)
+    height, width = frame.shape[:2]
+    src_x1 = max(0, -dx)
+    src_x2 = min(width, width - dx) if dx >= 0 else width
+    dst_x1 = max(0, dx)
+    dst_x2 = min(width, width + dx) if dx <= 0 else width
+    src_y1 = max(0, -dy)
+    src_y2 = min(height, height - dy) if dy >= 0 else height
+    dst_y1 = max(0, dy)
+    dst_y2 = min(height, height + dy) if dy <= 0 else height
+    if src_x1 >= src_x2 or src_y1 >= src_y2 or dst_x1 >= dst_x2 or dst_y1 >= dst_y2:
+        return output
+    output[dst_y1:dst_y2, dst_x1:dst_x2] = frame[src_y1:src_y2, src_x1:src_x2]
+    return output
+
+
+def _camera_jitter_offsets(mode: str) -> tuple[tuple[int, int], tuple[int, int]]:
+    if mode == "low":
+        return (4, -3), (-4, 2)
+    return (0, 0), (0, 0)
+
+
+def _apply_view_mode(
+    np_module: Any,
+    *,
+    view_mode: str,
+    rgb_front: Any,
+    rgb_side: Any,
+    depth_front: Any,
+    depth_side: Any,
+) -> tuple[Any, Any, Any, Any]:
+    front_rgb = rgb_front
+    side_rgb = rgb_side
+    front_depth = depth_front
+    side_depth = depth_side
+    if view_mode == "front_only_duplicate":
+        side_rgb = np_module.asarray(rgb_front).copy()
+        side_depth = np_module.asarray(depth_front).copy()
+    elif view_mode == "front_only_blank":
+        side_rgb = np_module.zeros_like(rgb_front)
+        side_depth = np_module.zeros_like(depth_front)
+    elif view_mode == "side_only_duplicate":
+        front_rgb = np_module.asarray(rgb_side).copy()
+        front_depth = np_module.asarray(depth_side).copy()
+    elif view_mode == "side_only_blank":
+        front_rgb = np_module.zeros_like(rgb_side)
+        front_depth = np_module.zeros_like(depth_side)
+    return front_rgb, side_rgb, front_depth, side_depth
+
+
+def _apply_camera_jitter(
+    np_module: Any,
+    *,
+    mode: str,
+    rgb_front: Any,
+    rgb_side: Any,
+    depth_front: Any,
+    depth_side: Any,
+    intrinsics_front: dict[str, Any],
+    intrinsics_side: dict[str, Any],
+) -> tuple[Any, Any, Any, Any, dict[str, Any], dict[str, Any]]:
+    front_shift, side_shift = _camera_jitter_offsets(mode)
+    if front_shift == (0, 0) and side_shift == (0, 0):
+        return rgb_front, rgb_side, depth_front, depth_side, intrinsics_front, intrinsics_side
+
+    front_dx, front_dy = front_shift
+    side_dx, side_dy = side_shift
+    jittered_front_rgb = _shift_frame(np_module, rgb_front, dx=front_dx, dy=front_dy, fill_value=0)
+    jittered_side_rgb = _shift_frame(np_module, rgb_side, dx=side_dx, dy=side_dy, fill_value=0)
+    jittered_front_depth = _shift_frame(np_module, depth_front, dx=front_dx, dy=front_dy, fill_value=0.0)
+    jittered_side_depth = _shift_frame(np_module, depth_side, dx=side_dx, dy=side_dy, fill_value=0.0)
+    updated_front_intrinsics = dict(intrinsics_front)
+    updated_side_intrinsics = dict(intrinsics_side)
+    updated_front_intrinsics["cx"] = float(updated_front_intrinsics.get("cx", 0.0)) + front_dx
+    updated_front_intrinsics["cy"] = float(updated_front_intrinsics.get("cy", 0.0)) + front_dy
+    updated_side_intrinsics["cx"] = float(updated_side_intrinsics.get("cx", 0.0)) + side_dx
+    updated_side_intrinsics["cy"] = float(updated_side_intrinsics.get("cy", 0.0)) + side_dy
+    return (
+        jittered_front_rgb,
+        jittered_side_rgb,
+        jittered_front_depth,
+        jittered_side_depth,
+        updated_front_intrinsics,
+        updated_side_intrinsics,
+    )
+
+
 def _attempt_payload(
     *,
     trial: TrialSpec,
@@ -942,8 +1202,11 @@ def _attempt_payload(
     ) -> dict[str, Any]:
     return {
         "scene_id": trial.scene_id,
+        "scene_recipe_id": trial.scene_recipe_id,
         "task": trial.task,
         "attempt": attempt,
+        "replicate_index": trial.replicate_index,
+        "seed": trial.seed,
         "instruction": trial.instruction,
         "success": success,
         "baseline_z": baseline_z,
@@ -1002,6 +1265,7 @@ def _build_shared_agent(
             host=str(runtime_config["host"]),
             port=int(runtime_config["port"]),
             kinematics=kinematics,
+            runtime_config=runtime_config,
         )
         agent.reset(trial.to_task_spec())
         return agent
@@ -1070,7 +1334,7 @@ def _run_shared_track_a_suite_once(
     os.chdir(playground_root)
     try:
         from grasp_benchmark.types import EpisodeResult
-        from libero.libero.envs import OffScreenRenderEnv
+        from libero.libero.envs import OffScreenRenderEnv, SegmentationRenderEnv
         from misc.logger import VideoLogger
 
         scene_config = _load_scene_config(method_config, task_config)
@@ -1101,6 +1365,8 @@ def _run_shared_track_a_suite_once(
         hold_steps_required = int(hold_steps_override) if hold_steps_override is not None else int(scene_config["hold_steps"])
         results: list[EpisodeResult] = []
         control_freq = int(method_config.get("sim", {}).get("control_freq", 5))
+        use_segmentation_frames = _requires_segmentation_frames(runtime_config)
+        env_cls = SegmentationRenderEnv if use_segmentation_frames else OffScreenRenderEnv
         benchmark_method_tier = resolve_method_tier(method_config)
         shared_success_definition = {
             "lift_cm_min": round(lift_threshold_m * 100.0, 4),
@@ -1121,7 +1387,7 @@ def _run_shared_track_a_suite_once(
                 try:
                     bddl_path = bddl_root / f"{trial.scene_id}_attempt{attempt:02d}.bddl"
                     write_bddl_for_recipe(recipe, scene_config, bddl_path)
-                    env = OffScreenRenderEnv(
+                    env = env_cls(
                         bddl_file_name=str(bddl_path),
                         camera_names=[scene_config["camera_names"]["front"], scene_config["camera_names"]["side"]],
                         camera_heights=256,
@@ -1166,7 +1432,12 @@ def _run_shared_track_a_suite_once(
                     attempt_complete_early = False
 
                     for _step in range(recipe.max_steps):
-                        action, bbox, debug = agent.step(obs, camera_meta)
+                        gt_masks = (
+                            _gt_masks_for_recipe(env, obs, recipe, scene_config, np)
+                            if use_segmentation_frames
+                            else None
+                        )
+                        action, bbox, debug = agent.step(obs, camera_meta, gt_masks=gt_masks)
                         obs, _reward, _done, _info = env.step(action)
                         video_logger.log_frame(obs, bbox)
                         winner = ""
@@ -1247,6 +1518,7 @@ def _run_shared_track_a_suite_once(
                                 execution_mode=execution_mode,
                                 task=trial.task,
                                 scene_id=trial.scene_id,
+                                scene_recipe_id=trial.scene_recipe_id,
                                 object_id=trial.object_id,
                                 object_group=trial.object_group,
                                 condition=trial.condition,
@@ -1265,6 +1537,8 @@ def _run_shared_track_a_suite_once(
                                 video_path=video_path,
                                 node=node,
                                 commit=commit,
+                                replicate_index=trial.replicate_index,
+                                seed=trial.seed,
                                 parent_run_id=parent_run_id,
                                 shard_id=shard_id,
                                 gpu_id=gpu_id,
@@ -1324,6 +1598,7 @@ def _run_shared_track_a_suite_once(
                             execution_mode=execution_mode,
                             task=trial.task,
                             scene_id=trial.scene_id,
+                            scene_recipe_id=trial.scene_recipe_id,
                             object_id=trial.object_id,
                             object_group=trial.object_group,
                             condition=trial.condition,
@@ -1346,6 +1621,8 @@ def _run_shared_track_a_suite_once(
                             video_path=video_path,
                             node=node,
                             commit=commit,
+                            replicate_index=trial.replicate_index,
+                            seed=trial.seed,
                             parent_run_id=parent_run_id,
                             shard_id=shard_id,
                             gpu_id=gpu_id,
@@ -1393,6 +1670,7 @@ def _run_shared_track_a_suite_once(
                             execution_mode=execution_mode,
                             task=trial.task,
                             scene_id=trial.scene_id,
+                            scene_recipe_id=trial.scene_recipe_id,
                             object_id=trial.object_id,
                             object_group=trial.object_group,
                             condition=trial.condition,
@@ -1411,6 +1689,8 @@ def _run_shared_track_a_suite_once(
                             video_path=video_path,
                             node=node,
                             commit=commit,
+                            replicate_index=trial.replicate_index,
+                            seed=trial.seed,
                             parent_run_id=parent_run_id,
                             shard_id=shard_id,
                             gpu_id=gpu_id,

@@ -64,6 +64,64 @@ class TaskSpecTest(unittest.TestCase):
         self.assertTrue(all(trial.object_group == "native_opaque_cal" for trial in cal_trials))
         self.assertTrue(any(trial.object_group == "transparent" for trial in stress_trials))
 
+    def test_expand_track_a_cal_v2_creates_60_trials_with_paired_identifiers(self) -> None:
+        task_config = load_named_config("tasks", "track_a_cal_v2")
+        trials = expand_task_set(task_config)
+
+        self.assertEqual(len(trials), 60)
+        self.assertEqual(trials[0].scene_id, "language_conditioned_single_target_pick__basic__001__r01")
+        self.assertEqual(trials[0].scene_recipe_id, "language_conditioned_single_target_pick__basic__001")
+        self.assertEqual(trials[0].replicate_index, 1)
+        self.assertGreater(trials[0].seed, 0)
+        self.assertEqual(trials[-1].task, "arbitrary_grasping_common_opaque")
+        self.assertEqual(trials[-1].condition, "opaque_basic")
+        self.assertEqual(trials[-1].replicate_index, 4)
+        self.assertEqual(sum(1 for trial in trials if trial.condition == "basic"), 20)
+        self.assertEqual(sum(1 for trial in trials if trial.condition == "distractors_light"), 20)
+        self.assertEqual(sum(1 for trial in trials if trial.condition == "opaque_basic"), 20)
+
+    def test_expand_track_a_stress_v2_creates_64_trials(self) -> None:
+        task_config = load_named_config("tasks", "track_a_stress_v2")
+        trials = expand_task_set(task_config)
+
+        self.assertEqual(len(trials), 64)
+        self.assertEqual(sum(1 for trial in trials if trial.condition == "distractors_heavy"), 20)
+        self.assertEqual(sum(1 for trial in trials if trial.condition == "opaque_clutter"), 20)
+        self.assertEqual(sum(1 for trial in trials if trial.condition == "transparent_pose_bank"), 24)
+        transparent_trials = [trial for trial in trials if trial.task == "arbitrary_grasping_transparent"]
+        self.assertEqual(len(transparent_trials), 24)
+        self.assertEqual(transparent_trials[0].condition, "transparent_pose_bank")
+        self.assertEqual(transparent_trials[-1].replicate_index, 6)
+
+    def test_protocol_probe_v2_creates_24_trials(self) -> None:
+        task_config = load_named_config("tasks", "protocol_probe_v2")
+        trials = expand_task_set(task_config)
+
+        self.assertEqual(len(trials), 24)
+        self.assertEqual(sum(1 for trial in trials if trial.condition == "basic"), 8)
+        self.assertEqual(sum(1 for trial in trials if trial.condition == "distractors_light"), 8)
+        self.assertEqual(sum(1 for trial in trials if trial.condition == "transparent_pose_bank"), 8)
+
+    def test_cgn_bottleneck_v1_creates_24_trials(self) -> None:
+        task_config = load_named_config("tasks", "cgn_bottleneck_v1")
+        trials = expand_task_set(task_config)
+
+        self.assertEqual(len(trials), 24)
+        self.assertEqual(sum(1 for trial in trials if trial.condition == "basic"), 8)
+        self.assertEqual(sum(1 for trial in trials if trial.condition == "distractors_light"), 8)
+        self.assertEqual(sum(1 for trial in trials if trial.condition == "transparent_pose_bank"), 8)
+
+    def test_track_b_cgn_native_v1_creates_84_trials(self) -> None:
+        task_config = load_named_config("tasks", "track_b_cgn_native_v1")
+        trials = expand_task_set(task_config)
+
+        self.assertEqual(len(trials), 84)
+        self.assertEqual(sum(1 for trial in trials if trial.condition == "basic"), 20)
+        self.assertEqual(sum(1 for trial in trials if trial.condition == "distractors_light"), 20)
+        self.assertEqual(sum(1 for trial in trials if trial.condition == "opaque_basic"), 20)
+        self.assertEqual(sum(1 for trial in trials if trial.condition == "transparent_pose_bank"), 24)
+        self.assertEqual(trials[0].track, "track_b_native")
+
 
 if __name__ == "__main__":
     unittest.main()

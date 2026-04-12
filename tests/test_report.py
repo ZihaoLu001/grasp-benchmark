@@ -10,9 +10,9 @@ from grasp_benchmark.report.aggregate import main as aggregate_main
 
 class ReportTest(unittest.TestCase):
     HEADER = (
-        "method,method_tier,track,execution_mode,task,scene_id,object_id,object_group,condition,instruction,sensor_stack,"
+        "method,method_tier,track,execution_mode,task,scene_id,scene_recipe_id,object_id,object_group,condition,instruction,sensor_stack,"
         "attempts,success,lift_cm,hold_s,spl,inference_ms,cycle_time_s,failure_stage,failure_reason,collision,"
-        "video_path,node,commit,parent_run_id,shard_id,gpu_id"
+        "video_path,node,commit,replicate_index,seed,parent_run_id,shard_id,gpu_id"
     )
 
     def _run_aggregate(self, root: Path, *extra_args: str) -> Path:
@@ -43,7 +43,7 @@ class ReportTest(unittest.TestCase):
                 "\n".join(
                     [
                         self.HEADER,
-                        "graspvla,graspvla_official,track_a_cal,shared_track_a_sim,language_conditioned_single_target_pick,scene_1,obj_1,native_opaque_cal,basic,pick up the banana,dual_fixed_realsense_rgbd,1,1,20,2.0,1.0,120,4.0,,,0,,em14,deadbeef,parent_run_a,shard_000,0",
+                        "graspvla,graspvla_official,track_a_cal,shared_track_a_sim,language_conditioned_single_target_pick,scene_1,scene_1,obj_1,native_opaque_cal,basic,pick up the banana,dual_fixed_realsense_rgbd,1,1,20,2.0,1.0,120,4.0,,,0,,em14,deadbeef,1,1001,parent_run_a,shard_000,0",
                     ]
                 )
                 + "\n",
@@ -68,7 +68,7 @@ class ReportTest(unittest.TestCase):
                 "\n".join(
                     [
                         self.HEADER,
-                        "graspvla,graspvla_official,track_a_cal,shared_track_a_sim,language_conditioned_single_target_pick,scene_1,obj_1,native_opaque_cal,basic,pick up the banana,dual_fixed_realsense_rgbd,1,1,20,2.0,1.0,120,4.0,,,0,,em14,deadbeef,parent_run_a,shard_000,0",
+                        "graspvla,graspvla_official,track_a_cal,shared_track_a_sim,language_conditioned_single_target_pick,scene_1,scene_1,obj_1,native_opaque_cal,basic,pick up the banana,dual_fixed_realsense_rgbd,1,1,20,2.0,1.0,120,4.0,,,0,,em14,deadbeef,1,1001,parent_run_a,shard_000,0",
                     ]
                 )
                 + "\n",
@@ -108,7 +108,7 @@ class ReportTest(unittest.TestCase):
                 "\n".join(
                     [
                         self.HEADER,
-                        "graspvla,graspvla_official,track_a_cal,shared_track_a_sim,language_conditioned_single_target_pick,scene_1,obj_1,native_opaque_cal,basic,pick up the banana,dual_fixed_realsense_rgbd,1,0,0,0.0,0.0,120,4.0,task_failure,not_met,0,,em14,deadbeef,parent_run_a,shard_000,0",
+                        "graspvla,graspvla_official,track_a_cal,shared_track_a_sim,language_conditioned_single_target_pick,scene_1,scene_1,obj_1,native_opaque_cal,basic,pick up the banana,dual_fixed_realsense_rgbd,1,0,0,0.0,0.0,120,4.0,task_failure,not_met,0,,em14,deadbeef,1,1001,parent_run_a,shard_000,0",
                     ]
                 )
                 + "\n",
@@ -149,7 +149,7 @@ class ReportTest(unittest.TestCase):
                 "\n".join(
                     [
                         self.HEADER,
-                        "graspvla,graspvla_official,track_a_cal,shared_track_a_sim,language_conditioned_single_target_pick,scene_1,obj_1,native_opaque_cal,basic,pick up the banana,dual_fixed_realsense_rgbd,1,1,18,2.0,1.0,120,4.0,,,0,,em14,deadbeef,parent_cal,shard_000,0",
+                        "graspvla,graspvla_official,track_a_cal,shared_track_a_sim,language_conditioned_single_target_pick,scene_1,scene_1,obj_1,native_opaque_cal,basic,pick up the banana,dual_fixed_realsense_rgbd,1,1,18,2.0,1.0,120,4.0,,,0,,em14,deadbeef,1,1001,parent_cal,shard_000,0",
                     ]
                 )
                 + "\n",
@@ -193,8 +193,8 @@ class ReportTest(unittest.TestCase):
                 "\n".join(
                     [
                         self.HEADER,
-                        "graspvla,graspvla_official,track_a_cal,shared_track_a_sim,language_conditioned_single_target_pick,scene_1,obj_1,native_opaque_cal,basic,pick up the banana,dual_fixed_realsense_rgbd,1,1,20,2.0,1.0,120,4.0,,,0,,em14,deadbeef,parent_run_a,shard_000,0",
-                        "cgn,cgn_raw_interim,track_a_cal,shared_track_a_sim,language_conditioned_single_target_pick,scene_2,obj_2,native_opaque_cal,basic,pick up the bowl,dual_fixed_realsense_rgbd,1,0,0,0.0,0.0,150,8.0,grasp_proposal,none,0,,rll_6000_1,deadbeef,parent_run_a,shard_001,1",
+                        "graspvla,graspvla_official,track_a_cal,shared_track_a_sim,language_conditioned_single_target_pick,scene_1,scene_1,obj_1,native_opaque_cal,basic,pick up the banana,dual_fixed_realsense_rgbd,1,1,20,2.0,1.0,120,4.0,,,0,,em14,deadbeef,1,1001,parent_run_a,shard_000,0",
+                        "cgn,cgn_raw_interim,track_a_cal,shared_track_a_sim,language_conditioned_single_target_pick,scene_2,scene_2,obj_2,native_opaque_cal,basic,pick up the bowl,dual_fixed_realsense_rgbd,1,0,0,0.0,0.0,150,8.0,grasp_proposal,none,0,,rll_6000_1,deadbeef,1,1002,parent_run_a,shard_001,1",
                     ]
                 )
                 + "\n",
@@ -220,8 +220,8 @@ class ReportTest(unittest.TestCase):
                 "\n".join(
                     [
                         self.HEADER,
-                        "graspvla,graspvla_official,track_a_cal,integration_fixture,language_conditioned_single_target_pick,scene_fixture,obj_1,native_opaque_cal,basic,pick up the banana,dual_fixed_realsense_rgbd,1,1,20,2.0,1.0,120,4.0,,,0,,em14,deadbeef,parent_fixture,,",
-                        "graspvla,graspvla_official,track_a_cal,shared_track_a_sim,language_conditioned_single_target_pick,scene_real,obj_1,native_opaque_cal,basic,pick up the banana,dual_fixed_realsense_rgbd,2,0,0,0.0,0.0,220,14.0,task_failure,not_met,0,,em14,deadbeef,parent_real,shard_000,0",
+                        "graspvla,graspvla_official,track_a_cal,integration_fixture,language_conditioned_single_target_pick,scene_fixture,scene_fixture,obj_1,native_opaque_cal,basic,pick up the banana,dual_fixed_realsense_rgbd,1,1,20,2.0,1.0,120,4.0,,,0,,em14,deadbeef,1,2001,parent_fixture,,",
+                        "graspvla,graspvla_official,track_a_cal,shared_track_a_sim,language_conditioned_single_target_pick,scene_real,scene_real,obj_1,native_opaque_cal,basic,pick up the banana,dual_fixed_realsense_rgbd,2,0,0,0.0,0.0,220,14.0,task_failure,not_met,0,,em14,deadbeef,1,2002,parent_real,shard_000,0",
                     ]
                 )
                 + "\n",
@@ -245,8 +245,8 @@ class ReportTest(unittest.TestCase):
                 "\n".join(
                     [
                         self.HEADER,
-                        "graspvla,graspvla_official,track_a_cal,shared_track_a_sim,language_conditioned_single_target_pick,scene_old,obj_1,native_opaque_cal,basic,pick up the banana,dual_fixed_realsense_rgbd,1,1,20,2.0,1.0,120,4.0,,,0,,em14,deadbeef,20260403_old,shard_000,0",
-                        "cgn,cgn_full_modular,track_a_cal,shared_track_a_sim,language_conditioned_single_target_pick,scene_new,obj_1,native_opaque_cal,basic,pick up the banana,dual_fixed_realsense_rgbd,2,0,0,0.0,0.0,220,14.0,task_failure,not_met,0,,rll_6000_1,deadbeef,20260403_new,shard_001,1",
+                        "graspvla,graspvla_official,track_a_cal,shared_track_a_sim,language_conditioned_single_target_pick,scene_old,scene_old,obj_1,native_opaque_cal,basic,pick up the banana,dual_fixed_realsense_rgbd,1,1,20,2.0,1.0,120,4.0,,,0,,em14,deadbeef,1,3001,20260403_old,shard_000,0",
+                        "cgn,cgn_full_modular,track_a_cal,shared_track_a_sim,language_conditioned_single_target_pick,scene_new,scene_new,obj_1,native_opaque_cal,basic,pick up the banana,dual_fixed_realsense_rgbd,2,0,0,0.0,0.0,220,14.0,task_failure,not_met,0,,rll_6000_1,deadbeef,1,3002,20260403_new,shard_001,1",
                     ]
                 )
                 + "\n",
@@ -271,7 +271,7 @@ class ReportTest(unittest.TestCase):
                 "\n".join(
                     [
                         self.HEADER,
-                        "graspvla,graspvla_official,track_a_cal,shared_track_a_sim,language_conditioned_single_target_pick,scene_old,obj_1,native_opaque_cal,basic,pick up the banana,dual_fixed_realsense_rgbd,1,1,20,2.0,1.0,120,4.0,,,0,,em14,deadbeef,,,",
+                        "graspvla,graspvla_official,track_a_cal,shared_track_a_sim,language_conditioned_single_target_pick,scene_old,scene_old,obj_1,native_opaque_cal,basic,pick up the banana,dual_fixed_realsense_rgbd,1,1,20,2.0,1.0,120,4.0,,,0,,em14,deadbeef,1,3001,,,",
                     ]
                 )
                 + "\n",

@@ -59,6 +59,9 @@ class EpisodeResult:
     video_path: str
     node: str
     commit: str
+    scene_recipe_id: str = ""
+    replicate_index: int = 0
+    seed: int = 0
     parent_run_id: str = ""
     shard_id: str = ""
     gpu_id: str = ""
@@ -72,6 +75,7 @@ class EpisodeResult:
             "execution_mode",
             "task",
             "scene_id",
+            "scene_recipe_id",
             "object_id",
             "object_group",
             "condition",
@@ -90,6 +94,8 @@ class EpisodeResult:
             "video_path",
             "node",
             "commit",
+            "replicate_index",
+            "seed",
             "parent_run_id",
             "shard_id",
             "gpu_id",
