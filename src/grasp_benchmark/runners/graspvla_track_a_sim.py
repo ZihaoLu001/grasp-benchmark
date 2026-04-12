@@ -125,7 +125,7 @@ def _asset_key(object_id: str, task: str, scene_config: dict[str, Any]) -> dict[
 
 def _seed_for_trial(scene_config: dict[str, Any], trial: TrialSpec, scene_index: int) -> int:
     if getattr(trial, "seed", 0):
-        return int(trial.seed)
+        return int(trial.seed) % (2**32 - 1)
     if trial.task == "arbitrary_grasping_transparent":
         return int(scene_config["seed_base"]["transparent"]) + scene_index
     return int(scene_config["seed_base"][trial.condition]) + scene_index
@@ -1055,13 +1055,21 @@ def _union_instance_mask(
     instance_names: tuple[str, ...],
     np_module: Any,
 ) -> Any:
-    segmentation_by_instance = env.get_segmentation_instances(segmentation_image.copy())
     mask = np_module.zeros_like(segmentation_image, dtype=bool)
+    try:
+        segmentation_by_instance = env.get_segmentation_instances(segmentation_image.copy())
+    except TypeError:
+        segmentation_by_instance = {}
+    instance_to_id = getattr(env, "instance_to_id", {}) or {}
     for instance_name in instance_names:
         instance_mask = segmentation_by_instance.get(instance_name)
-        if instance_mask is None:
+        if instance_mask is not None:
+            mask |= np_module.asarray(instance_mask) > 0
             continue
-        mask |= np_module.asarray(instance_mask) > 0
+        segmentation_id = instance_to_id.get(instance_name)
+        if segmentation_id is None:
+            continue
+        mask |= np_module.asarray(segmentation_image) == int(segmentation_id)
     return mask.astype(np_module.uint8)
 
 
