@@ -617,16 +617,17 @@ def _render_teacher_summary(
     stress_task_sets: list[str],
     native_appendix_task_sets: list[str],
 ) -> str:
-    cal_headline = cal_summary[0] if cal_summary else {}
+    total_cal_trials = sum(int(row.get("trials", 0)) for row in cal_summary)
+    total_cal_successes = sum(int(row.get("successes", 0)) for row in cal_summary)
     lines = [
         "# CoRL 2026 仿真阶段总结",
         "",
         "- 论文主 framing 固定为 `shared benchmark + protocol audit`，不是只看 scoreboard。",
         "- `Track A-Cal` 是唯一主公平榜单，`Track A-Stress` 只放 appendix，`Track B` 只做 native reference。",
     ]
-    if cal_headline:
+    if total_cal_trials:
         lines.append(
-            f"- 当前主榜单已经有 `{cal_headline.get('method_tier', '')}` 的结果行，单行 trial 数为 `{cal_headline.get('trials', '')}`。"
+            f"- 当前主榜单已累计写入 `{total_cal_successes}/{total_cal_trials}` 的正式结果。"
         )
     if cal_task_sets:
         lines.append(f"- 当前这份 bundle 吃进去的主榜单 task set 是 `{', '.join(cal_task_sets)}`。")
