@@ -1,0 +1,84 @@
+name: graspvla_track_a_playground_cal_v3
+execution_mode: shared_track_a_sim
+scene_backend: playground_floor_manipulation
+robot_config_relpath: third_party/upstreams/curobo/src/curobo/content/configs/robot/franka.yml
+max_steps: 300
+stabilization_steps: 10
+hold_steps: 10
+camera_names:
+  front: front_view
+  side: side_view
+regions:
+  target_center:
+    - [-0.08, -0.18, 0.04, -0.10]
+  clutter_left:
+    - [-0.22, -0.18, -0.12, -0.10]
+  clutter_right:
+    - [0.08, -0.18, 0.18, -0.10]
+  clutter_back:
+    - [-0.06, -0.06, 0.06, 0.02]
+conditions:
+  basic:
+    scene_properties:
+      floor_style: gray-floor
+      wall_style: white
+    distractor_count: 0
+    height_offset_cm: 0
+  distractors_light:
+    scene_properties:
+      floor_style: gray-floor
+      wall_style: white
+    distractor_count: 1
+    height_offset_cm: 0
+opaque_scene:
+  scene_properties:
+    floor_style: gray-floor
+    wall_style: white
+  height_offset_cm: 0
+core_objects:
+  banana:
+    category_name: objaverse_banana
+    source_family: objaverse
+    source_asset: banana_ce1ad6c08a8c4e2f8c08eb910a0f8e1b
+    rotation_axis: z
+    rotation: [1.5707963267948966, 1.5707963267948966]
+  ceramic_bowl:
+    category_name: akita_black_bowl
+    source_family: stable_scanned
+    source_asset: akita_black_bowl
+    rotation_axis: x
+    rotation: [1.5707963267948966, 1.5707963267948966]
+  power_drill:
+    category_name: objaverse_drill
+    source_family: objaverse
+    source_asset: drill_e3b3290b8200475993a37c5c56b18ee1
+    rotation_axis: z
+    rotation: [1.5707963267948966, 1.5707963267948966]
+  carrot:
+    category_name: objaverse_carrot
+    source_family: objaverse
+    source_asset: carrot_326640737f324e3a9c68fc23ffee4993
+    rotation_axis: z
+    rotation: [1.5707963267948966, 1.5707963267948966]
+  watermelon:
+    category_name: objaverse_watermelon
+    source_family: objaverse
+    source_asset: watermelon_f120452f84bf4e979139b106bf9f096c
+    rotation_axis: z
+    rotation: [1.5707963267948966, 1.5707963267948966]
+distractor_priority:
+  - banana
+  - ceramic_bowl
+  - power_drill
+  - carrot
+  - watermelon
+opaque_distractor_priority:
+  - banana
+  - ceramic_bowl
+  - power_drill
+  - carrot
+  - watermelon
+seed_base:
+  basic: 19100
+  distractors_light: 20100
+  opaque_basic: 21100

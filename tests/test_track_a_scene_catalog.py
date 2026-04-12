@@ -130,6 +130,35 @@ class TrackASceneCatalogTest(unittest.TestCase):
         self.assertEqual(catalog["language_conditioned_single_target_pick__basic__001__r01"].seed, trials[0].seed % (2**32 - 1))
         self.assertEqual(catalog["arbitrary_grasping_common_opaque__opaque_basic__001__r01"].condition, "opaque_basic")
 
+    def test_scene_catalog_covers_all_track_a_cal_v3_trials(self) -> None:
+        task_config = load_named_config("tasks", "track_a_cal_v3")
+        scene_config = load_named_config("scenes", task_config["scene_catalog"])
+        trials = expand_task_set(task_config)
+
+        catalog = build_scene_catalog(trials, scene_config)
+
+        self.assertEqual(len(trials), 90)
+        self.assertEqual(set(catalog), {trial.scene_id for trial in trials})
+        recipe = catalog["language_conditioned_single_target_pick__basic__001__r06"]
+        self.assertEqual(recipe.scene_recipe_id, "language_conditioned_single_target_pick__basic__001")
+        self.assertEqual(recipe.replicate_index, 6)
+        self.assertEqual(catalog["arbitrary_grasping_common_opaque__opaque_basic__001__r06"].condition, "opaque_basic")
+
+    def test_scene_catalog_covers_all_track_a_stress_v3_trials(self) -> None:
+        task_config = load_named_config("tasks", "track_a_stress_v3")
+        scene_config = load_named_config("scenes", task_config["scene_catalog"])
+        trials = expand_task_set(task_config)
+
+        catalog = build_scene_catalog(trials, scene_config)
+
+        self.assertEqual(len(trials), 112)
+        self.assertEqual(set(catalog), {trial.scene_id for trial in trials})
+        occlusion_recipe = catalog["language_conditioned_single_target_pick__occlusion_bank__001__r04"]
+        self.assertEqual(occlusion_recipe.condition, "occlusion_bank")
+        transparent_recipe = catalog["arbitrary_grasping_transparent__transparent_pose_bank__001__r08"]
+        self.assertEqual(transparent_recipe.replicate_index, 8)
+        self.assertEqual(len(transparent_recipe.success_instance_names), 4)
+
     def test_track_b_native_scene_catalog_clamps_seed_to_uint32_range(self) -> None:
         task_config = load_named_config("tasks", "track_b_cgn_native_v1")
         scene_config = load_named_config("scenes", task_config["scene_catalog"])
@@ -140,6 +169,21 @@ class TrackASceneCatalogTest(unittest.TestCase):
         recipe = catalog["language_conditioned_single_target_pick__basic__001__r01"]
         self.assertGreaterEqual(recipe.seed, 0)
         self.assertLess(recipe.seed, 2**32)
+
+    def test_scene_catalog_covers_all_protocol_and_transfer_suite_v1_trials(self) -> None:
+        task_config = load_named_config("tasks", "protocol_and_transfer_suite_v1")
+        scene_config = load_named_config("scenes", task_config["scene_catalog"])
+        trials = expand_task_set(task_config)
+
+        catalog = build_scene_catalog(trials, scene_config)
+
+        self.assertEqual(len(trials), 24)
+        self.assertEqual(set(catalog), {trial.scene_id for trial in trials})
+        self.assertEqual(catalog["language_conditioned_single_target_pick__basic__001__r02"].condition, "basic")
+        self.assertEqual(
+            catalog["arbitrary_grasping_transparent__transparent_pose_bank__001__r02"].condition,
+            "transparent_pose_bank",
+        )
 
 
 if __name__ == "__main__":

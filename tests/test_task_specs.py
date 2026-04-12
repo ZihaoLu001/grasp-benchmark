@@ -93,8 +93,41 @@ class TaskSpecTest(unittest.TestCase):
         self.assertEqual(transparent_trials[0].condition, "transparent_pose_bank")
         self.assertEqual(transparent_trials[-1].replicate_index, 6)
 
+    def test_expand_track_a_cal_v3_creates_90_trials(self) -> None:
+        task_config = load_named_config("tasks", "track_a_cal_v3")
+        trials = expand_task_set(task_config)
+
+        self.assertEqual(len(trials), 90)
+        self.assertEqual(sum(1 for trial in trials if trial.condition == "basic"), 30)
+        self.assertEqual(sum(1 for trial in trials if trial.condition == "distractors_light"), 30)
+        self.assertEqual(sum(1 for trial in trials if trial.condition == "opaque_basic"), 30)
+        self.assertEqual(trials[0].replicate_index, 1)
+        self.assertEqual(trials[-1].replicate_index, 6)
+
+    def test_expand_track_a_stress_v3_creates_112_trials(self) -> None:
+        task_config = load_named_config("tasks", "track_a_stress_v3")
+        trials = expand_task_set(task_config)
+
+        self.assertEqual(len(trials), 112)
+        self.assertEqual(sum(1 for trial in trials if trial.condition == "distractors_heavy"), 30)
+        self.assertEqual(sum(1 for trial in trials if trial.condition == "occlusion_bank"), 20)
+        self.assertEqual(sum(1 for trial in trials if trial.condition == "opaque_clutter"), 30)
+        self.assertEqual(sum(1 for trial in trials if trial.condition == "transparent_pose_bank"), 32)
+        transparent_trials = [trial for trial in trials if trial.task == "arbitrary_grasping_transparent"]
+        self.assertEqual(len(transparent_trials), 32)
+        self.assertEqual(transparent_trials[-1].replicate_index, 8)
+
     def test_protocol_probe_v2_creates_24_trials(self) -> None:
         task_config = load_named_config("tasks", "protocol_probe_v2")
+        trials = expand_task_set(task_config)
+
+        self.assertEqual(len(trials), 24)
+        self.assertEqual(sum(1 for trial in trials if trial.condition == "basic"), 8)
+        self.assertEqual(sum(1 for trial in trials if trial.condition == "distractors_light"), 8)
+        self.assertEqual(sum(1 for trial in trials if trial.condition == "transparent_pose_bank"), 8)
+
+    def test_protocol_and_transfer_suite_v1_creates_24_trials(self) -> None:
+        task_config = load_named_config("tasks", "protocol_and_transfer_suite_v1")
         trials = expand_task_set(task_config)
 
         self.assertEqual(len(trials), 24)
