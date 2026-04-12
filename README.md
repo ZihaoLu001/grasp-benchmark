@@ -1,28 +1,73 @@
 # grasp-benchmark
 
-`grasp-benchmark` is a benchmark scaffold for fair comparison between end-to-end and modular grasping systems under a shared-perception, shared-embodiment setup.
+`grasp-benchmark` is a benchmark and protocol-audit scaffold for comparing end-to-end and modular grasping systems under a frozen shared-perception, shared-embodiment setup.
 
-## Scope
+## Current Status
 
-- Track A remains the fairness claim, but v1.1 splits it into:
-  - `Track A-Cal`: shared calibration leaderboard
-  - `Track A-Stress`: shared stress appendix
-- Three baselines: `GraspVLA`, `AnyGrasp + Grounding DINO + motion planner`, and `Contact-GraspNet + segmentation + Grounding DINO + motion planner`.
-- Start the headline table from `track_a_cal_v1`, then keep `track_a_v2` as the historical stress reference.
-- Simulation first, then a small `Franka + dual RealSense + blocking` real-world pilot.
+As of **April 12, 2026**, the **simulator-side benchmark packet is complete for all currently runnable baselines**:
 
-## Layout
+- `Track A-Cal v2` shared benchmark
+- `Track A-Stress v2` shared stress appendix
+- `GraspVLA` official-alignment audit
+- `GraspVLA protocol_probe_v2`
+- `CGN bottleneck_v1`
+- `CGN` native appendix
+- paper-ready summary/statistics bundle
+
+The remaining gaps are **external blockers**, not missing simulator execution:
+
+- `AnyGrasp`: waiting for a new node-matched license
+- real-world pilot: waiting for robot/camera time
+- `Phase 2 constraint / affordance grasping`: intentionally deferred
+
+## Latest Results
+
+The current advisor-facing entry points are:
+
+- Latest complete benchmark summary:
+  [benchmark_results_latest_20260412_zh.md](D:/codex/grasp-benchmark/docs/reports/benchmark_results_latest_20260412_zh.md)
+- Completion matrix:
+  [corl_completion_matrix_20260412_zh.md](D:/codex/grasp-benchmark/docs/reports/corl_completion_matrix_20260412_zh.md)
+- Verified simulator note:
+  [corl_simulator_verified_results_20260412_zh.md](D:/codex/grasp-benchmark/docs/reports/corl_simulator_verified_results_20260412_zh.md)
+- Paper-ready report:
+  [paper_ready_report.md](D:/codex/grasp-benchmark/artifacts/reports/corl_paper_bundle_20260412_full/paper_ready_report.md)
+- Paper-ready summary CSV:
+  [paper_summary.csv](D:/codex/grasp-benchmark/artifacts/reports/corl_paper_bundle_20260412_full/paper_summary.csv)
+- Teacher summary:
+  [teacher_summary_zh_clean.md](D:/codex/grasp-benchmark/artifacts/reports/corl_paper_bundle_20260412_full/teacher_summary_zh_clean.md)
+
+## Headline Numbers
+
+Current frozen simulator numbers:
+
+- `Track A-Cal v2`
+  - `GraspVLA`: `59 / 60`
+  - `CGN full modular`: `0 / 60`
+- `Track A-Stress v2`
+  - `GraspVLA`: `62 / 64`
+  - `CGN full modular`: `0 / 64`
+- `Track B native reference`
+  - official `GraspVLA playground`: `8 / 10`
+  - official `GraspVLA libero_10`: `325 / 350`
+  - official `GraspVLA libero_goal`: `336 / 350`
+  - official `GraspVLA libero_object`: `482 / 500`
+- `Track B native appendix`
+  - `CGN`: `1 / 84`
+
+## Repo Layout
 
 - `src/grasp_benchmark/`: Python package and CLIs
-- `configs/`: benchmark, sensor, method, and cluster YAML
+- `configs/`: task, scene, sensor, method, and cluster YAML
 - `cluster/`: remote bootstrap and environment scripts
 - `scripts/`: local convenience wrappers
-- `artifacts/`: generated manifests, preflight reports, runs, and reports
-- `third_party/upstreams/`: upstream repos cloned by `fetch_upstreams`
+- `docs/reports/`: current advisor-facing reports plus archive
+- `artifacts/`: generated run/audit/report outputs (ignored by git)
+- `third_party/upstreams/`: upstream repos cloned locally/remotely (ignored by git)
 
 ## Quick Start
 
-1. Install the package in editable mode:
+1. Install the package:
 
 ```powershell
 python -m pip install -e .
@@ -34,159 +79,34 @@ python -m pip install -e .
 python -m grasp_benchmark.preflight --pool em,rll
 ```
 
-3. Clone upstream repos:
+3. Fetch upstream repos:
 
 ```powershell
 python -m grasp_benchmark.fetch_upstreams
 ```
 
-4. Bootstrap the shared remote environment:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\bootstrap_cluster.ps1 -Node em14
-```
-
-5. Install method-specific remote dependencies:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\install_remote_deps.ps1 -Method graspvla -Node em14
-```
-
-For AnyGrasp, install the public Python stack and then capture the feature id needed for license registration:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\install_remote_deps.ps1 -Method anygrasp -Node em14
-python -m grasp_benchmark.prepare_anygrasp --node em14
-```
-
-For Contact-GraspNet, install the shared detector stack and then probe or bootstrap the legacy TensorFlow 2.2 runtime:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\install_remote_deps.ps1 -Method cgn -Node em14
-python -m grasp_benchmark.prepare_cgn --node em14 --bootstrap-legacy-env
-```
-
-6. Launch the GraspVLA model server:
+4. Launch or validate the GraspVLA server:
 
 ```powershell
 python -m grasp_benchmark.serve.graspvla --node em14 --download-model
 ```
 
-7. Generate a simulation dispatch manifest:
+5. Dispatch simulator benchmark runs:
 
 ```powershell
-python -m grasp_benchmark.run.sim --method graspvla --task-set track_a_cal_v1 --dry-run
+python -m grasp_benchmark.run.sim --method graspvla --task-set track_a_cal_v2 --node em14
+python -m grasp_benchmark.run.sim --method cgn --task-set track_a_cal_v2 --matrix
 ```
 
-8. Run a small integration batch and fetch results back to `artifacts/runs/...`:
+6. Build the paper-ready bundle:
 
 ```powershell
-python -m grasp_benchmark.run.sim --method graspvla --task-set track_a_cal_v1 --node em14 --max-trials 2
+python -m grasp_benchmark.report.paper_bundle --input artifacts\\runs
 ```
-
-9. Aggregate result files:
-
-```powershell
-python -m grasp_benchmark.report.aggregate --input artifacts\runs --track-a-stress-reference artifacts\reports\track_a_compare_graspvla_cgn_v2_latest\report.json --track-b-reference artifacts\official_sim\20260402_231726_em14_full\summary.json --diagnostic-report artifacts\diagnostics\20260403_175506_graspvla_track_a_diagnostics\report.md
-```
-
-To render the shared Track A table together with the native GraspVLA reference:
-
-```powershell
-python -m grasp_benchmark.report.aggregate --input artifacts\runs\20260403_033238_graspvla_track_a_v1 --output-dir artifacts\reports\track_split_latest --track-b-reference artifacts\official_sim\20260402_231726_em14_full\summary.json
-```
-
-10. Run the official GraspVLA validation entrypoints and pull the outputs back to `artifacts/official/...`:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\check_official_graspvla.ps1 -Node em14
-```
-
-11. Prepare the dedicated official GraspVLA simulation environment:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\prepare_graspvla_playground.ps1 -Node em14 -BootstrapEnv
-```
-
-12. Run the official simulation stack and pull the outputs back to `artifacts/official_sim/...`:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\run_official_graspvla_sim.ps1 -Node em14 -Mode full -PlaygroundTrials 10 -LiberoTrialNum 50 -MaxTasksPerBenchmark 10 -Benchmarks libero_object,libero_10,libero_goal -ParallelEnvNum 5
-```
-
-## Teacher Materials
-
-- Slide source: `docs/slides/graspvla_inner_workings.md`
-- Generated slide deck: `docs/slides/graspvla_inner_workings.pptx`
-- Official runbook: `docs/runbooks/graspvla_official_runbook.md`
-- Official sim report:
-  `docs/reports/graspvla_official_sim_complete_20260402.md`
-- Track A shared-sim report:
-  `docs/reports/graspvla_track_a_shared_sim_complete_20260403.md`
-- Setting freeze note:
-  `docs/reports/benchmark_setting_freeze_v1_20260402.md`
-- Track-split aggregate example:
-  `artifacts/reports/track_split_latest/report.md`
-- Latest Track A v2 compare report:
-  `artifacts/reports/track_a_compare_graspvla_cgn_v2_latest/report.md`
-- Latest Track A v2 teacher summary:
-  `artifacts/reports/track_a_compare_graspvla_cgn_v2_latest/teacher_summary_zh.md`
-- Latest Track A-Cal full-modular compare report:
-  `artifacts/reports/track_a_cal_compare_graspvla_cgn_full_latest/report.md`
-- Latest Track A-Cal full-modular teacher summary:
-  `artifacts/reports/track_a_cal_compare_graspvla_cgn_full_latest/teacher_summary_zh_clean.md`
-- Latest Track A-Cal full-modular note:
-  `docs/reports/track_a_cal_compare_graspvla_cgn_full_20260406.md`
-- Latest Track A-Cal full-modular note (Chinese):
-  `docs/reports/track_a_cal_compare_graspvla_cgn_full_20260406_zh.md`
-- Latest AnyGrasp readiness note:
-  `docs/reports/anygrasp_readiness_20260406.md`
-- Latest boundary audit snapshot:
-  `docs/reports/graspvla_release_boundary_20260405.md`
-- Latest boundary audit Chinese summary:
-  `docs/reports/graspvla_release_boundary_20260405_zh.md`
-- Boundary + factor breakdown note:
-  `docs/reports/graspvla_boundary_and_factor_breakdown_20260405.md`
-- Boundary + factor breakdown Chinese note:
-  `docs/reports/graspvla_boundary_and_factor_breakdown_20260405_zh.md`
-- Scene-edit isolation note:
-  `docs/reports/graspvla_scene_edit_isolation_20260405.md`
-- Scene-edit isolation Chinese note:
-  `docs/reports/graspvla_scene_edit_isolation_20260405_zh.md`
-- Success-rule isolation note:
-  `docs/reports/graspvla_success_rule_isolation_20260405.md`
-- Success-rule isolation Chinese note:
-  `docs/reports/graspvla_success_rule_isolation_20260405_zh.md`
-- Track A-Cal rerun note:
-  `docs/reports/graspvla_track_a_cal_rerun_20260405.md`
-- Track A-Cal compare note:
-  `docs/reports/track_a_cal_compare_graspvla_cgn_20260405.md`
-- Track A-Cal compare note (Chinese):
-  `docs/reports/track_a_cal_compare_graspvla_cgn_20260405_zh.md`
-- Latest official validation artifact:
-  `artifacts/official/20260402_211510_em14_graspvla_checks/summary.json`
-- Latest official offline visualization:
-  `artifacts/official/20260402_194109_em14_graspvla_checks/offline_test_visualization.png`
-- Latest official full simulation artifact:
-  `artifacts/official_sim/20260402_231726_em14_full/summary.json`
-- Latest Track A shared-sim aggregate:
-  `artifacts/reports/graspvla_track_a_real_latest/report.md`
-- Track A v2 compare note:
-  `docs/reports/track_a_compare_graspvla_cgn_v2_20260403.md`
 
 ## Notes
 
-- The project uses `src/` layout, so `python -m grasp_benchmark...` requires `pip install -e .`.
-- The generated `available_nodes.json` is the source of truth for dispatch selection.
-- Remote environments are rooted at `/datasets/ss/current/zihao/miniforge3`, with env packages stored under `/datasets/ss/current/zihao/conda`.
-- The official GraspVLA simulation stack now runs in a dedicated env at `/datasets/ss/current/zihao/conda/envs/gb-graspvla-sim` so the `gb-core` server runtime stays stable.
-- The official complete GraspVLA batch now runs through the same wrapper with `ParallelEnvNum=5`, which is enough to finish the public `playground + LIBERO` release on `em14` in one reproducible batch.
-- Official GraspVLA simulation artifacts should be treated as `track_b_native` method-native references.
-- Under benchmark v1.1, `track_a_cal_v1` is the headline shared leaderboard and `track_a_v2` is preserved as the current `Track A-Stress` reference.
-- Archive-based cluster sync now preserves remote `artifacts/` and `third_party/upstreams/` directories and writes `.grasp-benchmark-sync.json` for commit provenance.
-- `run.worker` now executes an integration-fixture backend that writes benchmark-shaped `results.csv` plus per-attempt artifacts under `episodes/`. This is the common adapter/logging layer that will later be swapped under real simulation or robot controllers.
-- `run.worker` now records the Track A shared protocol and each adapter's declared input policy into `run_metadata.json`, so Track A runs explicitly document the frozen camera / embodiment / success contract.
-- `python -m grasp_benchmark.install_remote --method anygrasp` now installs GroundingDINO in CPU-only mode and prepares the version-matched SDK binaries, but AnyGrasp still needs MinkowskiEngine and a real license file.
-- `python -m grasp_benchmark.prepare_anygrasp --node em14` writes an artifact with the machine feature id plus current import/license status to help the license request flow.
-- `python -m grasp_benchmark.install_remote --method cgn` installs shared detector dependencies only; `python -m grasp_benchmark.prepare_cgn --node em14 --bootstrap-legacy-env` prepares and probes the separate legacy TensorFlow runtime that Contact-GraspNet still needs.
-- `python -m grasp_benchmark.prepare_graspvla_playground --node em14 --bootstrap-env` prepares the dedicated official simulation env, patches the cuRobo build for the cluster toolchain, writes a non-interactive LIBERO config, and enables a no-FCL fallback for playground sampling.
+- `Track A-Cal v2` is the only headline fair benchmark table.
+- `Track A-Stress v2` is appendix-only.
+- `Track B` remains native-reference only.
+- Historical milestone reports are preserved under `docs/reports/archive/202604/`.
