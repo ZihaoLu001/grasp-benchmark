@@ -75,6 +75,24 @@ class PaperBundleTest(unittest.TestCase):
                 encoding="utf-8",
             )
 
+            native_dir = root / "runs" / "native_run"
+            native_dir.mkdir(parents=True)
+            (native_dir / "run_metadata.json").write_text(
+                json.dumps({"task_set": "track_b_cgn_native_v1", "scene_catalog_name": "graspvla_track_b_cgn_native_v1"}),
+                encoding="utf-8",
+            )
+            (native_dir / "results.csv").write_text(
+                "\n".join(
+                    [
+                        self.HEADER,
+                        "cgn,cgn_full_modular,track_b_native,shared_track_a_sim,language_conditioned_single_target_pick,scene_4,scene_recipe_4,obj_4,native_opaque_cal,basic,pick up the drill,dual_fixed_realsense_rgbd,3,0,0,0.0,0.0,310,15.0,task_failure,not_met,0,,em10,deadbeef,1,3001,parent_native,shard_000,0",
+                        "cgn,cgn_full_modular,track_b_native,shared_track_a_sim,arbitrary_grasping_transparent,scene_5,scene_recipe_5,obj_5,transparent,transparent_pose_bank,pick up any object,dual_fixed_realsense_rgbd,3,0,0,0.0,0.0,320,16.0,task_failure,not_met,0,,em12,deadbeef,1,3002,parent_native,shard_001,0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
             official_dir = root / "official_sim"
             (official_dir / "playground_data" / "videos").mkdir(parents=True)
             (official_dir / "playground_data" / "videos" / "demo_success.mp4").write_text("", encoding="utf-8")
@@ -114,8 +132,10 @@ class PaperBundleTest(unittest.TestCase):
             self.assertIn("论文主 framing 固定为 `shared benchmark + protocol audit`", teacher_text)
             report_text = (output_dir / "paper_ready_report.md").read_text(encoding="utf-8")
             self.assertIn("## Track A-Cal v2 Shared Benchmark", report_text)
+            self.assertIn("## Track B Native Appendix", report_text)
             stats_payload = json.loads((output_dir / "paper_stats.json").read_text(encoding="utf-8"))
             self.assertIn("pairwise_stats", stats_payload)
+            self.assertIn("track_b_native_appendix", stats_payload)
             self.assertEqual(stats_payload["pairwise_stats"][0]["paired_scenes"], 2)
 
 

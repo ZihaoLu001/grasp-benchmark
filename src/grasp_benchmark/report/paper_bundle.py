@@ -340,6 +340,8 @@ def _render_report(
     stress_summary: list[dict[str, object]],
     stress_by_condition: list[dict[str, object]],
     stress_by_object_group: list[dict[str, object]],
+    native_appendix_summary: list[dict[str, object]],
+    native_appendix_by_condition: list[dict[str, object]],
     pairwise_stats: list[dict[str, object]],
     failure_taxonomy: list[dict[str, object]],
     track_b_reference: list[dict[str, object]],
@@ -348,8 +350,10 @@ def _render_report(
     alignment_summary: dict[str, object],
     cal_parent_run_ids: list[str],
     stress_parent_run_ids: list[str],
+    native_appendix_parent_run_ids: list[str],
     cal_task_sets: list[str],
     stress_task_sets: list[str],
+    native_appendix_task_sets: list[str],
 ) -> str:
     lines = [
         "# CoRL 2026 Simulator Bundle",
@@ -510,6 +514,55 @@ def _render_report(
             track_b_reference,
         )
     )
+    lines.extend(["", "## Track B Native Appendix", ""])
+    if native_appendix_summary:
+        lines.extend(
+            [
+                f"_parent_run_id(s): `{', '.join(native_appendix_parent_run_ids)}`_",
+                "",
+                f"_task_set(s): `{', '.join(native_appendix_task_sets)}`_",
+                "",
+            ]
+        )
+        lines.extend(
+            _markdown_table(
+                [
+                    "track",
+                    "method",
+                    "method_tier",
+                    "task",
+                    "trials",
+                    "successes",
+                    "success_rate",
+                    "wilson_ci_low",
+                    "wilson_ci_high",
+                    "mean_attempts",
+                    "mean_spl",
+                    "mean_inference_ms",
+                    "mean_cycle_time_s",
+                ],
+                native_appendix_summary,
+            )
+        )
+        lines.extend(["", "### Track B Native Appendix By Condition", ""])
+        lines.extend(
+            _markdown_table(
+                [
+                    "track",
+                    "method_tier",
+                    "task",
+                    "condition",
+                    "trials",
+                    "success_rate",
+                    "wilson_ci_low",
+                    "wilson_ci_high",
+                    "mean_attempts",
+                ],
+                native_appendix_by_condition,
+            )
+        )
+    else:
+        lines.append("_No native appendix rows supplied._")
     return "\n".join(lines) + "\n"
 
 
@@ -517,12 +570,14 @@ def _render_teacher_summary(
     *,
     cal_summary: list[dict[str, object]],
     stress_summary: list[dict[str, object]],
+    native_appendix_summary: list[dict[str, object]],
     pairwise_stats: list[dict[str, object]],
     protocol_probe: dict[str, object],
     cgn_bottleneck: dict[str, object],
     track_b_reference: list[dict[str, object]],
     cal_task_sets: list[str],
     stress_task_sets: list[str],
+    native_appendix_task_sets: list[str],
 ) -> str:
     cal_headline = cal_summary[0] if cal_summary else {}
     lines = [
@@ -552,6 +607,10 @@ def _render_teacher_summary(
         lines.append(f"- 当前这份 bundle 吃进去的 stress task set 是 `{', '.join(stress_task_sets)}`。")
     if track_b_reference:
         lines.append("- `Track B` 继续只保留 native reference，用来解释公开 release 的上限。")
+    if native_appendix_summary:
+        lines.append("- `CGN native appendix` 也已经正式接入 bundle，用来回答 modular baseline 是否只是在 shared lane 里吃亏。")
+    if native_appendix_task_sets:
+        lines.append(f"- 当前 native appendix task set 是 `{', '.join(native_appendix_task_sets)}`。")
     lines.extend(
         [
             "",
@@ -577,6 +636,7 @@ def main() -> None:
     parser.add_argument("--track-a-cal-parent-run-id", default="")
     parser.add_argument("--track-a-stress-parent-run-id", default="")
     parser.add_argument("--track-b-reference", default="")
+    parser.add_argument("--track-b-native-parent-run-id", default="")
     parser.add_argument("--protocol-probe-summary", default="")
     parser.add_argument("--cgn-bottleneck-summary", default="")
     parser.add_argument("--alignment-summary", default="")
@@ -598,6 +658,12 @@ def main() -> None:
         execution_mode=args.execution_mode,
         explicit=args.track_a_stress_parent_run_id,
     )
+    native_appendix_parent_run_ids = _resolve_parent_run_ids(
+        rows,
+        track="track_b_native",
+        execution_mode=args.execution_mode,
+        explicit=args.track_b_native_parent_run_id,
+    )
 
     cal_rows = _headline_rows(
         _filter_rows(rows, track="track_a_cal", execution_mode=args.execution_mode, parent_run_ids=cal_parent_run_ids)
@@ -605,12 +671,21 @@ def main() -> None:
     stress_rows = _headline_rows(
         _filter_rows(rows, track="track_a_stress", execution_mode=args.execution_mode, parent_run_ids=stress_parent_run_ids)
     )
+    native_appendix_rows = _filter_rows(
+        rows,
+        track="track_b_native",
+        execution_mode=args.execution_mode,
+        parent_run_ids=native_appendix_parent_run_ids,
+    )
 
     if not cal_rows:
         raise SystemExit("No Track A-Cal rows matched the requested execution mode / parent_run_id filter.")
 
     cal_task_sets = sorted({str(row.get("task_set", "")).strip() for row in cal_rows if str(row.get("task_set", "")).strip()})
     stress_task_sets = sorted({str(row.get("task_set", "")).strip() for row in stress_rows if str(row.get("task_set", "")).strip()})
+    native_appendix_task_sets = sorted(
+        {str(row.get("task_set", "")).strip() for row in native_appendix_rows if str(row.get("task_set", "")).strip()}
+    )
 
     cal_summary = _aggregate(cal_rows, ["track", "method", "method_tier", "task"])
     cal_by_condition = _aggregate(cal_rows, ["track", "method", "method_tier", "task", "condition"])
@@ -618,6 +693,11 @@ def main() -> None:
     stress_summary = _aggregate(stress_rows, ["track", "method", "method_tier", "task"])
     stress_by_condition = _aggregate(stress_rows, ["track", "method", "method_tier", "task", "condition"])
     stress_by_object_group = _aggregate(stress_rows, ["track", "method", "method_tier", "task", "object_group"])
+    native_appendix_summary = _aggregate(native_appendix_rows, ["track", "method", "method_tier", "task"])
+    native_appendix_by_condition = _aggregate(
+        native_appendix_rows,
+        ["track", "method", "method_tier", "task", "condition"],
+    )
     pairwise_stats = _pairwise_stats(cal_rows)
     failure_taxonomy = _failure_taxonomy(cal_rows + stress_rows)
     track_b_reference = _parse_track_b_reference(Path(args.track_b_reference)) if args.track_b_reference else []
@@ -631,6 +711,7 @@ def main() -> None:
     paper_summary_rows = (
         _paper_rows("track_a_cal", cal_summary)
         + _paper_rows("track_a_stress", stress_summary)
+        + _paper_rows("track_b_native_appendix", native_appendix_summary)
         + track_b_reference
     )
     paper_stats = {
@@ -647,6 +728,12 @@ def main() -> None:
             "summary": stress_summary,
             "by_condition": stress_by_condition,
             "by_object_group": stress_by_object_group,
+        },
+        "track_b_native_appendix": {
+            "parent_run_ids": native_appendix_parent_run_ids,
+            "task_sets": native_appendix_task_sets,
+            "summary": native_appendix_summary,
+            "by_condition": native_appendix_by_condition,
         },
         "pairwise_stats": pairwise_stats,
         "failure_taxonomy": failure_taxonomy,
@@ -666,6 +753,8 @@ def main() -> None:
             stress_summary=stress_summary,
             stress_by_condition=stress_by_condition,
             stress_by_object_group=stress_by_object_group,
+            native_appendix_summary=native_appendix_summary,
+            native_appendix_by_condition=native_appendix_by_condition,
             pairwise_stats=pairwise_stats,
             failure_taxonomy=failure_taxonomy,
             track_b_reference=track_b_reference,
@@ -674,20 +763,24 @@ def main() -> None:
             alignment_summary=alignment_summary,
             cal_parent_run_ids=cal_parent_run_ids,
             stress_parent_run_ids=stress_parent_run_ids,
+            native_appendix_parent_run_ids=native_appendix_parent_run_ids,
             cal_task_sets=cal_task_sets,
             stress_task_sets=stress_task_sets,
+            native_appendix_task_sets=native_appendix_task_sets,
         ),
         encoding="utf-8",
     )
     teacher_summary = _render_teacher_summary(
         cal_summary=cal_summary,
         stress_summary=stress_summary,
+        native_appendix_summary=native_appendix_summary,
         pairwise_stats=pairwise_stats,
         protocol_probe=protocol_probe,
         cgn_bottleneck=cgn_bottleneck,
         track_b_reference=track_b_reference,
         cal_task_sets=cal_task_sets,
         stress_task_sets=stress_task_sets,
+        native_appendix_task_sets=native_appendix_task_sets,
     )
     (output_dir / "teacher_summary_zh.md").write_text(
         teacher_summary,
@@ -697,12 +790,14 @@ def main() -> None:
         _render_teacher_summary(
             cal_summary=cal_summary,
             stress_summary=stress_summary,
+            native_appendix_summary=native_appendix_summary,
             pairwise_stats=pairwise_stats,
             protocol_probe=protocol_probe,
             cgn_bottleneck=cgn_bottleneck,
             track_b_reference=track_b_reference,
             cal_task_sets=cal_task_sets,
             stress_task_sets=stress_task_sets,
+            native_appendix_task_sets=native_appendix_task_sets,
         ),
         encoding="utf-8",
     )
@@ -713,11 +808,23 @@ def main() -> None:
     _write_csv(figures_dir / "track_a_stress_summary.csv", stress_summary)
     _write_csv(figures_dir / "track_a_stress_by_condition.csv", stress_by_condition)
     _write_csv(figures_dir / "track_a_stress_by_object_group.csv", stress_by_object_group)
+    _write_csv(figures_dir / "track_b_native_appendix_summary.csv", native_appendix_summary)
+    _write_csv(figures_dir / "track_b_native_appendix_by_condition.csv", native_appendix_by_condition)
     _write_csv(figures_dir / "pairwise_stats.csv", pairwise_stats)
     _write_csv(figures_dir / "failure_taxonomy.csv", failure_taxonomy)
     _write_csv(figures_dir / "track_b_reference.csv", track_b_reference)
 
-    print(json.dumps({"output_dir": str(output_dir), "cal_parent_run_ids": cal_parent_run_ids, "stress_parent_run_ids": stress_parent_run_ids}, indent=2))
+    print(
+        json.dumps(
+            {
+                "output_dir": str(output_dir),
+                "cal_parent_run_ids": cal_parent_run_ids,
+                "stress_parent_run_ids": stress_parent_run_ids,
+                "track_b_native_parent_run_ids": native_appendix_parent_run_ids,
+            },
+            indent=2,
+        )
+    )
 
 
 if __name__ == "__main__":
