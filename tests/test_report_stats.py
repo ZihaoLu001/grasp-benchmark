@@ -24,14 +24,26 @@ class ReportStatsTest(unittest.TestCase):
 
     def test_build_pair_matrix_reports_missing_coverage(self) -> None:
         rows = [
-            {"method_tier": "graspvla_official", "scene_recipe_id": "scene_a", "success": 1},
-            {"method_tier": "cgn_full_modular", "scene_recipe_id": "scene_a", "success": 0},
-            {"method_tier": "graspvla_official", "scene_recipe_id": "scene_b", "success": 1},
+            {"method_tier": "graspvla_official", "scene_recipe_id": "scene_a", "replicate_index": 1, "seed": 1001, "success": 1},
+            {"method_tier": "cgn_full_modular", "scene_recipe_id": "scene_a", "replicate_index": 1, "seed": 1001, "success": 0},
+            {"method_tier": "graspvla_official", "scene_recipe_id": "scene_b", "replicate_index": 1, "seed": 1002, "success": 1},
         ]
         matrix = build_pair_matrix(rows, method_a="graspvla_official", method_b="cgn_full_modular")
         self.assertEqual(matrix["pairs"], [(1, 0)])
         self.assertEqual(matrix["missing_for_a"], [])
-        self.assertEqual(matrix["missing_for_b"], [("scene_b",)])
+        self.assertEqual(matrix["missing_for_b"], [("scene_b", "1", "1002")])
+
+    def test_build_pair_matrix_allows_multiple_replicates_per_scene_recipe(self) -> None:
+        rows = [
+            {"method_tier": "graspvla_official", "scene_recipe_id": "scene_a", "replicate_index": 1, "seed": 1001, "success": 1},
+            {"method_tier": "cgn_full_modular", "scene_recipe_id": "scene_a", "replicate_index": 1, "seed": 1001, "success": 0},
+            {"method_tier": "graspvla_official", "scene_recipe_id": "scene_a", "replicate_index": 2, "seed": 1002, "success": 1},
+            {"method_tier": "cgn_full_modular", "scene_recipe_id": "scene_a", "replicate_index": 2, "seed": 1002, "success": 0},
+        ]
+        matrix = build_pair_matrix(rows, method_a="graspvla_official", method_b="cgn_full_modular")
+        self.assertEqual(matrix["pairs"], [(1, 0), (1, 0)])
+        self.assertEqual(matrix["missing_for_a"], [])
+        self.assertEqual(matrix["missing_for_b"], [])
 
 
 if __name__ == "__main__":

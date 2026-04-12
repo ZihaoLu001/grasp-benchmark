@@ -198,7 +198,12 @@ def main() -> None:
     parser.add_argument("--camera-jitter-mode", default="", help="Optional observation-space camera jitter mode.")
     parser.add_argument("--segmentation-mode", default="", help="Optional modular perception mode, e.g. oracle_gt.")
     parser.add_argument("--oracle-grasp-mode", default="", help="Optional proposal override mode, e.g. topdown_centroid.")
-    parser.add_argument("--native-multiview-fusion", action="store_true", help="Enable CGN native multi-view fused-depth mode.")
+    parser.add_argument(
+        "--native-multiview-fusion",
+        action="store_true",
+        default=None,
+        help="Enable CGN native multi-view fused-depth mode.",
+    )
     parser.add_argument("--official-benchmarks", default="libero_object,libero_10,libero_goal")
     parser.add_argument("--official-task-count", type=int, default=2)
     parser.add_argument("--official-seeds", default="0,1,2,3,4,5,6,7,8,9")
@@ -305,7 +310,8 @@ def main() -> None:
         runtime_config["camera_jitter_mode"] = args.camera_jitter_mode
         runtime_config["segmentation_mode"] = args.segmentation_mode
         runtime_config["oracle_grasp_mode"] = args.oracle_grasp_mode
-        runtime_config["native_multiview_fusion"] = args.native_multiview_fusion
+        if args.native_multiview_fusion is not None:
+            runtime_config["native_multiview_fusion"] = args.native_multiview_fusion
         if _is_official_aligned_execution_mode(args.execution_mode):
             variant = OfficialAlignmentVariant(
                 name=args.official_variant_name or "official_alignment_variant",

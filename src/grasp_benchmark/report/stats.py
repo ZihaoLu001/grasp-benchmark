@@ -59,7 +59,7 @@ def build_pair_matrix(
     *,
     method_a: str,
     method_b: str,
-    key_fields: Sequence[str] = ("scene_recipe_id",),
+    key_fields: Sequence[str] = ("scene_recipe_id", "replicate_index", "seed"),
 ) -> dict[str, object]:
     grouped: dict[tuple[str, ...], dict[str, int]] = {}
     for row in rows:
@@ -86,4 +86,3 @@ def build_pair_matrix(
         "missing_for_a": sorted(keys_b - keys_a),
         "missing_for_b": sorted(keys_a - keys_b),
     }
-
