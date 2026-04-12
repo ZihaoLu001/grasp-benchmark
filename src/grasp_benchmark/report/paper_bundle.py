@@ -64,7 +64,23 @@ def _metadata_path_for_results(results_path: Path) -> Path | None:
     return None
 
 
-def _coerce_row(row: dict[str, str], *, metadata: dict[str, object], parent_run_id: str) -> dict[str, object]:
+def _dispatch_manifest_path_for_results(results_path: Path) -> Path | None:
+    candidates = [results_path.parent / "dispatch_manifest.json"]
+    if results_path.parent.parent.name == "shards":
+        candidates.append(results_path.parent.parent.parent / "dispatch_manifest.json")
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def _coerce_row(
+    row: dict[str, str],
+    *,
+    metadata: dict[str, object],
+    dispatch_manifest: dict[str, object],
+    parent_run_id: str,
+) -> dict[str, object]:
     output: dict[str, object] = {}
     for key, value in row.items():
         caster = NUMERIC_FIELDS.get(key)
@@ -80,6 +96,9 @@ def _coerce_row(row: dict[str, str], *, metadata: dict[str, object], parent_run_
     output["method_tier"] = _infer_method_tier(output)
     output["task_set"] = str(metadata.get("task_set", ""))
     output["scene_catalog_name"] = str(metadata.get("scene_catalog_name", metadata.get("scene_catalog", "")))
+    dispatch_commit = str(dispatch_manifest.get("local_commit", "")).strip()
+    if dispatch_commit:
+        output["commit"] = dispatch_commit
     return output
 
 
@@ -92,11 +111,24 @@ def _iter_result_rows(root: Path) -> list[dict[str, object]]:
             payload = json.loads(metadata_path.read_text(encoding="utf-8"))
             if isinstance(payload, dict):
                 metadata = payload
+        dispatch_manifest_path = _dispatch_manifest_path_for_results(path)
+        dispatch_manifest: dict[str, object] = {}
+        if dispatch_manifest_path is not None:
+            payload = json.loads(dispatch_manifest_path.read_text(encoding="utf-8"))
+            if isinstance(payload, dict):
+                dispatch_manifest = payload
         parent_run_id = _infer_parent_run_id(path)
         with path.open("r", encoding="utf-8", newline="") as handle:
             reader = csv.DictReader(handle)
             for row in reader:
-                rows.append(_coerce_row(row, metadata=metadata, parent_run_id=parent_run_id))
+                rows.append(
+                    _coerce_row(
+                        row,
+                        metadata=metadata,
+                        dispatch_manifest=dispatch_manifest,
+                        parent_run_id=parent_run_id,
+                    )
+                )
     return rows
 
 
