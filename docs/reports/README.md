@@ -6,6 +6,8 @@ These are the files to use for advisor review and current benchmark status.
 
 - Complete latest benchmark summary:
   [benchmark_results_latest_20260412_zh.md](D:/codex/grasp-benchmark/docs/reports/benchmark_results_latest_20260412_zh.md)
+- CoRL 2026 gap analysis and next-step benchmark extensions:
+  [corl2026_benchmark_gap_analysis_20260412_zh.md](D:/codex/grasp-benchmark/docs/reports/corl2026_benchmark_gap_analysis_20260412_zh.md)
 - Completion matrix:
   [corl_completion_matrix_20260412_zh.md](D:/codex/grasp-benchmark/docs/reports/corl_completion_matrix_20260412_zh.md)
 - Verified simulator note:
