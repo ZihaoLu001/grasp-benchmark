@@ -506,8 +506,15 @@ def _load_track_b_native_reference() -> dict[str, object]:
 
 
 def _load_track_a_cal_reference() -> dict[str, object]:
-    latest_run_candidates = sorted((ARTIFACTS_DIR / "runs").glob("*_graspvla_track_a_cal_v1_shared_sim/results.csv"))
-    if latest_run_candidates:
+    run_globs = (
+        "*_graspvla_track_a_cal_v3_shared_sim/results.csv",
+        "*_graspvla_track_a_cal_v2_shared_sim/results.csv",
+        "*_graspvla_track_a_cal_v1_shared_sim/results.csv",
+    )
+    for pattern in run_globs:
+        latest_run_candidates = sorted((ARTIFACTS_DIR / "runs").glob(pattern))
+        if not latest_run_candidates:
+            continue
         path = latest_run_candidates[-1]
         rows = _read_results(path)
         graspvla_rows = [
