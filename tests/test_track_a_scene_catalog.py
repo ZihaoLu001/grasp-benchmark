@@ -1,14 +1,39 @@
 from __future__ import annotations
 
+import importlib.util
 import unittest
 
 from grasp_benchmark.config import load_named_config
+from grasp_benchmark.paths import PROJECT_ROOT
 from grasp_benchmark.runners.graspvla_track_a_sim import (
     _runtime_registry_key,
     _union_instance_mask,
     build_scene_catalog,
 )
 from grasp_benchmark.task_specs import expand_task_set
+
+
+def _load_upstream_style_keys() -> tuple[set[str], set[str]]:
+    style_path = (
+        PROJECT_ROOT
+        / "third_party"
+        / "upstreams"
+        / "GraspVLA-playground"
+        / "libero"
+        / "libero"
+        / "envs"
+        / "arenas"
+        / "style.py"
+    )
+    spec = importlib.util.spec_from_file_location("grasp_benchmark_upstream_style", style_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"Unable to load upstream style definitions from {style_path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return set(module.FLOOR_STYLE), set(module.WALL_STYLE)
+
+
+UPSTREAM_FLOOR_STYLES, UPSTREAM_WALL_STYLES = _load_upstream_style_keys()
 
 
 class TrackASceneCatalogTest(unittest.TestCase):
@@ -223,6 +248,14 @@ class TrackASceneCatalogTest(unittest.TestCase):
         self.assertEqual(transparent_recipe.shift_family, "friction_material_shift")
         self.assertEqual(transparent_recipe.shift_severity, "medium")
 
+    def test_sim2real_proxy_v1_uses_valid_upstream_styles(self) -> None:
+        scene_config = load_named_config("scenes", "graspvla_sim2real_proxy_v1")
+        self._assert_scene_config_styles_are_valid(scene_config)
+
+    def test_sim2real_proxy_v2_uses_valid_upstream_styles(self) -> None:
+        scene_config = load_named_config("scenes", "graspvla_sim2real_proxy_v2")
+        self._assert_scene_config_styles_are_valid(scene_config)
+
     def test_scene_catalog_covers_all_cgn_bottleneck_v2_trials(self) -> None:
         task_config = load_named_config("tasks", "cgn_bottleneck_v2")
         scene_config = load_named_config("scenes", task_config["scene_catalog"])
@@ -238,11 +271,31 @@ class TrackASceneCatalogTest(unittest.TestCase):
             "transparent_pose_bank",
         )
 
-    def test_runtime_registry_key_normalizes_double_underscore_suffixes(self) -> None:
+    def test_runtime_registry_key_preserves_exact_bddl_lookup_string(self) -> None:
         self.assertEqual(
-            _runtime_registry_key("tracka_clear_plastic_cup__friction_material_shift"),
-            "tracka_clear_plastic_cup_friction_material_shift",
+            _runtime_registry_key("TrackA_Clear_Plastic_Cup__Friction_Material_Shift__Medium"),
+            "tracka_clear_plastic_cup__friction_material_shift__medium",
         )
+
+    def _assert_scene_config_styles_are_valid(self, scene_config: dict[str, object]) -> None:
+        def assert_style_block(scene_properties: dict[str, str]) -> None:
+            floor_style = scene_properties.get("floor_style")
+            wall_style = scene_properties.get("wall_style")
+            if floor_style is not None:
+                self.assertIn(floor_style, UPSTREAM_FLOOR_STYLES)
+            if wall_style is not None:
+                self.assertIn(wall_style, UPSTREAM_WALL_STYLES)
+
+        for config in scene_config.get("conditions", {}).values():
+            assert_style_block(config.get("scene_properties", {}))
+        transparent_scene = scene_config.get("transparent_scene", {})
+        assert_style_block(transparent_scene.get("scene_properties", {}))
+        for config in scene_config.get("transparent_conditions", {}).values():
+            assert_style_block(config.get("scene_properties", {}))
+        for config in scene_config.get("shift_families", {}).values():
+            assert_style_block(config.get("scene_properties", {}))
+            for override in config.get("severity_overrides", {}).values():
+                assert_style_block(override.get("scene_properties", {}))
 
 
 if __name__ == "__main__":

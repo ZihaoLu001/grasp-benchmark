@@ -54,8 +54,8 @@ transparent_conditions:
 shift_families:
   rgb_lighting_background:
     scene_properties:
-      floor_style: checkerboard
-      wall_style: sunset-orange
+      floor_style: blue_gingham
+      wall_style: dark-blue
   friction_material_shift:
     object_overrides:
       "*":

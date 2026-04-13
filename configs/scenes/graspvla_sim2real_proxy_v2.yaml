@@ -57,12 +57,12 @@ shift_families:
     severity_overrides:
       low:
         scene_properties:
-          floor_style: checkerboard
-          wall_style: sunset-orange
+          floor_style: blue_gingham
+          wall_style: dark-blue
       medium:
         scene_properties:
-          floor_style: checkerboard
-          wall_style: sunset-orange
+          floor_style: blue_gingham
+          wall_style: dark-blue
         object_overrides:
           "*":
             material_override:

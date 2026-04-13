@@ -456,15 +456,15 @@ def _camel_case(name: str) -> str:
 
 
 def _runtime_registry_key(name: str) -> str:
-    """Mirror LIBERO's register_object key normalization.
+    """Return the exact lookup key used by BDDL / get_object_fn.
 
-    Runtime categories that include suffixes like ``__friction_material_shift``
-    are converted into class names before registration. LIBERO indexes the
-    object registry by a normalized class-name key, not by our raw category
-    name, so we need to check collisions using the same normalization.
+    Our runtime categories intentionally keep explicit suffixes such as
+    ``__friction_material_shift__medium`` so the scene recipe remains auditable.
+    LIBERO later resolves objects via ``get_object_fn(category_name)`` with the
+    raw BDDL category string lower-cased, so the registration key must preserve
+    that exact spelling rather than a CamelCase-normalized variant.
     """
-    class_name = _camel_case(name)
-    return "_".join(re.sub(r"([A-Z0-9])", r" \1", class_name).split()).lower()
+    return name.lower()
 
 
 def _source_asset_dir(playground_root: Path, source_family: str, source_asset: str) -> Path:
@@ -512,7 +512,7 @@ def _register_runtime_category(
     rotation_axis: str,
     rotation: tuple[float, float],
 ) -> None:
-    from libero.libero.envs.base_object import OBJECTS_DICT, register_object
+    from libero.libero.envs.base_object import OBJECTS_DICT
     from robosuite.models.objects import MujocoXMLObject
 
     registry_key = _runtime_registry_key(category_name)
@@ -538,7 +538,7 @@ def _register_runtime_category(
         self.object_properties = {"vis_site_names": {}}
 
     cls = type(class_name, (MujocoXMLObject,), {"__init__": __init__, "__module__": __name__})
-    register_object(cls)
+    OBJECTS_DICT[registry_key] = cls
 
 
 def prepare_runtime_assets(
