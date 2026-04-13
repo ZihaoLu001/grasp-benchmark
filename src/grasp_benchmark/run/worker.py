@@ -4,6 +4,7 @@ import argparse
 import faulthandler
 import json
 import os
+import traceback
 import signal
 import socket
 from dataclasses import replace
@@ -149,6 +150,10 @@ def _setup_failure_results(
                 object_group=trial.object_group,
                 condition=trial.condition,
                 instruction=trial.instruction,
+                instruction_variant_id=trial.instruction_variant_id,
+                instruction_variant_family=trial.instruction_variant_family,
+                shift_family=trial.shift_family,
+                shift_severity=trial.shift_severity,
                 sensor_stack=sensor_stack,
                 attempts=0,
                 success=False,
@@ -376,6 +381,7 @@ def main() -> None:
             )
     except Exception as exc:
         payload["setup_error"] = _sanitize_reason(exc)
+        payload["setup_traceback"] = traceback.format_exc(limit=50)
         (output_dir / "run_metadata.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
         results = _setup_failure_results(
             adapter_name=adapter.name,

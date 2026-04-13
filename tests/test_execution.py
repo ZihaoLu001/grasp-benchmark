@@ -146,6 +146,10 @@ class ExecutionTest(unittest.TestCase):
         self.assertEqual(results[0].scene_recipe_id, trial[0].scene_recipe_id)
         self.assertEqual(results[0].replicate_index, trial[0].replicate_index)
         self.assertEqual(results[0].seed, trial[0].seed)
+        self.assertEqual(results[0].instruction_variant_id, trial[0].instruction_variant_id)
+        self.assertEqual(results[0].instruction_variant_family, trial[0].instruction_variant_family)
+        self.assertEqual(results[0].shift_family, trial[0].shift_family)
+        self.assertEqual(results[0].shift_severity, trial[0].shift_severity)
 
 
 if __name__ == "__main__":

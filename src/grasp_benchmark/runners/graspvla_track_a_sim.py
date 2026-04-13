@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import re
 import shutil
 import sys
 import time
@@ -431,6 +432,18 @@ def _camel_case(name: str) -> str:
     return "".join(part.capitalize() for part in name.split("_"))
 
 
+def _runtime_registry_key(name: str) -> str:
+    """Mirror LIBERO's register_object key normalization.
+
+    Runtime categories that include suffixes like ``__friction_material_shift``
+    are converted into class names before registration. LIBERO indexes the
+    object registry by a normalized class-name key, not by our raw category
+    name, so we need to check collisions using the same normalization.
+    """
+    class_name = _camel_case(name)
+    return "_".join(re.sub(r"([A-Z0-9])", r" \1", class_name).split()).lower()
+
+
 def _source_asset_dir(playground_root: Path, source_family: str, source_asset: str) -> Path:
     if source_family == "objaverse":
         return playground_root / "assets" / "playground_assets" / source_asset
@@ -479,7 +492,8 @@ def _register_runtime_category(
     from libero.libero.envs.base_object import OBJECTS_DICT, register_object
     from robosuite.models.objects import MujocoXMLObject
 
-    if category_name in OBJECTS_DICT:
+    registry_key = _runtime_registry_key(category_name)
+    if registry_key in OBJECTS_DICT:
         return
 
     class_name = _camel_case(category_name)

@@ -329,6 +329,54 @@ def _dispatch_matrix(parent_run_dir: Path, shards: list[DispatchShard], manifest
         raise SystemExit("\n".join(failures))
 
 
+def _dispatch_matrix_sequential(parent_run_dir: Path, shards: list[DispatchShard], manifest: dict) -> None:
+    failures: list[str] = []
+    for shard in shards:
+        ensure_dir(shard.local_run_dir)
+        shard_manifest = {
+            "generated_at": manifest["generated_at"],
+            "method": manifest["method"],
+            "task_set": manifest["task_set"],
+            "execution_mode": manifest["execution_mode"],
+            "parent_run_id": manifest["parent_run_id"],
+            "selected_node": shard.node,
+            "gpu_id": shard.gpu_id,
+            "shard_index": shard.shard_index,
+            "shard_count": shard.shard_count,
+            "local_run_dir": str(shard.local_run_dir),
+            "remote_run_dir": shard.remote_run_dir,
+            "remote_command": shard.remote_command,
+            "smoke_only": manifest["smoke_only"],
+            "max_trials": manifest["max_trials"],
+            "local_commit": manifest["local_commit"],
+            "matrix_mode": "sequential",
+        }
+        _write_manifest(shard.local_run_dir / "dispatch_manifest.json", shard_manifest)
+        process = _launch_remote_process(shard.node, shard.remote_command)
+        stdout, stderr = process.communicate()
+        (shard.local_run_dir / "dispatch_stdout.txt").write_text(stdout or "", encoding="utf-8")
+        (shard.local_run_dir / "dispatch_stderr.txt").write_text(stderr or "", encoding="utf-8")
+        if process.returncode != 0:
+            failures.append(f"{shard.shard_id}@{shard.node}/gpu{shard.gpu_id}: {stderr or stdout}")
+            continue
+        try:
+            _fetch_remote_results(shard.node, shard.remote_run_dir, shard.local_run_dir)
+        except Exception as exc:
+            failures.append(f"{shard.shard_id}@{shard.node}/gpu{shard.gpu_id}: fetch failed: {exc}")
+
+    completion = {
+        "completed_at": datetime.now(timezone.utc).isoformat(),
+        "parent_run_id": manifest["parent_run_id"],
+        "shard_count": len(shards),
+        "failure_count": len(failures),
+        "failures": failures,
+        "matrix_mode": "sequential",
+    }
+    _write_manifest(parent_run_dir / "matrix_completion.json", completion)
+    if failures:
+        raise SystemExit("\n".join(failures))
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Create or dispatch a simulation benchmark run.")
     parser.add_argument("--method", required=True, choices=["graspvla", "anygrasp", "cgn"])
@@ -348,6 +396,12 @@ def main() -> None:
     parser.add_argument("--gpu-id", default="", help="Single-run GPU id forwarded to the remote worker.")
     parser.add_argument("--matrix", action="store_true", help="Dispatch one shard per visible GPU slot.")
     parser.add_argument("--max-shards", type=int, default=0, help="Optional cap on matrix shard count.")
+    parser.add_argument(
+        "--matrix-mode",
+        choices=["parallel", "sequential"],
+        default="parallel",
+        help="Matrix dispatch strategy. Use sequential for server-backed methods that should shard without concurrent requests.",
+    )
     args = parser.parse_args()
 
     cluster_config = load_named_config("cluster", "default")
@@ -372,7 +426,7 @@ def main() -> None:
         "smoke_only": args.smoke_only,
         "max_trials": args.max_trials,
         "local_commit": resolve_commit(),
-        "matrix_mode": args.matrix,
+        "matrix_mode": args.matrix_mode if args.matrix else "single",
         "parent_run_id": parent_run_id,
     }
 
@@ -408,7 +462,10 @@ def main() -> None:
         if args.dry_run:
             print(json.dumps(manifest, indent=2))
             return
-        _dispatch_matrix(run_dir, shards, manifest)
+        if args.matrix_mode == "sequential":
+            _dispatch_matrix_sequential(run_dir, shards, manifest)
+        else:
+            _dispatch_matrix(run_dir, shards, manifest)
         print(f"Completed matrix dispatch for {parent_run_id}")
         return
 

@@ -6,6 +6,8 @@ These are the files to use for advisor review and current benchmark status.
 
 - Complete latest benchmark summary:
   [benchmark_results_latest_20260412_zh.md](D:/codex/grasp-benchmark/docs/reports/benchmark_results_latest_20260412_zh.md)
+- GraspVLA CoRL 2026 extension update:
+  [corl2026_graspvla_extensions_20260413_zh.md](D:/codex/grasp-benchmark/docs/reports/corl2026_graspvla_extensions_20260413_zh.md)
 - CoRL 2026 gap analysis and next-step benchmark extensions:
   [corl2026_benchmark_gap_analysis_20260412_zh.md](D:/codex/grasp-benchmark/docs/reports/corl2026_benchmark_gap_analysis_20260412_zh.md)
 - Completion matrix:
@@ -24,13 +26,13 @@ These are the files to use for advisor review and current benchmark status.
 ## Generated Bundle
 
 - Paper-ready report:
-  [paper_ready_report.md](D:/codex/grasp-benchmark/artifacts/reports/corl_paper_bundle_20260412_full/paper_ready_report.md)
+  [paper_ready_report.md](D:/codex/grasp-benchmark/artifacts/reports/corl_paper_bundle_20260413_graspvla_extensions/paper_ready_report.md)
 - Paper-ready summary CSV:
-  [paper_summary.csv](D:/codex/grasp-benchmark/artifacts/reports/corl_paper_bundle_20260412_full/paper_summary.csv)
+  [paper_summary.csv](D:/codex/grasp-benchmark/artifacts/reports/corl_paper_bundle_20260413_graspvla_extensions/paper_summary.csv)
 - Paper-ready stats JSON:
-  [paper_stats.json](D:/codex/grasp-benchmark/artifacts/reports/corl_paper_bundle_20260412_full/paper_stats.json)
+  [paper_stats.json](D:/codex/grasp-benchmark/artifacts/reports/corl_paper_bundle_20260413_graspvla_extensions/paper_stats.json)
 - Teacher summary:
-  [teacher_summary_zh_clean.md](D:/codex/grasp-benchmark/artifacts/reports/corl_paper_bundle_20260412_full/teacher_summary_zh_clean.md)
+  [teacher_summary_zh_clean.md](D:/codex/grasp-benchmark/artifacts/reports/corl_paper_bundle_20260413_graspvla_extensions/teacher_summary_zh_clean.md)
 
 ## Archive
 
