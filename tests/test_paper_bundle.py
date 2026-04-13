@@ -217,7 +217,7 @@ class PaperBundleTest(unittest.TestCase):
 
             self._write_results(
                 root / "runs" / "instruction_run",
-                {"task_set": "instruction_robustness_v1", "scene_catalog_name": "graspvla_track_a_playground_cal_v3"},
+                {"task_set": "instruction_robustness_v2", "scene_catalog_name": "graspvla_track_a_playground_cal_v3"},
                 [
                     self._base_row(
                         track="track_a_instruction",
@@ -253,7 +253,7 @@ class PaperBundleTest(unittest.TestCase):
 
             self._write_results(
                 root / "runs" / "transfer_run",
-                {"task_set": "sim2real_proxy_v1", "scene_catalog_name": "graspvla_sim2real_proxy_v1"},
+                {"task_set": "sim2real_proxy_v2", "scene_catalog_name": "graspvla_sim2real_proxy_v2"},
                 [
                     self._base_row(
                         track="track_a_transfer",
@@ -374,6 +374,19 @@ class PaperBundleTest(unittest.TestCase):
 
             output_dir = self._run_bundle(
                 root,
+                "--submission-mode",
+                "--track-a-cal-parent-run-id",
+                "parent_cal",
+                "--track-a-stress-parent-run-id",
+                "parent_stress",
+                "--instruction-parent-run-id",
+                "parent_instruction",
+                "--sim2real-parent-run-id",
+                "parent_transfer",
+                "--phase2-parent-run-id",
+                "parent_phase2",
+                "--track-b-native-parent-run-id",
+                "parent_native",
                 "--track-b-reference",
                 str(summary_path),
                 "--protocol-probe-summary",

@@ -71,6 +71,7 @@ def _build_remote_command(
     method_config: dict,
     sensor_config_name: str,
     variant: BottleneckVariant,
+    task_set: str,
     parent_run_id: str,
     remote_output_dir: str,
     scene_ids: str,
@@ -89,7 +90,7 @@ def _build_remote_command(
         f'export PYTHONPATH="{remote_root}/src${{PYTHONPATH:+:${{PYTHONPATH}}}}" && '
         f'python -m grasp_benchmark.run.worker '
         f'--method "cgn" '
-        f'--task-set "cgn_bottleneck_v1" '
+        f'--task-set "{task_set}" '
         f'--sensor-config "{sensor_config_name}" '
         f'--output-dir "{remote_output_dir}" '
         f'--execution-mode "{variant.execution_mode}" '
@@ -356,17 +357,18 @@ def _render_report(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run the CGN bottleneck v1 audit on the fixed 24-episode suite.")
+    parser = argparse.ArgumentParser(description="Run the CGN bottleneck audit on a fixed diagnostic suite.")
     parser.add_argument("--node", default="em14")
     parser.add_argument("--sensor-config", default="track_a_dual_realsense")
     parser.add_argument("--scene-ids", default="", help="Optional comma-separated scene ids for smoke runs.")
+    parser.add_argument("--task-set", default="cgn_bottleneck_v1")
     args = parser.parse_args()
 
     cluster_config = load_named_config("cluster", "default")
     method_config = load_named_config("methods", "cgn")
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     date_token = timestamp[:8]
-    parent_run_id = f"{timestamp}_cgn_bottleneck_v1"
+    parent_run_id = f"{timestamp}_{args.task_set}"
     local_root = ensure_dir(ARTIFACTS_DIR / "audits" / parent_run_id)
     remote_root = f'{cluster_config["remote_root"]}/artifacts/audits/{parent_run_id}'
 
@@ -374,7 +376,7 @@ def main() -> None:
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "node": args.node,
         "sensor_config": args.sensor_config,
-        "task_set": "cgn_bottleneck_v1",
+        "task_set": args.task_set,
         "parent_run_id": parent_run_id,
         "scene_ids_filter": args.scene_ids,
         "variants": [
@@ -402,6 +404,7 @@ def main() -> None:
             method_config=method_config,
             sensor_config_name=args.sensor_config,
             variant=variant,
+            task_set=args.task_set,
             parent_run_id=parent_run_id,
             remote_output_dir=remote_variant_dir,
             scene_ids=args.scene_ids,
@@ -502,8 +505,8 @@ def main() -> None:
         },
     )
     docs_dir = _docs_reports_dir()
-    _write_text(docs_dir / f"cgn_bottleneck_v1_{date_token}.md", report_text)
-    _write_text(docs_dir / f"cgn_bottleneck_v1_{date_token}_zh.md", teacher_text, encoding="utf-8-sig")
+    _write_text(docs_dir / f"{args.task_set}_{date_token}.md", report_text)
+    _write_text(docs_dir / f"{args.task_set}_{date_token}_zh.md", teacher_text, encoding="utf-8-sig")
     print(json.dumps({"audit_root": str(local_root), "parent_run_id": parent_run_id}, indent=2))
 
 

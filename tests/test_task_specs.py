@@ -180,11 +180,51 @@ class TaskSpecTest(unittest.TestCase):
         self.assertEqual(sum(1 for trial in trials if trial.condition == "transparent_pose_bank"), 16)
         self.assertEqual(trials[0].shift_family, "camera_jitter")
         self.assertEqual(trials[0].shift_severity, "low")
-        self.assertTrue(trials[0].scene_id.endswith("__sf_camera_jitter"))
+        self.assertTrue(trials[0].scene_id.endswith("__sf_camera_jitter__ss_low"))
         self.assertEqual(
             {trial.shift_family for trial in trials[:4]},
             {"camera_jitter", "rgb_lighting_background", "depth_noise_bias", "friction_material_shift"},
         )
+
+    def test_instruction_robustness_v2_creates_40_trials_with_four_instruction_families(self) -> None:
+        task_config = load_named_config("tasks", "instruction_robustness_v2")
+        trials = expand_task_set(task_config)
+
+        self.assertEqual(len(trials), 40)
+        self.assertEqual(sum(1 for trial in trials if trial.condition == "basic"), 20)
+        self.assertEqual(sum(1 for trial in trials if trial.condition == "distractors_light"), 20)
+        self.assertEqual(
+            [trial.instruction_variant_id for trial in trials[:4]],
+            ["canonical", "lexical", "compositional", "disambiguation"],
+        )
+        self.assertEqual(trials[3].instruction_variant_family, "distractor_aware_disambiguation")
+        self.assertIn("target", trials[3].instruction)
+
+    def test_sim2real_proxy_v2_creates_96_trials_with_shift_severities(self) -> None:
+        task_config = load_named_config("tasks", "sim2real_proxy_v2")
+        trials = expand_task_set(task_config)
+
+        self.assertEqual(len(trials), 96)
+        self.assertEqual(sum(1 for trial in trials if trial.condition == "basic"), 32)
+        self.assertEqual(sum(1 for trial in trials if trial.condition == "distractors_heavy"), 32)
+        self.assertEqual(sum(1 for trial in trials if trial.condition == "transparent_pose_bank"), 32)
+        self.assertEqual(trials[0].shift_family, "camera_jitter")
+        self.assertEqual(trials[0].shift_severity, "low")
+        self.assertTrue(trials[0].scene_id.endswith("__sf_camera_jitter__ss_low"))
+        self.assertEqual(
+            {trial.shift_severity for trial in trials[:8]},
+            {"low", "medium"},
+        )
+
+    def test_cgn_bottleneck_v2_creates_12_trials(self) -> None:
+        task_config = load_named_config("tasks", "cgn_bottleneck_v2")
+        trials = expand_task_set(task_config)
+
+        self.assertEqual(len(trials), 12)
+        self.assertEqual(sum(1 for trial in trials if trial.condition == "basic"), 4)
+        self.assertEqual(sum(1 for trial in trials if trial.condition == "distractors_heavy"), 4)
+        self.assertEqual(sum(1 for trial in trials if trial.condition == "transparent_pose_bank"), 4)
+        self.assertEqual({trial.object_group for trial in trials if trial.condition == "transparent_pose_bank"}, {"transparent"})
 
     def test_track_a_stress_v4_creates_168_trials(self) -> None:
         task_config = load_named_config("tasks", "track_a_stress_v4")

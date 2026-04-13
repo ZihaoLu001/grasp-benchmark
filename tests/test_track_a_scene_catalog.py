@@ -198,10 +198,45 @@ class TrackASceneCatalogTest(unittest.TestCase):
 
         self.assertEqual(len(trials), 48)
         self.assertEqual(set(catalog), {trial.scene_id for trial in trials})
-        camera_recipe = catalog["language_conditioned_single_target_pick__basic__001__sf_camera_jitter"]
+        camera_recipe = catalog["language_conditioned_single_target_pick__basic__001__sf_camera_jitter__ss_low"]
         self.assertEqual(camera_recipe.shift_family, "camera_jitter")
-        transparent_recipe = catalog["arbitrary_grasping_transparent__transparent_pose_bank__004__sf_friction_material_shift"]
+        transparent_recipe = catalog[
+            "arbitrary_grasping_transparent__transparent_pose_bank__004__sf_friction_material_shift__ss_low"
+        ]
         self.assertEqual(transparent_recipe.shift_family, "friction_material_shift")
+
+    def test_scene_catalog_covers_all_sim2real_proxy_v2_trials(self) -> None:
+        task_config = load_named_config("tasks", "sim2real_proxy_v2")
+        scene_config = load_named_config("scenes", task_config["scene_catalog"])
+        trials = expand_task_set(task_config)
+
+        catalog = build_scene_catalog(trials, scene_config)
+
+        self.assertEqual(len(trials), 96)
+        self.assertEqual(set(catalog), {trial.scene_id for trial in trials})
+        camera_recipe = catalog["language_conditioned_single_target_pick__basic__001__sf_camera_jitter__ss_medium"]
+        self.assertEqual(camera_recipe.shift_family, "camera_jitter")
+        self.assertEqual(camera_recipe.shift_severity, "medium")
+        transparent_recipe = catalog[
+            "arbitrary_grasping_transparent__transparent_pose_bank__004__sf_friction_material_shift__ss_medium"
+        ]
+        self.assertEqual(transparent_recipe.shift_family, "friction_material_shift")
+        self.assertEqual(transparent_recipe.shift_severity, "medium")
+
+    def test_scene_catalog_covers_all_cgn_bottleneck_v2_trials(self) -> None:
+        task_config = load_named_config("tasks", "cgn_bottleneck_v2")
+        scene_config = load_named_config("scenes", task_config["scene_catalog"])
+        trials = expand_task_set(task_config)
+
+        catalog = build_scene_catalog(trials, scene_config)
+
+        self.assertEqual(len(trials), 12)
+        self.assertEqual(set(catalog), {trial.scene_id for trial in trials})
+        self.assertEqual(catalog["language_conditioned_single_target_pick__basic__001"].condition, "basic")
+        self.assertEqual(
+            catalog["arbitrary_grasping_transparent__transparent_pose_bank__004"].condition,
+            "transparent_pose_bank",
+        )
 
     def test_runtime_registry_key_normalizes_double_underscore_suffixes(self) -> None:
         self.assertEqual(

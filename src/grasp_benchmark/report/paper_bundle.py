@@ -55,6 +55,24 @@ STAGE_METRIC_FIELDS = [
     "wrong_part",
 ]
 
+SUBMISSION_EXPECTED_TASK_SETS = {
+    "track_a_cal": "track_a_cal_v3",
+    "track_a_stress": "track_a_stress_v4",
+    "track_a_instruction": "instruction_robustness_v2",
+    "track_a_transfer": "sim2real_proxy_v2",
+    "track_a_phase2": "phase2_pilot_v1",
+    "track_b_native": "track_b_cgn_native_v2",
+}
+
+SUBMISSION_REQUIRED_PARENT_ARGS = {
+    "Track A-Cal": "track_a_cal_parent_run_id",
+    "Track A-Stress": "track_a_stress_parent_run_id",
+    "Instruction Robustness": "instruction_parent_run_id",
+    "Sim-to-Real Proxy": "sim2real_parent_run_id",
+    "Phase 2 Pilot": "phase2_parent_run_id",
+    "Track B Native-Like Appendix": "track_b_native_parent_run_id",
+}
+
 
 def _infer_method_tier(row: dict[str, object]) -> str:
     explicit = str(row.get("method_tier", "")).strip()
@@ -204,6 +222,45 @@ def _filter_rows(
 def _headline_rows(rows: list[dict[str, object]]) -> list[dict[str, object]]:
     allowed = set(HEADLINE_TIER_ORDER)
     return [row for row in rows if str(row.get("method_tier", "")).strip() in allowed]
+
+
+def _validate_expected_task_set(rows: list[dict[str, object]], *, track: str, section: str) -> None:
+    expected = SUBMISSION_EXPECTED_TASK_SETS.get(track, "")
+    if not expected or not rows:
+        return
+    actual = sorted({str(row.get("task_set", "")).strip() for row in rows if str(row.get("task_set", "")).strip()})
+    if actual != [expected]:
+        raise SystemExit(
+            f"{section} expected task_set `{expected}` in submission mode, but observed: {actual or ['<missing>']}"
+        )
+
+
+def _validate_stage_metrics_complete(rows: list[dict[str, object]], *, section: str) -> None:
+    if not rows:
+        return
+    missing_counts = {metric_name: 0 for metric_name in STAGE_METRIC_FIELDS}
+    for row in rows:
+        for metric_name in STAGE_METRIC_FIELDS:
+            if str(row.get(metric_name, "")).strip() == "":
+                missing_counts[metric_name] += 1
+    missing = {key: value for key, value in missing_counts.items() if value > 0}
+    if missing:
+        problems = ", ".join(f"{key}={value}" for key, value in sorted(missing.items()))
+        raise SystemExit(f"{section} is missing required stage metrics in submission mode: {problems}")
+
+
+def _validate_nonempty_rows(rows: list[dict[str, object]], *, section: str) -> None:
+    if not rows:
+        raise SystemExit(f"{section} is empty in submission mode. Provide an explicit canonical parent_run_id.")
+
+
+def _require_explicit_submission_inputs(args: argparse.Namespace) -> None:
+    for section, attr_name in SUBMISSION_REQUIRED_PARENT_ARGS.items():
+        value = str(getattr(args, attr_name, "") or "").strip()
+        if not value or value.lower() in {"__none__", "none", "null"}:
+            raise SystemExit(
+                f"{section} requires an explicit --{attr_name.replace('_', '-')} in submission mode."
+            )
 
 
 def _mean(values: list[float]) -> float:
@@ -962,6 +1019,111 @@ def _render_teacher_summary(
     return "\n".join(lines) + "\n"
 
 
+def _render_teacher_summary_clean(
+    *,
+    cal_summary: list[dict[str, object]],
+    stress_summary: list[dict[str, object]],
+    instruction_summary: list[dict[str, object]],
+    sim2real_summary: list[dict[str, object]],
+    phase2_summary: list[dict[str, object]],
+    native_appendix_summary: list[dict[str, object]],
+    pairwise_stats: list[dict[str, object]],
+    protocol_probe: dict[str, object],
+    cgn_bottleneck: dict[str, object],
+    track_b_reference: list[dict[str, object]],
+    cal_task_sets: list[str],
+    stress_task_sets: list[str],
+    instruction_task_sets: list[str],
+    sim2real_task_sets: list[str],
+    phase2_task_sets: list[str],
+    native_appendix_task_sets: list[str],
+) -> str:
+    total_cal_trials = sum(int(row.get("trials", 0)) for row in cal_summary)
+    total_cal_successes = sum(int(row.get("successes", 0)) for row in cal_summary)
+    total_stress_trials = sum(int(row.get("trials", 0)) for row in stress_summary)
+    total_stress_successes = sum(int(row.get("successes", 0)) for row in stress_summary)
+
+    def _snapshot(rows: list[dict[str, object]], label: str) -> list[str]:
+        output: list[str] = []
+        for row in rows:
+            method = str(row.get("method_tier", "")).strip()
+            task = str(row.get("task", "")).strip()
+            if not method or not task:
+                continue
+            output.append(
+                f"- {label}: `{method}` 在 `{task}` 上为 "
+                f"`{row.get('successes', 0)}/{row.get('trials', 0)}` (`{row.get('success_rate', 0.0)}`)"
+            )
+        return output
+
+    lines = [
+        "# CoRL 2026 仿真阶段总结",
+        "",
+        "- 论文 framing 固定为 `shared benchmark + protocol audit`，不是只看 scoreboard，也不是只做 release 诊断。",
+        "- `Track A-Cal v3` 是唯一 headline fair table；`Track A-Stress v4`、instruction robustness、sim-to-real proxy、Phase 2 pilot 和 `Track B` 都是补强层。",
+        "- `AnyGrasp` 在没有 node-matched 新 license 前不进入 submission 版主结论。",
+    ]
+    if total_cal_trials:
+        lines.append(f"- 当前主榜单累计写入 `{total_cal_successes}/{total_cal_trials}` 的正式 paired 结果。")
+    if total_stress_trials:
+        lines.append(f"- 当前 hardest-slice appendix 累计写入 `{total_stress_successes}/{total_stress_trials}` 的结果。")
+    if cal_task_sets:
+        lines.append(f"- 当前主榜单 task set: `{', '.join(cal_task_sets)}`。")
+    if stress_task_sets:
+        lines.append(f"- 当前 stress task set: `{', '.join(stress_task_sets)}`。")
+    if instruction_task_sets:
+        lines.append(f"- 当前 instruction robustness task set: `{', '.join(instruction_task_sets)}`。")
+    if sim2real_task_sets:
+        lines.append(f"- 当前 sim-to-real proxy task set: `{', '.join(sim2real_task_sets)}`。")
+    if phase2_task_sets:
+        lines.append(f"- 当前 Phase 2 pilot task set: `{', '.join(phase2_task_sets)}`。")
+    if pairwise_stats:
+        best = pairwise_stats[0]
+        lines.append(
+            f"- 当前 paper bundle 已输出配对统计：`{best['method_a']} vs {best['method_b']}` "
+            f"共有 `{best['paired_scenes']}` 个 paired scenes，McNemar exact p 值为 `{best['mcnemar_p_exact']}`。"
+        )
+    if protocol_probe:
+        lines.append("- GraspVLA 的 protocol / transfer audit 单独进入 audit section，不混入 headline 结果。")
+    if cgn_bottleneck:
+        lines.append("- CGN bottleneck 会拆开 grounding、proposal、planning 和 strict success semantics 来解释，不把低分归因成一个简单配置错误。")
+    if instruction_summary:
+        lines.append(
+            f"- instruction robustness 已进入 bundle，当前共有 `{sum(int(row.get('trials', 0)) for row in instruction_summary)}` 个方法-变体汇总单元。"
+        )
+    if sim2real_summary:
+        lines.append(
+            f"- sim-to-real proxy 已进入 bundle，当前共有 `{sum(int(row.get('trials', 0)) for row in sim2real_summary)}` 个方法-扰动汇总单元。"
+        )
+    if phase2_summary:
+        lines.append(
+            f"- Phase 2 pilot 已进入 extension section，当前共有 `{sum(int(row.get('trials', 0)) for row in phase2_summary)}` 个方法-任务汇总单元。"
+        )
+    if track_b_reference:
+        lines.append("- `Track B` 继续只保留 native reference，用来解释公开 release 的能力上限，不参与公平主结论。")
+    if native_appendix_summary:
+        lines.append("- `CGN native-like appendix` 已经接入 bundle，用来回答 modular baseline 是否只是因为 shared lane 才显得过低。")
+    if native_appendix_task_sets:
+        lines.append(f"- 当前 native-like appendix task set: `{', '.join(native_appendix_task_sets)}`。")
+
+    lines.extend(
+        [
+            "",
+            "## 这份 bundle 的用途",
+            "",
+            "- `paper_ready_report.md` 直接用于论文写作、组会汇报和导师过稿。",
+            "- `paper_summary.csv` 与 `paper_stats.json` 提供主表、统计检验和 appendix 的结构化数据。",
+            "- `figures/` 下的 CSV 可直接喂给后续画图脚本。",
+            "",
+            "## 主结果快照",
+            "",
+        ]
+    )
+    lines.extend(_snapshot(cal_summary, "Track A-Cal"))
+    lines.extend(_snapshot(stress_summary, "Track A-Stress"))
+    return "\n".join(lines) + "\n"
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Assemble a paper-ready CoRL benchmark bundle.")
     parser.add_argument("--input", required=True, help="Root directory containing results.csv artifacts.")
@@ -981,7 +1143,15 @@ def main() -> None:
     parser.add_argument("--protocol-probe-summary", default="")
     parser.add_argument("--cgn-bottleneck-summary", default="")
     parser.add_argument("--alignment-summary", default="")
+    parser.add_argument(
+        "--submission-mode",
+        action="store_true",
+        help="Require explicit canonical run ids, expected task sets, and complete stage metrics.",
+    )
     args = parser.parse_args()
+
+    if args.submission_mode:
+        _require_explicit_submission_inputs(args)
 
     rows = _iter_result_rows(Path(args.input))
     if not rows:
@@ -1061,6 +1231,28 @@ def main() -> None:
     native_appendix_task_sets = sorted(
         {str(row.get("task_set", "")).strip() for row in native_appendix_rows if str(row.get("task_set", "")).strip()}
     )
+
+    if args.submission_mode:
+        _validate_nonempty_rows(cal_rows, section="Track A-Cal")
+        _validate_nonempty_rows(stress_rows, section="Track A-Stress")
+        _validate_nonempty_rows(instruction_rows, section="Instruction Robustness")
+        _validate_nonempty_rows(sim2real_rows, section="Sim-to-Real Proxy")
+        _validate_nonempty_rows(phase2_rows, section="Phase 2 Pilot")
+        _validate_nonempty_rows(native_appendix_rows, section="Track B Native-Like Appendix")
+
+        _validate_expected_task_set(cal_rows, track="track_a_cal", section="Track A-Cal")
+        _validate_expected_task_set(stress_rows, track="track_a_stress", section="Track A-Stress")
+        _validate_expected_task_set(instruction_rows, track="track_a_instruction", section="Instruction Robustness")
+        _validate_expected_task_set(sim2real_rows, track="track_a_transfer", section="Sim-to-Real Proxy")
+        _validate_expected_task_set(phase2_rows, track="track_a_phase2", section="Phase 2 Pilot")
+        _validate_expected_task_set(native_appendix_rows, track="track_b_native", section="Track B Native-Like Appendix")
+
+        _validate_stage_metrics_complete(cal_rows, section="Track A-Cal")
+        _validate_stage_metrics_complete(stress_rows, section="Track A-Stress")
+        _validate_stage_metrics_complete(instruction_rows, section="Instruction Robustness")
+        _validate_stage_metrics_complete(sim2real_rows, section="Sim-to-Real Proxy")
+        _validate_stage_metrics_complete(phase2_rows, section="Phase 2 Pilot")
+        _validate_stage_metrics_complete(native_appendix_rows, section="Track B Native-Like Appendix")
 
     cal_summary = _aggregate(cal_rows, ["track", "method", "method_tier", "task"])
     cal_by_condition = _aggregate(cal_rows, ["track", "method", "method_tier", "task", "condition"])
@@ -1186,7 +1378,7 @@ def main() -> None:
         ),
         encoding="utf-8",
     )
-    teacher_summary = _render_teacher_summary(
+    teacher_summary = _render_teacher_summary_clean(
         cal_summary=cal_summary,
         stress_summary=stress_summary,
         instruction_summary=instruction_summary,
@@ -1209,7 +1401,7 @@ def main() -> None:
         encoding="utf-8-sig",
     )
     (output_dir / "teacher_summary_zh_clean.md").write_text(
-        _render_teacher_summary(
+        _render_teacher_summary_clean(
             cal_summary=cal_summary,
             stress_summary=stress_summary,
             instruction_summary=instruction_summary,
@@ -1251,6 +1443,7 @@ def main() -> None:
         json.dumps(
             {
                 "output_dir": str(output_dir),
+                "submission_mode": args.submission_mode,
                 "cal_parent_run_ids": cal_parent_run_ids,
                 "stress_parent_run_ids": stress_parent_run_ids,
                 "instruction_parent_run_ids": instruction_parent_run_ids,

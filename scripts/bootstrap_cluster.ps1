@@ -3,12 +3,14 @@ param(
     [string]$RemoteRoot = "/datasets/ss/current/zihao/grasp-benchmark",
     [string]$MiniforgeRoot = "/datasets/ss/current/zihao/miniforge3",
     [string]$CondaEnvsDir = "/datasets/ss/current/zihao/conda/envs",
-    [string]$CondaPkgsDir = "/datasets/ss/current/zihao/conda/pkgs"
+    [string]$CondaPkgsDir = "/datasets/ss/current/zihao/conda/pkgs",
+    [switch]$SkipEnvRefresh
 )
 
 $repoRoot = Split-Path $PSScriptRoot -Parent
-$archivePath = Join-Path $env:TEMP "grasp-benchmark-bootstrap.tar"
-$metadataPath = Join-Path $env:TEMP "grasp-benchmark-sync.json"
+$syncToken = [guid]::NewGuid().ToString("N")
+$archivePath = Join-Path $env:TEMP "grasp-benchmark-bootstrap-$syncToken.tar"
+$metadataPath = Join-Path $env:TEMP "grasp-benchmark-sync-$syncToken.json"
 $remoteArchive = "/tmp/grasp-benchmark-bootstrap.tar"
 $remoteMetadata = "/tmp/grasp-benchmark-sync.json"
 
@@ -41,8 +43,10 @@ cp "{2}" "{0}/.grasp-benchmark-sync.json"
 
 $remoteSyncBase64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes(($remoteSync -replace "`r`n", "`n")))
 ssh $Node "printf '%s' '$remoteSyncBase64' | base64 -d | /bin/bash"
-ssh $Node "bash '$RemoteRoot/cluster/install_miniforge.sh' '$MiniforgeRoot' '$CondaEnvsDir' '$CondaPkgsDir'"
-ssh $Node "bash '$RemoteRoot/cluster/create_envs.sh' '$MiniforgeRoot' '$RemoteRoot' '$CondaEnvsDir'"
+if (-not $SkipEnvRefresh) {
+    ssh $Node "bash '$RemoteRoot/cluster/install_miniforge.sh' '$MiniforgeRoot' '$CondaEnvsDir' '$CondaPkgsDir'"
+    ssh $Node "bash '$RemoteRoot/cluster/create_envs.sh' '$MiniforgeRoot' '$RemoteRoot' '$CondaEnvsDir'"
+}
 
 Remove-Item -LiteralPath $archivePath -ErrorAction SilentlyContinue
 Remove-Item -LiteralPath $metadataPath -ErrorAction SilentlyContinue

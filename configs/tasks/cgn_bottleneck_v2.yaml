@@ -1,0 +1,67 @@
+name: cgn_bottleneck_v2
+track: track_a_diag
+scene_catalog: graspvla_cgn_bottleneck_v2
+catalog:
+  native_opaque_probe:
+    - id: banana
+      label: banana
+    - id: ceramic_bowl
+      label: ceramic bowl
+    - id: power_drill
+      label: power drill
+    - id: carrot
+      label: carrot
+  transparent:
+    - id: clear_plastic_cup
+      label: clear plastic cup
+    - id: glass_bottle
+      label: glass bottle
+    - id: wine_glass
+      label: wine glass
+    - id: acrylic_box
+      label: acrylic box
+task_groups:
+  - name: language_conditioned_single_target_pick
+    object_group: native_opaque_probe
+    object_ids:
+      - banana
+      - ceramic_bowl
+      - power_drill
+      - carrot
+    instruction_template: "pick up {object}"
+    attempts_per_trial: 3
+    conditions:
+      - name: basic
+        variant_count: 1
+      - name: distractors_heavy
+        variant_count: 1
+  - name: arbitrary_grasping_transparent
+    object_group: transparent
+    object_ids:
+      - clear_plastic_cup
+      - glass_bottle
+      - wine_glass
+      - acrylic_box
+    instruction_template: "pick up any object"
+    attempts_per_trial: 3
+    conditions:
+      - name: transparent_pose_bank
+        variant_count: 1
+object_groups:
+  - native_opaque_probe
+  - transparent
+metrics:
+  - task_success
+  - spl
+  - attempts_to_success
+  - inference_latency
+  - cycle_time
+failure_taxonomy:
+  - grounding_error
+  - segmentation_error
+  - bad_grasp_proposal
+  - planner_failure
+  - collision
+  - slip
+  - occlusion
+  - ambiguous_language

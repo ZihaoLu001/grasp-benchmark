@@ -20,7 +20,9 @@ sim:
     track_a_cal_v2: graspvla_track_a_playground_cal_v2
     track_a_cal_v3: graspvla_track_a_playground_cal_v3
     instruction_robustness_v1: graspvla_track_a_playground_cal_v3
+    instruction_robustness_v2: graspvla_track_a_playground_cal_v3
     sim2real_proxy_v1: graspvla_sim2real_proxy_v1
+    sim2real_proxy_v2: graspvla_sim2real_proxy_v2
     track_a_v2: graspvla_track_a_playground_v2
     track_a_stress_v2: graspvla_track_a_playground_stress_v2
     track_a_stress_v3: graspvla_track_a_playground_stress_v3
@@ -28,6 +30,7 @@ sim:
     protocol_probe_v2: graspvla_track_a_playground_probe_v2
     protocol_and_transfer_suite_v1: graspvla_protocol_and_transfer_suite_v1
     cgn_bottleneck_v1: graspvla_track_a_playground_probe_v2
+    cgn_bottleneck_v2: graspvla_cgn_bottleneck_v2
     track_b_cgn_native_v1: graspvla_track_b_cgn_native_v1
     track_b_cgn_native_v2: graspvla_track_b_cgn_native_v2
     phase2_pilot_v1: graspvla_phase2_pilot_v1

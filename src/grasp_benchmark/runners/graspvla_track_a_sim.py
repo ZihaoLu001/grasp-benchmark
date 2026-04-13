@@ -140,11 +140,23 @@ def _asset_key(object_id: str, task: str, scene_config: dict[str, Any]) -> dict[
     return dict(scene_config["core_objects"][object_id])
 
 
-def _shift_config(scene_config: dict[str, Any], shift_family: str) -> dict[str, Any]:
+def _shift_config(scene_config: dict[str, Any], shift_family: str, shift_severity: str = "") -> dict[str, Any]:
     if not shift_family:
         return {}
     raw = (scene_config.get("shift_families") or {}).get(shift_family, {})
-    return dict(raw) if isinstance(raw, dict) else {}
+    if not isinstance(raw, dict):
+        return {}
+    merged = {key: value for key, value in raw.items() if key != "severity_overrides"}
+    severity_overrides = raw.get("severity_overrides") or {}
+    if shift_severity and isinstance(severity_overrides, dict):
+        override = severity_overrides.get(shift_severity) or {}
+        if isinstance(override, dict):
+            for key, value in override.items():
+                if isinstance(value, dict) and isinstance(merged.get(key), dict):
+                    merged[key] = {**dict(merged[key]), **value}
+                else:
+                    merged[key] = value
+    return merged
 
 
 def _merged_object_overrides(
@@ -152,6 +164,7 @@ def _merged_object_overrides(
     spec: dict[str, Any],
     object_id: str,
     shift_family: str,
+    shift_severity: str,
     shift_config: dict[str, Any],
 ) -> tuple[str, dict[str, Any], dict[str, Any]]:
     material_override = dict(spec.get("material_override") or {})
@@ -170,6 +183,8 @@ def _merged_object_overrides(
     category_name = str(spec["category_name"])
     if shift_family and (material_override or geom_override):
         category_name = f"{category_name}__{shift_family}"
+        if shift_severity:
+            category_name = f"{category_name}__{shift_severity}"
     return category_name, material_override, geom_override
 
 
@@ -192,9 +207,10 @@ def _build_transparent_scene_objects(
     *,
     condition: str = "",
     shift_family: str = "",
+    shift_severity: str = "",
 ) -> tuple[SceneObject, ...]:
     transparent_cfg = dict((scene_config.get("transparent_conditions") or {}).get(condition, {}))
-    shift_cfg = _shift_config(scene_config, shift_family)
+    shift_cfg = _shift_config(scene_config, shift_family, shift_severity)
     ordered = [focus_object_id] + [
         item for item in scene_config.get("transparent_distractor_priority", []) if item != focus_object_id
     ]
@@ -208,6 +224,7 @@ def _build_transparent_scene_objects(
             spec=spec,
             object_id=object_id,
             shift_family=shift_family,
+            shift_severity=shift_severity,
             shift_config=shift_cfg,
         )
         objects.append(
@@ -234,9 +251,10 @@ def _build_opaque_scene_objects(
     *,
     condition: str = "",
     shift_family: str = "",
+    shift_severity: str = "",
 ) -> tuple[SceneObject, ...]:
     opaque_cfg = dict((scene_config.get("opaque_conditions") or {}).get(condition, {}))
-    shift_cfg = _shift_config(scene_config, shift_family)
+    shift_cfg = _shift_config(scene_config, shift_family, shift_severity)
     ordered = [focus_object_id] + [
         item for item in scene_config.get("opaque_distractor_priority", scene_config.get("distractor_priority", []))
         if item != focus_object_id
@@ -253,6 +271,7 @@ def _build_opaque_scene_objects(
             spec=spec,
             object_id=object_id,
             shift_family=shift_family,
+            shift_severity=shift_severity,
             shift_config=shift_cfg,
         )
         objects.append(
@@ -276,13 +295,14 @@ def _build_opaque_scene_objects(
 def build_scene_catalog(task_specs: list[TrialSpec], scene_config: dict[str, Any]) -> dict[str, SceneRecipe]:
     recipes: dict[str, SceneRecipe] = {}
     for index, trial in enumerate(task_specs, start=1):
-        shift_cfg = _shift_config(scene_config, trial.shift_family)
+        shift_cfg = _shift_config(scene_config, trial.shift_family, trial.shift_severity)
         if trial.task == "arbitrary_grasping_transparent":
             objects = _build_transparent_scene_objects(
                 scene_config,
                 trial.object_id,
                 condition=trial.condition,
                 shift_family=trial.shift_family,
+                shift_severity=trial.shift_severity,
             )
             transparent_scene = dict(scene_config["transparent_scene"])
             transparent_scene.update((scene_config.get("transparent_conditions") or {}).get(trial.condition, {}))
@@ -317,6 +337,7 @@ def build_scene_catalog(task_specs: list[TrialSpec], scene_config: dict[str, Any
                 trial.object_id,
                 condition=trial.condition,
                 shift_family=trial.shift_family,
+                shift_severity=trial.shift_severity,
             )
             opaque_scene = dict(scene_config["opaque_scene"])
             opaque_scene.update((scene_config.get("opaque_conditions") or {}).get(trial.condition, {}))
@@ -352,6 +373,7 @@ def build_scene_catalog(task_specs: list[TrialSpec], scene_config: dict[str, Any
                 spec=target_spec,
                 object_id=trial.object_id,
                 shift_family=trial.shift_family,
+                shift_severity=trial.shift_severity,
                 shift_config=shift_cfg,
             )
             objects = [
@@ -382,6 +404,7 @@ def build_scene_catalog(task_specs: list[TrialSpec], scene_config: dict[str, Any
                     spec=distractor_spec,
                     object_id=distractor_id,
                     shift_family=trial.shift_family,
+                    shift_severity=trial.shift_severity,
                     shift_config=shift_cfg,
                 )
                 objects.append(
@@ -699,6 +722,7 @@ class SharedTrackARemoteAgent:
         self._camera_jitter_mode = str(runtime_config.get("camera_jitter_mode", "")).strip().lower()
         self._current_task_spec: dict[str, Any] = {}
         self._current_shift_family = ""
+        self._current_shift_severity = ""
         self._last_gripper = self.GRIPPER_OPEN
         self._proprio_history: list[np.ndarray] = []
         self._pred_actions: list[tuple[np.ndarray, Any]] = []
@@ -714,10 +738,12 @@ class SharedTrackARemoteAgent:
             self._current_task_spec = dict(instruction)
             self._instruction = str(instruction.get("instruction", self._instruction))
             self._current_shift_family = str(instruction.get("shift_family", "")).strip()
+            self._current_shift_severity = str(instruction.get("shift_severity", "")).strip()
         else:
             self._instruction = instruction
             self._current_task_spec = {"instruction": self._instruction}
             self._current_shift_family = ""
+            self._current_shift_severity = ""
         self._last_gripper = self.GRIPPER_OPEN
         self._proprio_history = []
         self._pred_actions = []
@@ -791,7 +817,11 @@ class SharedTrackARemoteAgent:
             intrinsics_side,
         ) = _apply_camera_jitter(
             self._np,
-            mode="low" if self._current_shift_family == "camera_jitter" else self._camera_jitter_mode,
+            mode=_camera_jitter_mode_for_shift(
+                shift_family=self._current_shift_family,
+                shift_severity=self._current_shift_severity,
+                fallback_mode=self._camera_jitter_mode,
+            ),
             rgb_front=rgb_front,
             rgb_side=rgb_side,
             depth_front=front_depth,
@@ -802,6 +832,7 @@ class SharedTrackARemoteAgent:
         front_depth, side_depth = _apply_depth_shift(
             self._np,
             shift_family=self._current_shift_family,
+            shift_severity=self._current_shift_severity,
             depth_front=front_depth,
             depth_side=side_depth,
         )
@@ -905,7 +936,7 @@ class SharedTrackARemoteAgent:
             "instruction_variant_id": str(self._current_task_spec.get("instruction_variant_id", "")),
             "instruction_variant_family": str(self._current_task_spec.get("instruction_variant_family", "")),
             "shift_family": self._current_shift_family,
-            "shift_severity": str(self._current_task_spec.get("shift_severity", "")),
+            "shift_severity": self._current_shift_severity,
         }
 
     def close(self) -> None:
@@ -937,6 +968,7 @@ class SharedTrackAAdapterAgent:
         self._camera_jitter_mode = str(runtime_config.get("camera_jitter_mode", "")).strip().lower()
         self._current_task_spec: dict[str, Any] = {}
         self._current_shift_family = ""
+        self._current_shift_severity = ""
         self._last_gripper = self.GRIPPER_OPEN
         self._command_pose: np.ndarray | None = None
         self._proprio_history: list[np.ndarray] = []
@@ -947,6 +979,7 @@ class SharedTrackAAdapterAgent:
         self._current_task_spec = dict(task_spec)
         self._instruction = str(task_spec.get("instruction", self._instruction))
         self._current_shift_family = str(task_spec.get("shift_family", "")).strip()
+        self._current_shift_severity = str(task_spec.get("shift_severity", "")).strip()
         self._last_gripper = self.GRIPPER_OPEN
         self._command_pose = None
         self._proprio_history = []
@@ -1023,7 +1056,11 @@ class SharedTrackAAdapterAgent:
             intrinsics_side,
         ) = _apply_camera_jitter(
             self._np,
-            mode="low" if self._current_shift_family == "camera_jitter" else self._camera_jitter_mode,
+            mode=_camera_jitter_mode_for_shift(
+                shift_family=self._current_shift_family,
+                shift_severity=self._current_shift_severity,
+                fallback_mode=self._camera_jitter_mode,
+            ),
             rgb_front=rgb_front,
             rgb_side=rgb_side,
             depth_front=front_depth,
@@ -1034,6 +1071,7 @@ class SharedTrackAAdapterAgent:
         front_depth, side_depth = _apply_depth_shift(
             self._np,
             shift_family=self._current_shift_family,
+            shift_severity=self._current_shift_severity,
             depth_front=front_depth,
             depth_side=side_depth,
         )
@@ -1113,7 +1151,7 @@ class SharedTrackAAdapterAgent:
             "instruction_variant_id": str(self._current_task_spec.get("instruction_variant_id", "")),
             "instruction_variant_family": str(self._current_task_spec.get("instruction_variant_family", "")),
             "shift_family": self._current_shift_family,
-            "shift_severity": str(self._current_task_spec.get("shift_severity", "")),
+            "shift_severity": self._current_shift_severity,
         }
 
     def attempt_complete(self) -> bool:
@@ -1303,7 +1341,18 @@ def _shift_frame(np_module: Any, frame: Any, *, dx: int, dy: int, fill_value: fl
 def _camera_jitter_offsets(mode: str) -> tuple[tuple[int, int], tuple[int, int]]:
     if mode == "low":
         return (4, -3), (-4, 2)
+    if mode == "medium":
+        return (8, -6), (-7, 5)
     return (0, 0), (0, 0)
+
+
+def _camera_jitter_mode_for_shift(*, shift_family: str, shift_severity: str, fallback_mode: str) -> str:
+    if shift_family != "camera_jitter":
+        return fallback_mode
+    severity = shift_severity.strip().lower()
+    if severity in {"low", "medium"}:
+        return severity
+    return "low"
 
 
 def _apply_view_mode(
@@ -1375,22 +1424,30 @@ def _apply_depth_shift(
     np_module: Any,
     *,
     shift_family: str,
+    shift_severity: str,
     depth_front: Any,
     depth_side: Any,
 ) -> tuple[Any, Any]:
     if shift_family != "depth_noise_bias":
         return depth_front, depth_side
 
+    severity = shift_severity.strip().lower()
+    bias_m = 0.01
+    noise_m = 0.004
+    if severity == "medium":
+        bias_m = 0.02
+        noise_m = 0.008
+
     front = np_module.asarray(depth_front, dtype=np_module.float32).copy()
     side = np_module.asarray(depth_side, dtype=np_module.float32).copy()
     valid_front = np_module.isfinite(front) & (front > 1e-6)
     valid_side = np_module.isfinite(side) & (side > 1e-6)
     if np_module.any(valid_front):
-        front[valid_front] = np_module.clip(front[valid_front] + 0.01, 1e-6, None)
-        front[valid_front] += np_module.full(front[valid_front].shape, 0.004, dtype=np_module.float32)
+        front[valid_front] = np_module.clip(front[valid_front] + bias_m, 1e-6, None)
+        front[valid_front] += np_module.full(front[valid_front].shape, noise_m, dtype=np_module.float32)
     if np_module.any(valid_side):
-        side[valid_side] = np_module.clip(side[valid_side] + 0.01, 1e-6, None)
-        side[valid_side] += np_module.full(side[valid_side].shape, 0.004, dtype=np_module.float32)
+        side[valid_side] = np_module.clip(side[valid_side] + bias_m, 1e-6, None)
+        side[valid_side] += np_module.full(side[valid_side].shape, noise_m, dtype=np_module.float32)
     return front, side
 
 

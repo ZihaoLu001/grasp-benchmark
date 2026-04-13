@@ -152,7 +152,11 @@ def expand_task_set(task_config: dict[str, Any], max_trials: int | None = None) 
                         instruction = instruction_template.format(object=object_label)
                         instruction_suffix = f"__iv_{instruction_variant_id}" if instruction_variant_id else ""
                         for shift_family, shift_severity in shift_variants:
-                            shift_suffix = f"__sf_{shift_family}" if shift_family else ""
+                            shift_suffix = ""
+                            if shift_family:
+                                shift_suffix = f"__sf_{shift_family}"
+                                if shift_severity:
+                                    shift_suffix = f"{shift_suffix}__ss_{shift_severity}"
                             scene_id = f"{base_scene_id}{instruction_suffix}{shift_suffix}"
                             trials.append(
                                 TrialSpec(
