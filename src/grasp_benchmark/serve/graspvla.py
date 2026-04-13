@@ -25,6 +25,7 @@ def _build_remote_launch_script(
     model_path: str,
     port: int,
     compile_model: bool,
+    cuda_visible_devices: str,
 ) -> str:
     miniforge_root = cluster_config["miniforge_root"]
     remote_root = cluster_config["remote_root"]
@@ -32,11 +33,17 @@ def _build_remote_launch_script(
     upstream_dir = f"{remote_root}/third_party/upstreams/GraspVLA"
     log_dir = f"{remote_root}/artifacts/server"
     compile_flag = "--compile" if compile_model else ""
+    gpu_export = (
+        f'export CUDA_VISIBLE_DEVICES="{cuda_visible_devices}"'
+        if str(cuda_visible_devices).strip()
+        else ""
+    )
     return "\n".join(
         [
             "set -euo pipefail",
             f'mkdir -p "{log_dir}"',
             f'cd "{upstream_dir}"',
+            gpu_export,
             (
                 f'nohup "{env_python}" -u -m vla_network.scripts.serve '
                 f'--path "{model_path}" --port {port} {compile_flag} '
@@ -178,6 +185,7 @@ def main() -> None:
     parser.add_argument("--node", default="", help="Cluster node alias. Defaults to the cluster config default.")
     parser.add_argument("--port", type=int, default=0, help="Server port override.")
     parser.add_argument("--model-path", default="", help="Remote model path override.")
+    parser.add_argument("--cuda-visible-devices", default="", help="Optional GPU binding for the remote model server.")
     parser.add_argument("--download-model", action="store_true", help="Download the model snapshot before launching.")
     parser.add_argument("--install-deps", action="store_true", help="Install GraspVLA Python dependencies on the node.")
     parser.add_argument("--include-playground", action="store_true", help="Also install playground Python requirements.")
@@ -236,6 +244,7 @@ def main() -> None:
         model_path=model_path,
         port=port,
         compile_model=bool(method_config["server"].get("compile", True)),
+        cuda_visible_devices=args.cuda_visible_devices,
     )
     if args.dry_run:
         print(launch_script)
@@ -269,6 +278,7 @@ def main() -> None:
                 "node": node,
                 "port": port,
                 "pid": pid,
+                "cuda_visible_devices": args.cuda_visible_devices,
                 "model_path": model_path,
                 "validated": validation_ok,
                 "validation": validation_payload,

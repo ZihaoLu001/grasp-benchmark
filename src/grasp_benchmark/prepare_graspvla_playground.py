@@ -64,6 +64,14 @@ fi
 export CC="$(command -v x86_64-conda-linux-gnu-gcc || command -v gcc)"
 export CXX="$(command -v x86_64-conda-linux-gnu-g++ || command -v g++)"
 export CUDAHOSTCXX="${{CXX}}"
+export TORCH_CUDA_ARCH_LIST="${{TORCH_CUDA_ARCH_LIST:-$(python - <<'PY'
+import torch
+major, minor = torch.cuda.get_device_capability(0)
+print(f"{{major}}.{{minor}}")
+PY
+)}}"
+rm -rf "{curobo_root}/build"
+find "{curobo_root}/src/curobo/curobolib" -name "*.so" -delete
 python -m pip install -e "{curobo_root}" --no-build-isolation
 """
 

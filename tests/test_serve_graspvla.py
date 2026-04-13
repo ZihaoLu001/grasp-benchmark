@@ -16,10 +16,12 @@ class ServeGraspVLATest(unittest.TestCase):
             model_path="/tmp/model.safetensors",
             port=6666,
             compile_model=True,
+            cuda_visible_devices="3",
         )
         self.assertIn('/datasets/ss/current/zihao/conda/envs/gb-core/bin/python', script)
         self.assertNotIn('conda activate', script)
         self.assertNotIn('profile.d/conda.sh', script)
+        self.assertIn('export CUDA_VISIBLE_DEVICES="3"', script)
 
     def test_validate_script_uses_env_python_directly(self) -> None:
         cluster_config = load_named_config("cluster", "default")
