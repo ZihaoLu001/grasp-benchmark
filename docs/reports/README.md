@@ -4,10 +4,12 @@
 
 These are the files to use for advisor review and current benchmark status.
 
-- Complete latest benchmark summary:
-  [benchmark_results_latest_20260412_zh.md](D:/codex/grasp-benchmark/docs/reports/benchmark_results_latest_20260412_zh.md)
+- Authoritative benchmark summary:
+  [benchmark_results_authoritative_20260413_zh.md](D:/codex/grasp-benchmark/docs/reports/benchmark_results_authoritative_20260413_zh.md)
 - GraspVLA CoRL 2026 extension update:
   [corl2026_graspvla_extensions_20260413_zh.md](D:/codex/grasp-benchmark/docs/reports/corl2026_graspvla_extensions_20260413_zh.md)
+- CoRL 2026 submission hardening note:
+  [corl2026_submission_hardening_20260413_zh.md](D:/codex/grasp-benchmark/docs/reports/corl2026_submission_hardening_20260413_zh.md)
 - CoRL 2026 gap analysis and next-step benchmark extensions:
   [corl2026_benchmark_gap_analysis_20260412_zh.md](D:/codex/grasp-benchmark/docs/reports/corl2026_benchmark_gap_analysis_20260412_zh.md)
 - Completion matrix:
