@@ -74,6 +74,19 @@ def _run_dir_name(timestamp: str, method: str, task_set: str, execution_mode: st
     return f"{timestamp}_{method}_{task_set}_{suffix}"
 
 
+def _allocate_run_dir(base_root: Path, base_name: str) -> Path:
+    ensure_dir(base_root)
+    for suffix_index in range(1000):
+        candidate_name = base_name if suffix_index == 0 else f"{base_name}__dup{suffix_index:02d}"
+        candidate = base_root / candidate_name
+        try:
+            candidate.mkdir(parents=True, exist_ok=False)
+        except FileExistsError:
+            continue
+        return candidate
+    raise RuntimeError(f"Could not allocate a unique run directory for base name '{base_name}'.")
+
+
 def _preferred_matrix_hosts(method_name: str, method_config: dict) -> list[str]:
     if method_name == "cgn":
         return ["rll_6000_1", "rll_6000_2"]
@@ -412,8 +425,10 @@ def main() -> None:
     execution_mode = _resolve_execution_mode(method_config, args.execution_mode)
 
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    run_dir = ARTIFACTS_DIR / "runs" / _run_dir_name(timestamp, args.method, args.task_set, execution_mode)
-    ensure_dir(run_dir)
+    run_dir = _allocate_run_dir(
+        ARTIFACTS_DIR / "runs",
+        _run_dir_name(timestamp, args.method, args.task_set, execution_mode),
+    )
 
     parent_run_id = run_dir.name
     manifest = {

@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from grasp_benchmark.audit.graspvla_official_alignment import classify_parity_status
 from grasp_benchmark.runners.graspvla_official_aligned import (
     OfficialLiberoTaskSpec,
     select_non_invalid_official_tasks,
 )
-from grasp_benchmark.run.sim import _remote_env_name, _select_matrix_hosts
+from grasp_benchmark.run.sim import _allocate_run_dir, _remote_env_name, _select_matrix_hosts
 from grasp_benchmark.config import load_named_config
 
 
@@ -132,6 +134,16 @@ class OfficialAlignmentSelectionTest(unittest.TestCase):
             explicit_node="em14",
         )
         self.assertEqual(selected, ["em14"])
+
+    def test_allocate_run_dir_appends_dup_suffix_on_collision(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            first = _allocate_run_dir(root, "example_run")
+            second = _allocate_run_dir(root, "example_run")
+            self.assertEqual(first.name, "example_run")
+            self.assertEqual(second.name, "example_run__dup01")
+            self.assertTrue(first.exists())
+            self.assertTrue(second.exists())
 
 
 if __name__ == "__main__":
