@@ -11,4 +11,4 @@ dependencies:
   - numpy>=1.26,<2
   - requests
   - pip:
-      - huggingface_hub
+      - huggingface_hub>=0.23,<1.0

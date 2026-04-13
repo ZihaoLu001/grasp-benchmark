@@ -9,6 +9,8 @@ from grasp_benchmark.config import load_named_config
 from grasp_benchmark.paths import ARTIFACTS_DIR, ensure_dir
 from grasp_benchmark.shell import ssh_run
 
+CLUSTER_CUROBO_CUDA_ARCH_LIST = "7.5;8.0"
+
 
 def _decode_b64(value: str) -> str:
     if not value:
@@ -26,6 +28,7 @@ def _build_remote_script(cluster_config: dict, method_config: dict, *, bootstrap
     libero_config_root = f"{remote_root}/artifacts/libero_config"
     benchmark_root = f"{playground_root}/libero/libero"
     datasets_root = f"{playground_root}/libero/datasets"
+    arch_export = f'export TORCH_CUDA_ARCH_LIST="${{TORCH_CUDA_ARCH_LIST:-{CLUSTER_CUROBO_CUDA_ARCH_LIST}}}"'
 
     bootstrap_block = ""
     if bootstrap_env:
@@ -64,12 +67,7 @@ fi
 export CC="$(command -v x86_64-conda-linux-gnu-gcc || command -v gcc)"
 export CXX="$(command -v x86_64-conda-linux-gnu-g++ || command -v g++)"
 export CUDAHOSTCXX="${{CXX}}"
-export TORCH_CUDA_ARCH_LIST="${{TORCH_CUDA_ARCH_LIST:-$(python - <<'PY'
-import torch
-major, minor = torch.cuda.get_device_capability(0)
-print(f"{{major}}.{{minor}}")
-PY
-)}}"
+{arch_export}
 rm -rf "{curobo_root}/build"
 find "{curobo_root}/src/curobo/curobolib" -name "*.so" -delete
 python -m pip install -e "{curobo_root}" --no-build-isolation

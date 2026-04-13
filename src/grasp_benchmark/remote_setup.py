@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+CLUSTER_CUROBO_CUDA_ARCH_LIST = "7.5;8.0"
+
 
 def _env_prefix(cluster_config: dict[str, Any], method_config: dict[str, Any]) -> str:
     return f'{cluster_config["conda_envs_dir"]}/{method_config["env_name"]}'
@@ -17,6 +19,7 @@ def build_method_install_script(
     miniforge_root = cluster_config["miniforge_root"]
     remote_root = cluster_config["remote_root"]
     env_prefix = _env_prefix(cluster_config, method_config)
+    arch_export = f'export TORCH_CUDA_ARCH_LIST="${{TORCH_CUDA_ARCH_LIST:-{CLUSTER_CUROBO_CUDA_ARCH_LIST}}}"'
     lines = [
         "set -eo pipefail",
         f'source "{miniforge_root}/etc/profile.d/conda.sh"',
@@ -64,7 +67,7 @@ def build_method_install_script(
                 'export CC="$(command -v x86_64-conda-linux-gnu-gcc || command -v gcc)"',
                 'export CXX="$(command -v x86_64-conda-linux-gnu-g++ || command -v g++)"',
                 'export CUDAHOSTCXX="${CXX}"',
-                'export TORCH_CUDA_ARCH_LIST="${TORCH_CUDA_ARCH_LIST:-$(python - <<\'PY\'\nimport torch\nmajor, minor = torch.cuda.get_device_capability(0)\nprint(f\"{major}.{minor}\")\nPY\n)}"',
+                arch_export,
                 f'rm -rf "{remote_root}/third_party/upstreams/curobo/build"',
                 f'find "{remote_root}/third_party/upstreams/curobo/src/curobo/curobolib" -name "*.so" -delete',
                 f'python -m pip install -e "{remote_root}/third_party/upstreams/curobo" --no-build-isolation',
@@ -103,7 +106,7 @@ def build_method_install_script(
                 'export CC="$(command -v x86_64-conda-linux-gnu-gcc || command -v gcc)"',
                 'export CXX="$(command -v x86_64-conda-linux-gnu-g++ || command -v g++)"',
                 'export CUDAHOSTCXX="${CXX}"',
-                'export TORCH_CUDA_ARCH_LIST="${TORCH_CUDA_ARCH_LIST:-$(python - <<\'PY\'\nimport torch\nmajor, minor = torch.cuda.get_device_capability(0)\nprint(f\"{major}.{minor}\")\nPY\n)}"',
+                arch_export,
                 f'rm -rf "{remote_root}/third_party/upstreams/curobo/build"',
                 f'find "{remote_root}/third_party/upstreams/curobo/src/curobo/curobolib" -name "*.so" -delete',
                 f'python -m pip install -e "{remote_root}/third_party/upstreams/curobo" --no-build-isolation',
