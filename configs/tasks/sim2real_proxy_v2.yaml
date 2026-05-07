@@ -1,4 +1,6 @@
 name: sim2real_proxy_v2
+display_name: Sim-to-Real Robustness Proxy
+collaborator_name: Sim-to-Real Robustness Proxy
 track: track_a_transfer
 scene_catalog: graspvla_sim2real_proxy_v2
 catalog:

@@ -1,13 +1,28 @@
 param(
-    [string]$InputRoot = "D:\codex\grasp-benchmark\artifacts\runs",
-    [string]$OutputDir = "D:\codex\grasp-benchmark\artifacts\reports\corl_paper_bundle_v3_latest",
-    [string]$OfficialTrackBReference = "D:\codex\grasp-benchmark\artifacts\official_sim\20260402_231726_em14_full\summary.json",
+    [string]$InputRoot = "",
+    [string]$OutputDir = "",
+    [string]$OfficialTrackBReference = "",
     [int]$MinCalTrials = 30,
     [int]$MinStressTrials = 30,
+    [int]$MinInstructionTrials = 20,
+    [int]$MinSim2RealTrials = 20,
+    [int]$MinPhase2Trials = 12,
     [int]$MinNativeTrials = 30
 )
 
 $ErrorActionPreference = "Stop"
+$repoRoot = Split-Path $PSScriptRoot -Parent
+Set-Location $repoRoot
+
+if (-not $InputRoot) {
+    $InputRoot = Join-Path $repoRoot "artifacts\runs"
+}
+if (-not $OutputDir) {
+    $OutputDir = Join-Path $repoRoot "artifacts\reports\corl_paper_bundle_v3_latest"
+}
+if (-not $OfficialTrackBReference) {
+    $OfficialTrackBReference = Join-Path $repoRoot "artifacts\official_sim\20260402_231726_em14_full\summary.json"
+}
 
 function Get-LatestRunId {
     param(
@@ -16,6 +31,9 @@ function Get-LatestRunId {
         [int]$MinTrials = 1,
         [string]$ExcludePattern = ""
     )
+    if (-not (Test-Path $InputRoot)) {
+        return $null
+    }
     $candidates = Get-ChildItem $InputRoot -Directory -Filter $Pattern | Sort-Object LastWriteTime -Descending
     $eligible = foreach ($candidate in $candidates) {
         if ($ExcludePattern -and $candidate.Name -like $ExcludePattern) {
@@ -56,7 +74,10 @@ function Get-LatestAuditSummary {
         [Parameter(Mandatory = $true)]
         [string]$Prefix
     )
-    $auditRoot = "D:\codex\grasp-benchmark\artifacts\audits"
+    $auditRoot = Join-Path $repoRoot "artifacts\audits"
+    if (-not (Test-Path $auditRoot)) {
+        return $null
+    }
     $candidates = Get-ChildItem $auditRoot -Directory |
         Where-Object { $_.Name -like "$Prefix*" -and (Test-Path (Join-Path $_.FullName "summary.json")) } |
         Sort-Object LastWriteTime -Descending
@@ -72,12 +93,27 @@ $calRuns = @(
 ) | Where-Object { $_ }
 
 $stressRuns = @(
-    Get-LatestRunId -Pattern "*graspvla_track_a_stress_v3_shared_sim" -MinTrials $MinStressTrials
-    Get-LatestRunId -Pattern "*cgn_track_a_stress_v3_shared_sim" -MinTrials $MinStressTrials
+    Get-LatestRunId -Pattern "*graspvla_track_a_stress_v4_shared_sim" -MinTrials $MinStressTrials
+    Get-LatestRunId -Pattern "*cgn_track_a_stress_v4_shared_sim" -MinTrials $MinStressTrials
+) | Where-Object { $_ }
+
+$instructionRuns = @(
+    Get-LatestRunId -Pattern "*graspvla_instruction_robustness_v2_shared_sim" -MinTrials $MinInstructionTrials
+    Get-LatestRunId -Pattern "*cgn_instruction_robustness_v2_shared_sim" -MinTrials $MinInstructionTrials
+) | Where-Object { $_ }
+
+$sim2realRuns = @(
+    Get-LatestRunId -Pattern "*graspvla_sim2real_proxy_v2_shared_sim" -MinTrials $MinSim2RealTrials
+    Get-LatestRunId -Pattern "*cgn_sim2real_proxy_v2_shared_sim" -MinTrials $MinSim2RealTrials
+) | Where-Object { $_ }
+
+$phase2Runs = @(
+    Get-LatestRunId -Pattern "*graspvla_phase2_pilot_v1_shared_sim" -MinTrials $MinPhase2Trials
+    Get-LatestRunId -Pattern "*cgn_phase2_pilot_v1_shared_sim" -MinTrials $MinPhase2Trials
 ) | Where-Object { $_ }
 
 $nativeRuns = @(
-    Get-LatestRunId -Pattern "*cgn_track_b_cgn_native_v1*" -MinTrials $MinNativeTrials -ExcludePattern "*single_scene*"
+    Get-LatestRunId -Pattern "*cgn_track_b_cgn_native_v2*" -MinTrials $MinNativeTrials -ExcludePattern "*single_scene*"
 ) | Where-Object { $_ }
 
 $protocolSummary = Get-LatestAuditSummary -Prefix "*_graspvla_protocol_and_transfer_suite_v1"
@@ -105,6 +141,21 @@ if ($stressRuns.Count -gt 0) {
 } else {
     $args += @("--track-a-stress-parent-run-id", "__none__")
 }
+if ($instructionRuns.Count -gt 0) {
+    $args += @("--instruction-parent-run-id", ($instructionRuns -join ","))
+} else {
+    $args += @("--instruction-parent-run-id", "__none__")
+}
+if ($sim2realRuns.Count -gt 0) {
+    $args += @("--sim2real-parent-run-id", ($sim2realRuns -join ","))
+} else {
+    $args += @("--sim2real-parent-run-id", "__none__")
+}
+if ($phase2Runs.Count -gt 0) {
+    $args += @("--phase2-parent-run-id", ($phase2Runs -join ","))
+} else {
+    $args += @("--phase2-parent-run-id", "__none__")
+}
 if ($nativeRuns.Count -gt 0) {
     $args += @("--track-b-native-parent-run-id", ($nativeRuns -join ","))
 } else {
@@ -121,14 +172,17 @@ if ($alignmentSummary) {
 }
 
 Write-Host "Building CoRL v3 paper bundle..." -ForegroundColor Cyan
-Write-Host "Track A-Cal runs: $($calRuns -join ', ')" -ForegroundColor DarkGray
-Write-Host "Track A-Stress runs: $($stressRuns -join ', ')" -ForegroundColor DarkGray
+Write-Host "Main Shared Grasping Benchmark runs: $($calRuns -join ', ')" -ForegroundColor DarkGray
+Write-Host "Hard Shared Grasping Stress Test runs: $($stressRuns -join ', ')" -ForegroundColor DarkGray
+Write-Host "Instruction Robustness runs: $($instructionRuns -join ', ')" -ForegroundColor DarkGray
+Write-Host "Sim-to-Real Proxy runs: $($sim2realRuns -join ', ')" -ForegroundColor DarkGray
+Write-Host "Task-Oriented Grasping Pilot runs: $($phase2Runs -join ', ')" -ForegroundColor DarkGray
 Write-Host "Track B native appendix runs: $($nativeRuns -join ', ')" -ForegroundColor DarkGray
 if ($protocolSummary) { Write-Host "Protocol summary: $protocolSummary" -ForegroundColor DarkGray }
 if ($cgnBottleneckSummary) { Write-Host "CGN bottleneck summary: $cgnBottleneckSummary" -ForegroundColor DarkGray }
 if ($alignmentSummary) { Write-Host "Alignment summary: $alignmentSummary" -ForegroundColor DarkGray }
 
-$env:PYTHONPATH = "D:\codex\grasp-benchmark\src"
+$env:PYTHONPATH = Join-Path $repoRoot "src"
 python @args
 if ($LASTEXITCODE -ne 0) {
     throw "paper_bundle.py exited with code $LASTEXITCODE"

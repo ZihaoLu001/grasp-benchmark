@@ -12,6 +12,7 @@ class UpstreamSpec:
     name: str
     url: str
     description: str
+    ref: str = ""
 
     @property
     def local_dir(self) -> Path:
@@ -53,6 +54,7 @@ UPSTREAMS: tuple[UpstreamSpec, ...] = (
         name="curobo",
         url="https://github.com/NVlabs/curobo.git",
         description="Motion planner dependency used by the GraspVLA playground stack.",
+        ref="v0.7.8",
     ),
 )
 
@@ -61,4 +63,3 @@ UPSTREAMS_BY_NAME = {spec.name: spec for spec in UPSTREAMS}
 
 def load_method_config(method_name: str) -> dict:
     return load_named_config("methods", method_name)
-

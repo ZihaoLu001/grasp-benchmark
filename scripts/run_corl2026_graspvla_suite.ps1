@@ -1,6 +1,7 @@
 param(
     [string]$Node = "em14",
     [string]$SensorConfig = "track_a_dual_realsense",
+    [string]$ClusterConfig = "default",
     [switch]$SkipBootstrap,
     [switch]$SkipServerValidate,
     [switch]$SkipProtocolAudit
@@ -23,17 +24,17 @@ function Invoke-Step {
 
 if (-not $SkipBootstrap) {
     Invoke-Step -Label "Sync repo and env bootstrap on $Node" -Action {
-        & "$repoRoot\scripts\bootstrap_cluster.ps1" -Node $Node
+        & "$repoRoot\scripts\bootstrap_cluster.ps1" -Node $Node -ClusterConfig $ClusterConfig
     }
 }
 
 if (-not $SkipServerValidate) {
     Invoke-Step -Label "Validate remote GraspVLA server on $Node" -Action {
         @'
-from grasp_benchmark.config import load_named_config
+from grasp_benchmark.config import load_cluster_config, load_named_config
 from grasp_benchmark.serve.graspvla import _validate_remote_server
 
-cluster_config = load_named_config("cluster", "default")
+cluster_config = load_cluster_config("__CLUSTER_CONFIG__")
 method_config = load_named_config("methods", "graspvla")
 ok, payload = _validate_remote_server(
     host="__NODE__",
@@ -47,24 +48,26 @@ ok, payload = _validate_remote_server(
 print({"ok": ok, "payload": payload})
 if not ok:
     raise SystemExit(1)
-'@.Replace("__NODE__", $Node) | python -
+'@.Replace("__NODE__", $Node).Replace("__CLUSTER_CONFIG__", $ClusterConfig) | python -
     }
 }
 
-Invoke-Step -Label "Run GraspVLA Track A-Cal v3" -Action {
+Invoke-Step -Label "Run GraspVLA Main Shared Grasping Benchmark" -Action {
     python -m grasp_benchmark.run.sim `
         --method graspvla `
         --task-set track_a_cal_v3 `
         --sensor-config $SensorConfig `
+        --cluster-config $ClusterConfig `
         --available-nodes "$repoRoot\artifacts\preflight\available_nodes.json" `
         --node $Node
 }
 
-Invoke-Step -Label "Run GraspVLA Track A-Stress v3" -Action {
+Invoke-Step -Label "Run GraspVLA Hard Shared Grasping Stress Test" -Action {
     python -m grasp_benchmark.run.sim `
         --method graspvla `
-        --task-set track_a_stress_v3 `
+        --task-set track_a_stress_v4 `
         --sensor-config $SensorConfig `
+        --cluster-config $ClusterConfig `
         --available-nodes "$repoRoot\artifacts\preflight\available_nodes.json" `
         --node $Node
 }

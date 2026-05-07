@@ -1,4 +1,6 @@
 name: instruction_robustness_v1
+display_name: Older Instruction Robustness Draft
+collaborator_name: Older Instruction Robustness Draft
 track: track_a_instruction
 scene_catalog: graspvla_track_a_playground_cal_v3
 catalog:

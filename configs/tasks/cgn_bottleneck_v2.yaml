@@ -1,4 +1,6 @@
 name: cgn_bottleneck_v2
+display_name: CGN Bottleneck Diagnostic
+collaborator_name: CGN Bottleneck Diagnostic
 track: track_a_diag
 scene_catalog: graspvla_cgn_bottleneck_v2
 catalog:

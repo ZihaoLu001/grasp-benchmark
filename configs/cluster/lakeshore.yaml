@@ -1,0 +1,53 @@
+remote_root: /projects/cs_yifan16_chi/zlu31/grasp-benchmark
+miniforge_root: /projects/cs_yifan16_chi/zlu31/miniforge3
+conda_envs_dir: /projects/cs_yifan16_chi/zlu31/conda_envs
+conda_pkgs_dir: /projects/cs_yifan16_chi/zlu31/conda/pkgs
+cuda_home: /cm/shared/apps/cuda11.8/toolkit/11.8.0
+preferred_dispatch_order:
+  - lakeshore
+pool_hosts:
+  lakeshore:
+    - lakeshore
+known_warnings:
+  lakeshore: login_node_no_visible_gpu_use_slurm_allocation
+source_files:
+  - /etc/profile.d/modules.sh
+module_loads:
+  - slurm/lakeshore/23.02.4
+scheduler:
+  type: slurm
+  account: cs_yifan16_chi
+  partition: batch_gpu2
+  gres: gpu:1
+  cpus_per_task: 2
+  mem: 48G
+  time: "04:00:00"
+  matrix_slots: 4
+prepare_scheduler:
+  type: slurm
+  account: cs_yifan16_chi
+  partition: batch
+  cpus_per_task: 8
+  mem: 64G
+  time: "02:00:00"
+required_bins:
+  - git
+  - python3
+  - sbatch
+  - srun
+  - sinfo
+  - squeue
+optional_bins:
+  - docker
+  - git-lfs
+  - ffmpeg
+  - nvidia-smi
+project_disk_probe: /projects/cs_yifan16_chi/zlu31
+default_server_port: 6666
+default_graspvla_node: lakeshore
+notes:
+  - This config captures the verified Lakeshore login/project paths.
+  - All benchmark code, artifacts, conda environments, and package caches stay under /projects/cs_yifan16_chi/zlu31.
+  - Lakeshore uses Slurm; load slurm/lakeshore/23.02.4 before probing scheduler commands.
+  - The login node does not expose usable GPUs; benchmark workers must run through srun/sbatch allocation.
+  - Verified GPU probe path on 2026-05-06: srun -A cs_yifan16_chi -p batch_gpu2 --gres=gpu:1 nvidia-smi -L.

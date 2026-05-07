@@ -1,4 +1,6 @@
 name: phase2_pilot_v1
+display_name: Task-Oriented Grasping Pilot
+collaborator_name: Task-Oriented Grasping Pilot
 track: track_a_phase2
 scene_catalog: graspvla_phase2_pilot_v1
 catalog:

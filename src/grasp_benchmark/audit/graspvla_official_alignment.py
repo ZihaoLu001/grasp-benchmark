@@ -528,7 +528,7 @@ def _load_track_a_cal_reference() -> dict[str, object]:
         return {
             "evidence_path": str(path),
             "details": (
-                f"Latest formal Track A-Cal run currently shows GraspVLA at "
+                f"Latest formal Main Shared Grasping Benchmark run currently shows GraspVLA at "
                 f"{total_successes}/{total_trials} under the shared benchmark protocol."
             ),
             "graspvla_trials": total_trials,
@@ -539,7 +539,7 @@ def _load_track_a_cal_reference() -> dict[str, object]:
     if not path.exists():
         return {
             "evidence_path": "",
-            "details": "No Track A-Cal summary was found.",
+            "details": "No Main Shared Grasping Benchmark summary was found.",
             "graspvla_trials": 0,
             "graspvla_successes": 0,
             "graspvla_success_rate": 0.0,
@@ -551,7 +551,7 @@ def _load_track_a_cal_reference() -> dict[str, object]:
     success_rate = round(total_successes / total_trials, 4) if total_trials else 0.0
     return {
         "evidence_path": str(path),
-        "details": f"Latest Track A-Cal report still shows GraspVLA at {total_successes}/{total_trials} under the shared benchmark protocol.",
+        "details": f"Latest Main Shared Grasping Benchmark report still shows GraspVLA at {total_successes}/{total_trials} under the shared benchmark protocol.",
         "graspvla_trials": total_trials,
         "graspvla_successes": total_successes,
         "graspvla_success_rate": success_rate,
@@ -624,7 +624,7 @@ def _build_boundary_ledger(
             ),
         },
         {
-            "item": "Track A-Cal shared benchmark",
+            "item": "Main Shared Grasping Benchmark",
             "status_code": "unsupported_or_not_claimable_from_public_release",
             "status_label": BOUNDARY_STATUS_LABELS["unsupported_or_not_claimable_from_public_release"],
             "claim_scope": "Keep provisional only; do not use as the final fair benchmark claim until the current shared-protocol bottleneck is explained.",
@@ -758,7 +758,7 @@ def _markdown_table(headers: list[str], rows: list[list[object]]) -> list[str]:
 
 def _write_docs_snapshots(*, date_token: str, report_text: str, teacher_text: str) -> None:
     _write_text(DOCS_REPORTS_DIR / f"graspvla_release_boundary_{date_token}.md", report_text)
-    _write_text(DOCS_REPORTS_DIR / f"graspvla_release_boundary_{date_token}_zh.md", teacher_text, encoding="utf-8-sig")
+    _write_text(DOCS_REPORTS_DIR / f"graspvla_release_boundary_{date_token}_collaborator.md", teacher_text)
 
 
 def _write_report(
@@ -904,51 +904,50 @@ def _write_report(
     _write_text(audit_root / "internal_summary.md", report_text)
 
     teacher_lines = [
-        "# GraspVLA 公开 release 的能力边界与当前 benchmark 瓶颈",
+        "# GraspVLA Public-Release Boundary and Current Benchmark Bottleneck",
         "",
-        f"- 当前官方边界结论：`{parity_status['status_label']}`。",
-        f"- 当前主要瓶颈：`{primary_bottleneck}`。",
+        f"- Current official-boundary conclusion: `{parity_status['status_label']}`.",
+        f"- Current primary bottleneck: `{primary_bottleneck}`.",
         "",
-        "## 1. 官方 release 当前可稳定支持什么",
+        "## 1. What The Public Release Currently Supports Reliably",
         "",
-        "- `Track B` 官方 native LIBERO/playground 结果可以继续当作公开 release 的原生上限参考，但它不能直接当 shared benchmark 主结论。",
-        "- 当前官方对齐子集已经可以稳定跑完，不再有 setup-level blocker。",
+        "- `Track B` official native LIBERO/playground results can remain the native upper-bound reference for the public release, but they should not be used directly as the shared benchmark conclusion.",
+        "- The official-aligned subset now runs reliably, with no remaining setup-level blocker.",
         "",
-        "## 2. 哪些结果只能算 reproducibility-limited",
+        "## 2. Which Results Remain Reproducibility-Limited",
         "",
     ]
     if str(parity_status["status_code"]) == "reproducibility_limited_parity":
-        teacher_lines.append("- 当前 `official_aligned subset parity` 应标成 `reproducibility-limited parity`：wrapper 剩余 mismatch 数已经和官方自重复漂移同量级。")
+        teacher_lines.append("- Current `official_aligned subset parity` should be labeled `reproducibility-limited parity`: the remaining wrapper mismatch count is on the same order as official self-repeat drift.")
     elif str(parity_status["status_code"]) == "strict_parity_passed":
-        teacher_lines.append("- 当前 `official_aligned subset parity` 已达到严格对齐。")
+        teacher_lines.append("- Current `official_aligned subset parity` has reached strict alignment.")
     else:
-        teacher_lines.append("- 当前 `official_aligned subset parity` 仍未通过，说明 wrapper implementation gap 还没有完全排除。")
+        teacher_lines.append("- Current `official_aligned subset parity` still has not passed, so the wrapper implementation gap has not been fully ruled out.")
     teacher_lines.append(
-        f"- 这轮 `V0a vs V0b` mismatch 为 `{len(v0_repeat_mismatch_rows)}`，`V0a vs V1` mismatch 为 `{len(v1_mismatch_rows)}`，scene overlap 为 `{', '.join(scene_overlap) if scene_overlap else 'none'}`。"
+        f"- This run has `{len(v0_repeat_mismatch_rows)}` `V0a vs V0b` mismatches and `{len(v1_mismatch_rows)}` `V0a vs V1` mismatches; scene overlap is `{', '.join(scene_overlap) if scene_overlap else 'none'}`."
     )
     if force_attribution and str(parity_status["status_code"]) == "parity_failed" and attribution_rows:
-        teacher_lines.append("- 这轮我仍然把 `V2-V5` 跑了出来，但它们现在只能算 provisional factor attribution，不能替代正式 parity gate。")
+        teacher_lines.append("- `V2-V5` were still run in provisional mode, but they should be treated only as provisional factor attribution and not as a replacement for the formal parity gate.")
     teacher_lines.extend(
         [
             "",
-            "## 3. 哪些 benchmark 结论现在还不能 claim",
+            "## 3. Which Benchmark Claims Are Not Ready Yet",
             "",
-            "- 当前 `Track A-Cal` 仍应保留为 provisional，不能拿它直接写成公开 release 在 shared benchmark 下的最终公平结论。",
-            "- 在边界澄清完成前，不继续扩 `Track A-Cal`、不继续做 CGN / AnyGrasp 的 headline compare，也不重新设计 success rule。",
+            "- The Main Shared Grasping Benchmark should remain provisional for this purpose and should not be presented as the final public-release fairness conclusion under the shared benchmark.",
+            "- Until the boundary is clarified, avoid expanding the Main Shared Grasping Benchmark, making CGN / AnyGrasp headline comparisons, or redesigning the success rule based on these provisional results.",
             "",
-            "## 4. 下一步如果要把 Track A 变成可区分 leaderboard，最先该改哪里",
+            "## 4. First Area To Audit Before Turning Track A Into A Discriminative Leaderboard",
             "",
         ]
     )
     if primary_bottleneck == "shared protocol / distribution gap":
-        teacher_lines.append("- 当前证据更支持先审计 shared protocol 和 released distribution 的对齐，而不是继续怀疑 wrapper 大面积实现错误。")
+        teacher_lines.append("- The current evidence supports auditing shared protocol and released-distribution alignment first, rather than assuming a broad wrapper implementation failure.")
     elif primary_bottleneck == "wrapper implementation gap":
-        teacher_lines.append("- 当前最先该修的是 wrapper implementation gap；在它被排除之前，不适合再解释 shared benchmark 结果。")
+        teacher_lines.append("- The first item to repair is the wrapper implementation gap; until it is ruled out, shared benchmark results should not be over-interpreted.")
     else:
-        teacher_lines.append(f"- 当前最先该审的是 `{primary_bottleneck}`，因为它比继续扩 benchmark 更可能解释 `Track A-Cal` 的全零结果。")
+        teacher_lines.append(f"- The first item to audit is `{primary_bottleneck}`, because it is more likely than further benchmark expansion to explain an all-zero Main Shared Grasping Benchmark outcome.")
     teacher_text = "\n".join(teacher_lines) + "\n"
-    _write_text(audit_root / "teacher_summary_zh.md", teacher_text)
-    _write_text(audit_root / "teacher_summary_zh_clean.md", teacher_text, encoding="utf-8-sig")
+    _write_text(audit_root / "collaborator_summary.md", teacher_text)
     _write_docs_snapshots(date_token=date_token, report_text=report_text, teacher_text=teacher_text)
     _write_json(
         audit_root / "report.json",

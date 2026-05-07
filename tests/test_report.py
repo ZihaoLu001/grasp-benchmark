@@ -54,10 +54,10 @@ class ReportTest(unittest.TestCase):
 
             self.assertTrue((output_dir / "summary.csv").exists())
             self.assertTrue((output_dir / "report.md").exists())
-            self.assertTrue((output_dir / "teacher_summary_zh.md").exists())
-            teacher_text = (output_dir / "teacher_summary_zh.md").read_text(encoding="utf-8")
-            self.assertIn("# Benchmark 汇总说明", teacher_text)
-            self.assertIn("`Track A-Cal` 才是 benchmark setting 下用于公平比较的主榜单。", teacher_text)
+            self.assertTrue((output_dir / "collaborator_summary.md").exists())
+            collaborator_text = (output_dir / "collaborator_summary.md").read_text(encoding="utf-8")
+            self.assertIn("# Benchmark Summary", collaborator_text)
+            self.assertIn("Main Shared Grasping Benchmark is the main fair-comparison table", collaborator_text)
 
     def test_aggregate_writes_track_b_reference_section(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -94,7 +94,7 @@ class ReportTest(unittest.TestCase):
 
             report_text = (output_dir / "report.md").read_text(encoding="utf-8")
             self.assertTrue((output_dir / "track_b_reference.csv").exists())
-            self.assertIn("## Track A-Cal Shared Benchmark", report_text)
+            self.assertIn("## Main Shared Grasping Benchmark", report_text)
             self.assertIn("## Track B Native Deployment Reference", report_text)
             self.assertIn("track_b_native", report_text)
             self.assertIn("_No failures recorded._", report_text)
@@ -133,11 +133,11 @@ class ReportTest(unittest.TestCase):
             output_dir = self._run_aggregate(root, "--diagnostic-report", str(diagnostic_report))
 
             report_text = (output_dir / "report.md").read_text(encoding="utf-8")
-            teacher_text = (output_dir / "teacher_summary_zh.md").read_text(encoding="utf-8")
+            collaborator_text = (output_dir / "collaborator_summary.md").read_text(encoding="utf-8")
             report_json = (output_dir / "report.json").read_text(encoding="utf-8")
             self.assertIn("## GraspVLA Diagnostic Note", report_text)
             self.assertIn("- Gripper mismatch is not the main factor.", report_text)
-            self.assertIn("- The gap is not mainly a threshold artifact.", teacher_text)
+            self.assertIn("- The gap is not mainly a threshold artifact.", collaborator_text)
             self.assertIn("diagnostic_note", report_json)
 
     def test_aggregate_embeds_track_a_stress_reference(self) -> None:
@@ -177,11 +177,11 @@ class ReportTest(unittest.TestCase):
             output_dir = self._run_aggregate(root, "--track-a-stress-reference", str(stress_report))
 
             report_text = (output_dir / "report.md").read_text(encoding="utf-8")
-            teacher_text = (output_dir / "teacher_summary_zh.md").read_text(encoding="utf-8")
+            collaborator_text = (output_dir / "collaborator_summary.md").read_text(encoding="utf-8")
             report_json = (output_dir / "report.json").read_text(encoding="utf-8")
-            self.assertIn("## Track A-Stress Shared Stress Test", report_text)
+            self.assertIn("## Hard Shared Grasping Stress Test", report_text)
             self.assertIn("stress_report.json", report_text)
-            self.assertIn("Track A-Stress", teacher_text)
+            self.assertIn("Hard Shared Grasping Stress Test", collaborator_text)
             self.assertIn("track_a_stress_reference", report_json)
 
     def test_aggregate_excludes_interim_rows_from_headline_summary(self) -> None:

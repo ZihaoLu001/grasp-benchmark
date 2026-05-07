@@ -1,4 +1,6 @@
 name: track_a_cal_v1
+display_name: Deprecated Main Benchmark Draft
+collaborator_name: Deprecated Main Benchmark Draft
 track: track_a_cal
 scene_catalog: graspvla_track_a_playground_cal_v1
 catalog:

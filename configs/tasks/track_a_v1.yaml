@@ -1,4 +1,6 @@
 name: track_a_v1
+display_name: Deprecated Shared-Benchmark Draft
+collaborator_name: Deprecated Shared-Benchmark Draft
 track: track_a
 catalog:
   ycb_core:

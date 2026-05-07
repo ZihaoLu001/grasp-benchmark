@@ -279,7 +279,7 @@ def _render_report(
         "",
         "## Headline",
         "",
-        f"- Latest formal `Track A-Cal` reference remains `{track_a_cal_reference['graspvla_successes']}/{track_a_cal_reference['graspvla_trials']}`.",
+        f"- Latest formal Main Shared Grasping Benchmark reference remains `{track_a_cal_reference['graspvla_successes']}/{track_a_cal_reference['graspvla_trials']}`.",
         f"- On the fixed `protocol_probe_v2` suite, the shared baseline reaches `{baseline_row['successes']}/{baseline_row['trials']}`.",
         f"- The weakest single-factor variant is `{weakest_variant['variant']}` at `{weakest_variant['successes']}/{weakest_variant['trials']}`.",
     ]
@@ -355,25 +355,25 @@ def _render_report(
     report_lines.extend(["", f"_Generated under `{root_dir.name}`._"])
 
     teacher_lines = [
-        "# GraspVLA protocol probe v2 总结",
+        "# GraspVLA Protocol Probe v2 Collaborator Summary",
         "",
-        f"- 当前正式 `Track A-Cal` 参考仍然是 `{track_a_cal_reference['graspvla_successes']}/{track_a_cal_reference['graspvla_trials']}`。",
-        f"- 在固定的 `protocol_probe_v2` 套件上，共享基线 `P0_shared_baseline` 的结果是 `{baseline_row['successes']}/{baseline_row['trials']}`。",
-        f"- 这组 probe 只改四类协议因素：视角、attempt budget、success rule、轻微标定扰动。",
-        f"- 当前掉得最厉害的单因子版本是 `{weakest_variant['variant']}`，结果是 `{weakest_variant['successes']}/{weakest_variant['trials']}`。",
+        f"- The formal Main Shared Grasping Benchmark reference remains `{track_a_cal_reference['graspvla_successes']}/{track_a_cal_reference['graspvla_trials']}`.",
+        f"- On the fixed `protocol_probe_v2` suite, the shared baseline `P0_shared_baseline` scored `{baseline_row['successes']}/{baseline_row['trials']}`.",
+        "- This probe changes only four protocol factors: view mode, attempt budget, success rule, and mild calibration perturbation.",
+        f"- The weakest single-factor variant is `{weakest_variant['variant']}`, with `{weakest_variant['successes']}/{weakest_variant['trials']}` successes.",
     ]
     if strongest_drop is not None:
         teacher_lines.append(
-            f"- 相对共享基线，最大的 success-rate drop 出现在 `{strongest_drop['variant']} / {strongest_drop.get('task', 'overall')} / {strongest_drop.get('condition', '')}`，差值是 `{strongest_drop['success_rate_delta']}`。"
+            f"- Relative to the shared baseline, the largest success-rate drop appears in `{strongest_drop['variant']} / {strongest_drop.get('task', 'overall')} / {strongest_drop.get('condition', '')}`, with delta `{strongest_drop['success_rate_delta']}`."
         )
     teacher_lines.extend(
         [
             "",
-            "## 解读口径",
+            "## Interpretation",
             "",
-            "- 这不是新的 benchmark 主榜单，而是 protocol sensitivity audit。",
-            "- 它的作用是回答：在不改方法权重的前提下，协议变化会不会改变 GraspVLA 的表现边界。",
-            "- 后续论文里这部分进入 audit section，不替代 `Track A-Cal` 主公平表。",
+            "- This is not a new primary benchmark leaderboard; it is a protocol-sensitivity audit.",
+            "- It answers whether protocol changes can move GraspVLA's observed performance boundary without changing method weights.",
+            "- In paper-facing material, this belongs in the audit section and should not replace the primary Main Shared Grasping Benchmark fairness table.",
         ]
     )
     return "\n".join(report_lines) + "\n", "\n".join(teacher_lines) + "\n"
@@ -472,8 +472,7 @@ def main() -> None:
     _write_csv(local_root / "condition_delta_vs_baseline.csv", condition_delta_rows)
     _write_csv(local_root / "factor_delta_vs_baseline.csv", factor_delta_rows)
     _write_text(local_root / "report.md", report_text)
-    _write_text(local_root / "teacher_summary_zh.md", teacher_text)
-    _write_text(local_root / "teacher_summary_zh_clean.md", teacher_text, encoding="utf-8-sig")
+    _write_text(local_root / "collaborator_summary.md", teacher_text)
     _write_json(
         local_root / "summary.json",
         {
@@ -490,7 +489,7 @@ def main() -> None:
     )
     docs_dir = _docs_reports_dir()
     _write_text(docs_dir / f"graspvla_protocol_probe_v2_{date_token}.md", report_text)
-    _write_text(docs_dir / f"graspvla_protocol_probe_v2_{date_token}_zh.md", teacher_text, encoding="utf-8-sig")
+    _write_text(docs_dir / f"graspvla_protocol_probe_v2_{date_token}_collaborator.md", teacher_text)
     print(json.dumps({"audit_root": str(local_root), "parent_run_id": parent_run_id}, indent=2))
 
 

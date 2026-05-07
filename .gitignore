@@ -15,6 +15,10 @@ artifacts/*
 !artifacts/.gitkeep
 /.grasp-benchmark-sync.json
 
+docs/reports/
+docs/runbooks/
+docs/slides/
+
 third_party/upstreams/
 third_party/cache/
 *.safetensors

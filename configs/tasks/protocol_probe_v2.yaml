@@ -1,4 +1,6 @@
 name: protocol_probe_v2
+display_name: Protocol Sensitivity Check
+collaborator_name: Protocol Sensitivity Check
 track: track_a_probe
 scene_catalog: graspvla_track_a_playground_probe_v2
 catalog:

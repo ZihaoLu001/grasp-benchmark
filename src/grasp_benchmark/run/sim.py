@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import shlex
 import subprocess
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-from grasp_benchmark.config import load_named_config
+from grasp_benchmark.config import load_cluster_config, load_named_config, resolve_cluster_config_name
 from grasp_benchmark.paths import ARTIFACTS_DIR, ensure_dir
 from grasp_benchmark.provenance import resolve_commit
 from grasp_benchmark.shell import run_command
@@ -62,6 +63,22 @@ def _remote_env_name(method_config: dict, execution_mode: str) -> str:
     if execution_mode in {"shared_track_a_sim", "official_aligned_sim"}:
         return str(method_config.get("official_sim_env_name", method_config["env_name"]))
     return str(method_config["env_name"])
+
+
+def _libero_config_command(remote_root: str, libero_config_root: str) -> str:
+    benchmark_root = f"{remote_root}/third_party/upstreams/GraspVLA-playground/libero/libero"
+    datasets_root = f"{remote_root}/third_party/upstreams/GraspVLA-playground/libero/datasets"
+    config_path = f"{libero_config_root}/config.yaml"
+    return (
+        f'mkdir -p "{libero_config_root}" "{datasets_root}" && '
+        "printf '%s\\n' "
+        f'"assets: {benchmark_root}/assets" '
+        f'"bddl_files: {benchmark_root}/bddl_files" '
+        f'"benchmark_root: {benchmark_root}" '
+        f'"datasets: {datasets_root}" '
+        f'"init_states: {benchmark_root}/init_files" '
+        f'> "{config_path}"'
+    )
 
 
 def _run_dir_name(timestamp: str, method: str, task_set: str, execution_mode: str) -> str:
@@ -120,6 +137,16 @@ def _select_matrix_hosts(
         if not record.get("gpu_names"):
             continue
         selected.append(host)
+    if not selected and not explicit_nodes and not explicit_node:
+        for host in available_nodes.get("dispatch_hosts", []):
+            record = records.get(host)
+            if record is None:
+                continue
+            if str(record.get("status", "")) not in {"available", "warning"}:
+                continue
+            if not record.get("gpu_names"):
+                continue
+            selected.append(str(host))
     if not selected:
         raise RuntimeError("No GPU-backed matrix hosts were available for dispatch.")
     return selected
@@ -135,29 +162,58 @@ def _build_remote_command(
     smoke_only: bool,
     max_trials: int,
     *,
+    cluster_config_name: str = "default",
     shard_index: int = 0,
     shard_count: int = 1,
     gpu_id: str = "",
     parent_run_id: str = "",
+    trace_steps: bool = False,
+    segmentation_mode: str = "",
+    oracle_grasp_mode: str = "",
+    native_multiview_fusion: bool = False,
 ) -> str:
     miniforge_root = cluster_config["miniforge_root"]
     remote_root = cluster_config["remote_root"]
     env_prefix = f'{cluster_config["conda_envs_dir"]}/{_remote_env_name(method_config, execution_mode)}'
     libero_config_root = f'{remote_root}/artifacts/libero_config'
+    cache_root = f'{remote_root}/artifacts/cache'
+    cuda_home = str(cluster_config.get("cuda_home", "")).strip().rstrip("/")
     smoke_flag = "--smoke-only" if smoke_only else ""
     max_trials_flag = f'--max-trials "{max_trials}"' if max_trials > 0 else ""
     shard_index_flag = f'--shard-index "{shard_index}"'
     shard_count_flag = f'--shard-count "{shard_count}"'
     gpu_flag = f'--gpu-id "{gpu_id}"' if gpu_id != "" else ""
     parent_flag = f'--parent-run-id "{parent_run_id}"' if parent_run_id else ""
+    trace_steps_flag = "--trace-steps" if trace_steps else ""
+    segmentation_mode_flag = f'--segmentation-mode "{segmentation_mode}"' if segmentation_mode else ""
+    oracle_grasp_mode_flag = f'--oracle-grasp-mode "{oracle_grasp_mode}"' if oracle_grasp_mode else ""
+    native_multiview_flag = "--native-multiview-fusion" if native_multiview_fusion else ""
+    cuda_exports = (
+        f'export CUDA_HOME="{cuda_home}" && '
+        f'export PATH="{cuda_home}/bin:${{PATH}}" && '
+        f'export LD_LIBRARY_PATH="{cuda_home}/lib64:${{LD_LIBRARY_PATH:-}}" && '
+        if cuda_home
+        else ""
+    )
     return (
         f'mkdir -p "{run_dir}" && '
         f'source "{miniforge_root}/etc/profile.d/conda.sh" && '
         f'conda activate "{env_prefix}" && '
         f'cd "{remote_root}" && '
+        f'{_libero_config_command(remote_root, libero_config_root)} && '
+        f'mkdir -p "{cache_root}/huggingface" "{cache_root}/torch" "{cache_root}/torch_extensions" && '
+        f'{cuda_exports}'
+        f'export XDG_CACHE_HOME="{cache_root}" && '
+        f'export HF_HOME="{cache_root}/huggingface" && '
+        f'export TORCH_HOME="{cache_root}/torch" && '
+        f'export TORCH_EXTENSIONS_DIR="{cache_root}/torch_extensions" && '
         f'export LIBERO_CONFIG_PATH="{libero_config_root}" && '
+        f'export GRASP_BENCHMARK_CLUSTER_CONFIG="{cluster_config_name}" && '
+        f'export GB_FAULTHANDLER_PATH="{run_dir}/faulthandler.log" && '
+        f'export PYTHONUNBUFFERED=1 && '
         f'export PYTHONPATH="{remote_root}/src${{PYTHONPATH:+:${{PYTHONPATH}}}}" && '
-        f'python -m grasp_benchmark.run.worker '
+        f'python -u -m grasp_benchmark.run.worker '
+        f'--cluster-config "{cluster_config_name}" '
         f'--method "{method_config["name"]}" '
         f'--task-set "{task_set}" '
         f'--sensor-config "{sensor_config}" '
@@ -167,9 +223,56 @@ def _build_remote_command(
         f'{shard_count_flag} '
         f'{gpu_flag} '
         f'{parent_flag} '
+        f'{trace_steps_flag} '
+        f'{segmentation_mode_flag} '
+        f'{oracle_grasp_mode_flag} '
+        f'{native_multiview_flag} '
         f'{max_trials_flag} '
-        f'{smoke_flag}'
+        f'{smoke_flag} '
+        f'> "{run_dir}/worker_stdout.log" 2> "{run_dir}/worker_stderr.log"'
     ).strip()
+
+
+def _cluster_setup_commands(cluster_config: dict) -> list[str]:
+    commands: list[str] = []
+    for source_file in cluster_config.get("source_files", []):
+        quoted_source = shlex.quote(str(source_file))
+        commands.append(f"if [ -f {quoted_source} ]; then . {quoted_source}; fi")
+    for module_name in cluster_config.get("module_loads", []):
+        commands.append(f"module load {shlex.quote(str(module_name))}")
+    return commands
+
+
+def _wrap_scheduler_command(cluster_config: dict, remote_command: str) -> str:
+    scheduler = cluster_config.get("scheduler", {})
+    if str(scheduler.get("type", "")).strip().lower() != "slurm":
+        return remote_command
+
+    srun_parts = ["srun", "--wait=0", "--kill-on-bad-exit=1"]
+    account = str(scheduler.get("account", "")).strip()
+    partition = str(scheduler.get("partition", "")).strip()
+    gres = str(scheduler.get("gres", "")).strip()
+    cpus_per_task = str(scheduler.get("cpus_per_task", "")).strip()
+    mem = str(scheduler.get("mem", "")).strip()
+    wall_time = str(scheduler.get("time", "")).strip()
+    if account:
+        srun_parts.extend(["-A", shlex.quote(account)])
+    if partition:
+        srun_parts.extend(["-p", shlex.quote(partition)])
+    if gres:
+        srun_parts.append(f"--gres={shlex.quote(gres)}")
+    if cpus_per_task:
+        srun_parts.append(f"--cpus-per-task={shlex.quote(cpus_per_task)}")
+    if mem:
+        srun_parts.append(f"--mem={shlex.quote(mem)}")
+    if wall_time:
+        srun_parts.append(f"--time={shlex.quote(wall_time)}")
+    srun_parts.extend(["bash", "-lc", shlex.quote(remote_command)])
+    return " && ".join([*_cluster_setup_commands(cluster_config), " ".join(srun_parts)])
+
+
+def _remote_shell_invocation(remote_command: str) -> str:
+    return f"bash -lc {shlex.quote(remote_command)}"
 
 
 def _fetch_remote_results(node: str, remote_run_dir: str, local_run_dir: Path) -> None:
@@ -220,6 +323,11 @@ def _build_matrix_shards(
     explicit_nodes: str,
     explicit_node: str,
     max_shards: int,
+    cluster_config_name: str = "default",
+    trace_steps: bool = False,
+    segmentation_mode: str = "",
+    oracle_grasp_mode: str = "",
+    native_multiview_fusion: bool = False,
 ) -> list[DispatchShard]:
     selected_hosts = _select_matrix_hosts(
         method_name=method_name,
@@ -254,11 +362,17 @@ def _build_matrix_shards(
             execution_mode=execution_mode,
             smoke_only=smoke_only,
             max_trials=max_trials,
+            cluster_config_name=cluster_config_name,
             shard_index=shard_index,
             shard_count=shard_count,
             gpu_id=gpu_id,
             parent_run_id=parent_run_id,
+            trace_steps=trace_steps,
+            segmentation_mode=segmentation_mode,
+            oracle_grasp_mode=oracle_grasp_mode,
+            native_multiview_fusion=native_multiview_fusion,
         )
+        remote_command = _wrap_scheduler_command(cluster_config, remote_command)
         shards.append(
             DispatchShard(
                 shard_index=shard_index,
@@ -285,7 +399,7 @@ def _launch_remote_process(node: str, remote_command: str) -> subprocess.Popen[s
             "-o",
             "BatchMode=yes",
             node,
-            f"bash -lc '{remote_command}'",
+            _remote_shell_invocation(remote_command),
         ],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -322,13 +436,17 @@ def _dispatch_matrix(parent_run_dir: Path, shards: list[DispatchShard], manifest
         stdout, stderr = process.communicate()
         (shard.local_run_dir / "dispatch_stdout.txt").write_text(stdout or "", encoding="utf-8")
         (shard.local_run_dir / "dispatch_stderr.txt").write_text(stderr or "", encoding="utf-8")
-        if process.returncode != 0:
-            failures.append(f"{shard.shard_id}@{shard.node}/gpu{shard.gpu_id}: {stderr or stdout}")
-            continue
+        fetch_failure = ""
         try:
             _fetch_remote_results(shard.node, shard.remote_run_dir, shard.local_run_dir)
         except Exception as exc:
-            failures.append(f"{shard.shard_id}@{shard.node}/gpu{shard.gpu_id}: fetch failed: {exc}")
+            fetch_failure = f"fetch failed: {exc}"
+        if process.returncode != 0:
+            suffix = f"; {fetch_failure}" if fetch_failure else ""
+            failures.append(f"{shard.shard_id}@{shard.node}/gpu{shard.gpu_id}: {stderr or stdout}{suffix}")
+            continue
+        if fetch_failure:
+            failures.append(f"{shard.shard_id}@{shard.node}/gpu{shard.gpu_id}: {fetch_failure}")
 
     completion = {
         "completed_at": datetime.now(timezone.utc).isoformat(),
@@ -369,13 +487,17 @@ def _dispatch_matrix_sequential(parent_run_dir: Path, shards: list[DispatchShard
         stdout, stderr = process.communicate()
         (shard.local_run_dir / "dispatch_stdout.txt").write_text(stdout or "", encoding="utf-8")
         (shard.local_run_dir / "dispatch_stderr.txt").write_text(stderr or "", encoding="utf-8")
-        if process.returncode != 0:
-            failures.append(f"{shard.shard_id}@{shard.node}/gpu{shard.gpu_id}: {stderr or stdout}")
-            continue
+        fetch_failure = ""
         try:
             _fetch_remote_results(shard.node, shard.remote_run_dir, shard.local_run_dir)
         except Exception as exc:
-            failures.append(f"{shard.shard_id}@{shard.node}/gpu{shard.gpu_id}: fetch failed: {exc}")
+            fetch_failure = f"fetch failed: {exc}"
+        if process.returncode != 0:
+            suffix = f"; {fetch_failure}" if fetch_failure else ""
+            failures.append(f"{shard.shard_id}@{shard.node}/gpu{shard.gpu_id}: {stderr or stdout}{suffix}")
+            continue
+        if fetch_failure:
+            failures.append(f"{shard.shard_id}@{shard.node}/gpu{shard.gpu_id}: {fetch_failure}")
 
     completion = {
         "completed_at": datetime.now(timezone.utc).isoformat(),
@@ -405,7 +527,20 @@ def main() -> None:
     parser.add_argument("--dry-run", action="store_true", help="Write the dispatch manifest without executing it.")
     parser.add_argument("--smoke-only", action="store_true", help="Dispatch the remote worker in smoke-only mode.")
     parser.add_argument("--max-trials", type=int, default=0, help="Optional cap on expanded trial count.")
+    parser.add_argument("--trace-steps", action="store_true", help="Ask the remote worker to save per-step diagnostics.")
+    parser.add_argument("--segmentation-mode", default="", help="Optional modular perception mode, e.g. oracle_gt.")
+    parser.add_argument("--oracle-grasp-mode", default="", help="Optional proposal override mode, e.g. topdown_centroid.")
+    parser.add_argument(
+        "--native-multiview-fusion",
+        action="store_true",
+        help="Enable CGN native multi-view fused-depth mode in the remote worker.",
+    )
     parser.add_argument("--execution-mode", default="", help="Execution backend to use.")
+    parser.add_argument(
+        "--cluster-config",
+        default="",
+        help="Cluster config name under configs/cluster. Defaults to GRASP_BENCHMARK_CLUSTER_CONFIG or default.",
+    )
     parser.add_argument("--gpu-id", default="", help="Single-run GPU id forwarded to the remote worker.")
     parser.add_argument("--matrix", action="store_true", help="Dispatch one shard per visible GPU slot.")
     parser.add_argument("--max-shards", type=int, default=0, help="Optional cap on matrix shard count.")
@@ -417,7 +552,8 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    cluster_config = load_named_config("cluster", "default")
+    cluster_config_name = resolve_cluster_config_name(args.cluster_config)
+    cluster_config = load_cluster_config(cluster_config_name)
     method_config = load_named_config("methods", args.method)
     task_config = load_named_config("tasks", args.task_set)
     sensor_cfg = load_named_config("sensors", args.sensor_config)
@@ -440,6 +576,10 @@ def main() -> None:
         "local_run_dir": str(run_dir),
         "smoke_only": args.smoke_only,
         "max_trials": args.max_trials,
+        "trace_steps": args.trace_steps,
+        "segmentation_mode": args.segmentation_mode,
+        "oracle_grasp_mode": args.oracle_grasp_mode,
+        "native_multiview_fusion": args.native_multiview_fusion,
         "local_commit": resolve_commit(),
         "matrix_mode": args.matrix_mode if args.matrix else "single",
         "parent_run_id": parent_run_id,
@@ -461,6 +601,11 @@ def main() -> None:
             explicit_nodes=args.nodes,
             explicit_node=args.node,
             max_shards=args.max_shards,
+            cluster_config_name=cluster_config_name,
+            trace_steps=args.trace_steps,
+            segmentation_mode=args.segmentation_mode,
+            oracle_grasp_mode=args.oracle_grasp_mode,
+            native_multiview_fusion=args.native_multiview_fusion,
         )
         manifest["shards"] = [
             {
@@ -470,6 +615,7 @@ def main() -> None:
                 "gpu_id": shard.gpu_id,
                 "local_run_dir": str(shard.local_run_dir),
                 "remote_run_dir": shard.remote_run_dir,
+                "remote_command": shard.remote_command,
             }
             for shard in shards
         ]
@@ -495,11 +641,17 @@ def main() -> None:
         execution_mode=execution_mode,
         smoke_only=args.smoke_only,
         max_trials=args.max_trials,
+        cluster_config_name=cluster_config_name,
         shard_index=0,
         shard_count=1,
         gpu_id=args.gpu_id,
         parent_run_id=parent_run_id,
+        trace_steps=args.trace_steps,
+        segmentation_mode=args.segmentation_mode,
+        oracle_grasp_mode=args.oracle_grasp_mode,
+        native_multiview_fusion=args.native_multiview_fusion,
     )
+    remote_command = _wrap_scheduler_command(cluster_config, remote_command)
     manifest.update(
         {
             "selected_node": node,
@@ -520,14 +672,21 @@ def main() -> None:
             "-o",
             "BatchMode=yes",
             node,
-            f"bash -lc '{remote_command}'",
+            _remote_shell_invocation(remote_command),
         ]
     )
     (run_dir / "dispatch_stdout.txt").write_text(result.stdout, encoding="utf-8")
     (run_dir / "dispatch_stderr.txt").write_text(result.stderr, encoding="utf-8")
+    fetch_failure = ""
+    try:
+        _fetch_remote_results(node=node, remote_run_dir=remote_run_dir, local_run_dir=run_dir)
+    except Exception as exc:
+        fetch_failure = f"fetch failed: {exc}"
     if not result.ok:
-        raise SystemExit(result.stderr or result.stdout)
-    _fetch_remote_results(node=node, remote_run_dir=remote_run_dir, local_run_dir=run_dir)
+        suffix = f"\n{fetch_failure}" if fetch_failure else ""
+        raise SystemExit(f"{result.stderr or result.stdout}{suffix}")
+    if fetch_failure:
+        raise SystemExit(fetch_failure)
     print(result.stdout.strip() or f"Dispatched run to {node}")
 
 

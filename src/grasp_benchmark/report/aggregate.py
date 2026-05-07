@@ -22,10 +22,10 @@ NUMERIC_FIELDS = {
     "collision": int,
 }
 
-PRIMARY_TITLE = "Track A-Cal Shared Benchmark"
-PRIMARY_BY_CONDITION_TITLE = "Track A-Cal By Condition"
-PRIMARY_BY_OBJECT_GROUP_TITLE = "Track A-Cal By Object Group"
-STRESS_TITLE = "Track A-Stress Shared Stress Test"
+PRIMARY_TITLE = "Main Shared Grasping Benchmark"
+PRIMARY_BY_CONDITION_TITLE = "Main Shared Grasping Benchmark By Condition"
+PRIMARY_BY_OBJECT_GROUP_TITLE = "Main Shared Grasping Benchmark By Object Group"
+STRESS_TITLE = "Hard Shared Grasping Stress Test"
 DIAGNOSTIC_TITLE = "GraspVLA Diagnostic Note"
 TRACK_B_TITLE = "Track B Native Deployment Reference"
 HISTORICAL_TITLE = "Historical / Interim Modular References"
@@ -329,7 +329,7 @@ def _write_markdown(
         lines.extend(
             [
                 "",
-                "_Health check triggered: Track A-Cal is still all-zero across headline methods, so the next action is to audit shared-runner / released-distribution alignment before expanding the benchmark further._",
+                "_Health check triggered: the Main Shared Grasping Benchmark is still all-zero across headline methods, so the next action is to audit shared-runner / released-distribution alignment before expanding the benchmark further._",
             ]
         )
 
@@ -390,7 +390,7 @@ def _write_markdown(
     output.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def _render_teacher_summary(
+def _render_collaborator_summary(
     output: Path,
     summary: list[dict[str, object]],
     by_condition: list[dict[str, object]],
@@ -405,17 +405,17 @@ def _render_teacher_summary(
 ) -> str:
     parent_run_id = ", ".join(parent_run_ids)
     lines = [
-        "# Benchmark 汇总说明",
+        "# Benchmark Summary",
         "",
-        "这份总结把三层结果严格分开：",
-        "- `Track A-Cal`：共享 benchmark setting 下的主公平结论。",
-        "- `Track A-Stress`：共享协议下的压力测试，只做 stress / appendix，不做 headline claim。",
-        "- `Track B`：官方 native reference，只做工程参考，不参与最终公平结论。",
-        "- `Historical / Interim Modular References`：工程调试期的 raw modular 结果，只保留做历史参考。",
+        "This summary keeps the evidence layers separate:",
+        "- Main Shared Grasping Benchmark: the fair-comparison result under the shared benchmark setting.",
+        "- Hard Shared Grasping Stress Test: a shared-protocol stress test used for appendix analysis, not headline claims.",
+        "- Native Reference Appendix: official or native-reference results used for engineering context only.",
+        "- `Historical / Interim Modular References`: raw modular results kept only for historical debugging context.",
         "",
     ]
     if parent_run_id:
-        lines.extend([f"- 当前 `Track A-Cal` 汇总的 `parent_run_id`：`{parent_run_id}`", ""])
+        lines.extend([f"- Included Main Shared Grasping Benchmark parent run id(s): `{parent_run_id}`", ""])
 
     lines.extend([f"## {PRIMARY_TITLE}", ""])
     if summary:
@@ -427,9 +427,9 @@ def _render_teacher_summary(
                 f"mean_inference_ms={row['mean_inference_ms']}, mean_cycle_time_s={row['mean_cycle_time_s']}"
             )
     else:
-        lines.append("- 没有找到符合 `shared_track_a_sim` 的正式 `Track A-Cal` 结果。")
+        lines.append("- No formal Main Shared Grasping Benchmark results matched `shared_track_a_sim`.")
     if summary and all(float(row.get("success_rate", 0.0)) == 0.0 for row in summary):
-        lines.append("- 本轮 `Track A-Cal` 仍然是所有 headline 方法全 0，已经触发 health check。下一步优先做 shared runner 与 released distribution 的对齐审计，而不是继续扩 benchmark。")
+        lines.append("- All headline methods are still at zero on the Main Shared Grasping Benchmark aggregation; run the shared-runner and release-distribution alignment health checks before expanding the benchmark.")
 
     lines.extend(["", f"## {PRIMARY_BY_CONDITION_TITLE}", ""])
     if by_condition:
@@ -439,7 +439,7 @@ def _render_teacher_summary(
                 f"success_rate={row['success_rate']}, trials={row['trials']}"
             )
     else:
-        lines.append("- 暂无按 condition 切分的数据。")
+        lines.append("- No condition breakdown is available.")
 
     lines.extend(["", f"## {PRIMARY_BY_OBJECT_GROUP_TITLE}", ""])
     if by_object_group:
@@ -449,7 +449,7 @@ def _render_teacher_summary(
                 f"success_rate={row['success_rate']}, trials={row['trials']}"
             )
     else:
-        lines.append("- 暂无按 object group 切分的数据。")
+        lines.append("- No object-group breakdown is available.")
 
     lines.extend(["", f"## {HISTORICAL_TITLE}", ""])
     if interim_summary:
@@ -459,7 +459,7 @@ def _render_teacher_summary(
                 f"success_rate={row['success_rate']}, trials={row['trials']}, mean_attempts={row['mean_attempts']}"
             )
     else:
-        lines.append("- 暂无 interim / raw modular 历史参考。")
+        lines.append("- No interim / raw modular historical references are available.")
 
     lines.extend(["", f"## {STRESS_TITLE}", ""])
     if stress_reference_path:
@@ -472,10 +472,10 @@ def _render_teacher_summary(
                 f"mean_attempts={row.get('mean_attempts', '')}"
             )
     else:
-        lines.append("- 未提供 `Track A-Stress` 历史参考结果。")
+        lines.append("- No Hard Shared Grasping Stress Test reference was provided.")
 
     lines.extend(["", f"## {DIAGNOSTIC_TITLE}", ""])
-    lines.extend(diagnostic_note or ["- 暂无诊断说明。"])
+    lines.extend(diagnostic_note or ["- No diagnostic notes were provided."])
 
     lines.extend(["", f"## {TRACK_B_TITLE}", ""])
     if track_b_reference:
@@ -485,18 +485,18 @@ def _render_teacher_summary(
                 f"trials={row['trials']}, source={row['source_artifact']}"
             )
     else:
-        lines.append("- 未提供 `Track B` 官方 reference。")
+        lines.append("- No official native-reference result was provided.")
 
     lines.extend(
         [
             "",
-            "## 解释口径",
+            "## Claim Boundary",
             "",
-            "- `Track A-Cal` 才是 benchmark setting 下用于公平比较的主榜单。",
-            "- `cgn_raw_interim` 这类 raw modular 结果只保留在历史 / appendix，不进入 headline table。",
-            "- `Track A-Stress` 继续保留，但它代表共享协议下的压力测试，不再承担第一页 headline table 的职责。",
-            "- `Track B` 只说明方法在作者原生 / 官方协议下的表现，不用于最终公平 claim。",
-            "- 如果 `Track A-Cal` 再次出现所有方法全 0，就先审计 shared runner 与 released distribution 的对齐，而不是继续扩 benchmark 范围。",
+            "- The Main Shared Grasping Benchmark is the main fair-comparison table under the benchmark setting.",
+            "- Raw modular results such as `cgn_raw_interim` stay in historical or appendix material and do not enter the headline table.",
+            "- The Hard Shared Grasping Stress Test remains a shared-protocol stress test, not a first-page headline table.",
+            "- Native-reference results describe method behavior under native or official protocols and are not used for fair-comparison claims.",
+            "- If the Main Shared Grasping Benchmark returns all-zero headline results again, audit shared-runner and released-distribution alignment before expanding the benchmark scope.",
             "",
         ]
     )
@@ -521,7 +521,7 @@ def main() -> None:
     parser.add_argument(
         "--track-a-stress-reference",
         default="",
-        help="Optional path to a prior aggregate report.json used as the Track A-Stress reference section.",
+        help="Optional path to a prior aggregate report.json used as the Hard Shared Grasping Stress Test reference section.",
     )
     parser.add_argument(
         "--track-a-execution-mode",
@@ -587,8 +587,8 @@ def main() -> None:
         stress_reference=stress_reference,
         stress_reference_path=stress_reference_path,
     )
-    teacher_summary_text = _render_teacher_summary(
-        output_dir / "teacher_summary_zh.md",
+    collaborator_summary_text = _render_collaborator_summary(
+        output_dir / "collaborator_summary.md",
         summary,
         by_condition,
         by_object_group,
@@ -599,8 +599,6 @@ def main() -> None:
         stress_reference=stress_reference,
         stress_reference_path=stress_reference_path,
     )
-    with (output_dir / "teacher_summary_zh_clean.md").open("w", encoding="utf-8-sig") as handle:
-        handle.write(teacher_summary_text)
     (output_dir / "report.json").write_text(
         json.dumps(
             {

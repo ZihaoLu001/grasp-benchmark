@@ -9,7 +9,7 @@ from grasp_benchmark.config import load_named_config
 from grasp_benchmark.paths import ARTIFACTS_DIR, ensure_dir
 from grasp_benchmark.shell import ssh_run
 
-CLUSTER_CUROBO_CUDA_ARCH_LIST = "7.5;8.0"
+CLUSTER_CUROBO_CUDA_ARCH_LIST = "7.5;8.0;8.9;9.0"
 
 
 def _decode_b64(value: str) -> str:
@@ -28,6 +28,7 @@ def _build_remote_script(cluster_config: dict, method_config: dict, *, bootstrap
     libero_config_root = f"{remote_root}/artifacts/libero_config"
     benchmark_root = f"{playground_root}/libero/libero"
     datasets_root = f"{playground_root}/libero/datasets"
+    cuda_home = str(cluster_config.get("cuda_home", "/usr/local/cuda")).rstrip("/")
     arch_export = f'export TORCH_CUDA_ARCH_LIST="${{TORCH_CUDA_ARCH_LIST:-{CLUSTER_CUROBO_CUDA_ARCH_LIST}}}"'
 
     bootstrap_block = ""
@@ -59,11 +60,9 @@ elif replacement not in text:
 setup_path.write_text(text, encoding="utf-8")
 print("PATCHED_CUROBO_SETUP", setup_path)
 PY
-if [ -d "/usr/local/cuda-11.8" ]; then
-  export CUDA_HOME=/usr/local/cuda-11.8
-else
-  export CUDA_HOME="${{CUDA_HOME:-/usr/local/cuda}}"
-fi
+export CUDA_HOME="{cuda_home}"
+export PATH="{cuda_home}/bin:${{PATH}}"
+export LD_LIBRARY_PATH="{cuda_home}/lib64:${{LD_LIBRARY_PATH:-}}"
 export CC="$(command -v x86_64-conda-linux-gnu-gcc || command -v gcc)"
 export CXX="$(command -v x86_64-conda-linux-gnu-g++ || command -v g++)"
 export CUDAHOSTCXX="${{CXX}}"

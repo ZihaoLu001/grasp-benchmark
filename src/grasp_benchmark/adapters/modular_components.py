@@ -178,6 +178,9 @@ def build_shared_pick_plan(
     grasp_offset_m = float(planner_config.get("grasp_offset_m", 0.015))
     lift_height_m = float(planner_config.get("lift_height_m", 0.18))
     pregrasp_min_z_m = float(planner_config.get("pregrasp_min_z_m", 0.0))
+    grasp_min_z_m = float(planner_config.get("grasp_min_z_m", 0.0))
+    grasp_min_z_tolerance_m = max(float(planner_config.get("grasp_min_z_tolerance_m", 0.0)), 0.0)
+    reject_below_table_grasps = bool(planner_config.get("reject_below_table_grasps", False))
     split_hover_waypoints = bool(planner_config.get("split_hover_waypoints", False))
     hover_raise_m = float(planner_config.get("hover_raise_m", 0.08))
     chunk_size_m = float(planner_config.get("chunk_size_m", 0.04))
@@ -186,6 +189,7 @@ def build_shared_pick_plan(
     pregrasp_settle_steps = max(int(planner_config.get("pregrasp_settle_steps", 0)), 0)
     grasp_settle_steps = max(int(planner_config.get("grasp_settle_steps", 0)), 0)
     post_close_settle_steps = max(int(planner_config.get("post_close_settle_steps", 0)), 0)
+    post_lift_hold_steps = max(int(planner_config.get("post_lift_hold_steps", 0)), 0)
     extrinsic_matrix = obs.extrinsics_front.get("matrix")
     if extrinsic_matrix is None:
         raise AdapterExecutionError(
@@ -202,14 +206,6 @@ def build_shared_pick_plan(
     start_pose = np_module.asarray(current_pose, dtype=np_module.float32)
 
     if grasp_matrix_cam is not None:
-        try:
-            import transforms3d as t3d
-        except ImportError as exc:
-            raise AdapterExecutionError(
-                f"Shared modular planner requires transforms3d for grasp-pose execution: {exc}",
-                failure_stage="dependency_setup",
-            ) from exc
-
         grasp_cam = np_module.asarray(grasp_matrix_cam, dtype=np_module.float32)
         if grasp_cam.shape != (4, 4):
             raise AdapterExecutionError(
@@ -223,6 +219,20 @@ def build_shared_pick_plan(
         else:
             grasp_base = grasp_world
         grasp_translation = grasp_base[:3, 3].astype(np_module.float32)
+        if reject_below_table_grasps and float(grasp_translation[2]) < grasp_min_z_m - grasp_min_z_tolerance_m:
+            raise AdapterExecutionError(
+                "Shared modular planner rejected a grasp pose whose target is below the table/workspace floor "
+                f"(target_base_z={float(grasp_translation[2]):.4f}, min_z={grasp_min_z_m:.4f}, "
+                f"tolerance={grasp_min_z_tolerance_m:.4f}).",
+                failure_stage="planner_failure",
+            )
+        try:
+            import transforms3d as t3d
+        except ImportError as exc:
+            raise AdapterExecutionError(
+                f"Shared modular planner requires transforms3d for grasp-pose execution: {exc}",
+                failure_stage="dependency_setup",
+            ) from exc
         grasp_rotation = grasp_base[:3, :3]
         approach_axis = grasp_rotation[:, 2].astype(np_module.float32)
         norm = float(np_module.linalg.norm(approach_axis))
@@ -353,12 +363,15 @@ def build_shared_pick_plan(
             gripper=-1,
         )
     )
+    for _ in range(post_lift_hold_steps):
+        plan.append(Action(ee_delta=(0.0, 0.0, 0.0, 0.0, 0.0, 0.0), gripper=-1))
     if return_debug:
         planner_debug["plan_length"] = len(plan)
         planner_debug["close_steps"] = close_steps
         planner_debug["pregrasp_settle_steps"] = pregrasp_settle_steps
         planner_debug["grasp_settle_steps"] = grasp_settle_steps
         planner_debug["post_close_settle_steps"] = post_close_settle_steps
+        planner_debug["post_lift_hold_steps"] = post_lift_hold_steps
         return plan, planner_debug
     return plan
 
@@ -736,12 +749,20 @@ def _ensure_detector_checkpoint(checkpoint_path: Path, checkpoint_url: str) -> N
     if checkpoint_path.exists():
         return
     checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path: Path | None = None
     try:
         with tempfile.NamedTemporaryFile(delete=False, suffix=checkpoint_path.suffix, dir=checkpoint_path.parent) as handle:
             tmp_path = Path(handle.name)
-        urllib.request.urlretrieve(checkpoint_url, tmp_path)
+        with urllib.request.urlopen(checkpoint_url, timeout=120) as response, tmp_path.open("wb") as output:
+            while True:
+                chunk = response.read(1024 * 1024)
+                if not chunk:
+                    break
+                output.write(chunk)
         tmp_path.replace(checkpoint_path)
     except Exception as exc:
+        if tmp_path is not None:
+            tmp_path.unlink(missing_ok=True)
         raise AdapterExecutionError(
             f"Unable to download the GroundingDINO checkpoint from {checkpoint_url}: {exc}",
             failure_stage="model_assets",

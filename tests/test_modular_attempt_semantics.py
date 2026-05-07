@@ -70,6 +70,27 @@ class _StubModularAdapter(_SharedModularAdapterBase):
         return None
 
 
+class _CandidateRetryAdapter(_StubModularAdapter):
+    def _proposal_payload(self, obs: Observation, perception: PerceptionResult) -> dict:
+        bad_grasp = np.eye(4, dtype=np.float32)
+        bad_grasp[2, 3] = -0.05
+        return {
+            "candidate_grasps": [
+                {
+                    "best_translation": [0.0, 0.0, -0.05],
+                    "best_grasp": bad_grasp.tolist(),
+                    "best_score": 0.9,
+                    "proposal_source": "bad_low_grasp",
+                },
+                {
+                    "best_translation": [0.05, -0.02, 0.12],
+                    "best_score": 0.8,
+                    "proposal_source": "fallback_translation",
+                },
+            ]
+        }
+
+
 class ModularAttemptSemanticsTest(unittest.TestCase):
     def test_single_plan_per_attempt_flips_complete_after_last_action(self) -> None:
         adapter = _StubModularAdapter(
@@ -86,6 +107,28 @@ class ModularAttemptSemanticsTest(unittest.TestCase):
 
         self.assertGreater(len(actions), 0)
         self.assertTrue(adapter.attempt_complete())
+
+    def test_planner_retries_next_candidate_when_first_pose_is_below_table(self) -> None:
+        adapter = _CandidateRetryAdapter(
+            method_config={
+                "name": "stub",
+                "planner": {
+                    "single_plan_per_attempt": True,
+                    "reject_below_table_grasps": True,
+                    "grasp_min_z_m": 0.02,
+                },
+            },
+            sensor_config={},
+        )
+        adapter.setup({})
+        adapter.reset({"instruction": "pick up banana"})
+
+        action = adapter.step(_observation())
+        debug = adapter.latest_debug_payload()
+
+        self.assertGreater(action.ee_delta[0], 0.0)
+        self.assertEqual(debug["planner"]["proposal_source"], "fallback_translation")
+        self.assertIn("skipped_planner_candidates", debug["planner"])
 
 
 if __name__ == "__main__":

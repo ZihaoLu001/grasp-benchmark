@@ -29,6 +29,30 @@ def _require_path(path: Path, *, failure_stage: str, description: str) -> Path:
     return path
 
 
+def _legacy_ld_library_path(legacy_env_prefix: Path, cuda_home: str) -> str:
+    entries: list[str] = []
+    normalized_cuda_home = str(cuda_home or "").rstrip("/")
+    if normalized_cuda_home:
+        entries.append(f"{normalized_cuda_home}/lib64")
+    entries.append((legacy_env_prefix / "lib").as_posix())
+    entries.append((legacy_env_prefix / "lib" / "python3.10" / "site-packages" / "nvidia" / "cudnn" / "lib").as_posix())
+    entries.extend(["/usr/lib64", "/usr/lib/x86_64-linux-gnu"])
+    return ":".join(entries) + "${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+
+
+def _legacy_cuda_visible_devices(runtime_gpu_id: str, environ: dict[str, str] | None = None) -> str:
+    env = os.environ if environ is None else environ
+    inherited = str(env.get("CUDA_VISIBLE_DEVICES", "")).strip()
+    if inherited:
+        return inherited
+    return str(runtime_gpu_id or "0").strip() or "0"
+
+
+def _legacy_runner_timeout_s(runtime_config: dict[str, Any]) -> float:
+    timeout_ms = max(int(runtime_config.get("timeout_ms", 10000)), 0)
+    return max(timeout_ms / 1000.0, 300.0)
+
+
 def _workspace_limits(sensor_config: dict[str, Any]) -> list[float]:
     workspace_cm = sensor_config.get("workspace_cm", {})
     half_x = float(workspace_cm.get("x", 40.0)) / 200.0
@@ -150,6 +174,25 @@ class _SharedModularAdapterBase(AgentAdapter):
         planner_debug["proposal_score"] = float(candidate.get("best_score", 0.0))
         return planned_actions, planner_debug
 
+    def _plan_next_viable_candidate(
+        self,
+        obs: Observation,
+        first_candidate: dict[str, Any],
+    ) -> tuple[dict[str, Any], list[Action], dict[str, Any], list[str]]:
+        candidate = first_candidate
+        skipped: list[str] = []
+        while True:
+            try:
+                planned_actions, planner_debug = self._plan_candidate(obs, candidate)
+                if skipped:
+                    planner_debug["skipped_planner_candidates"] = list(skipped)
+                return candidate, planned_actions, planner_debug, skipped
+            except AdapterExecutionError as exc:
+                if exc.failure_stage != "planner_failure" or not self._candidate_payloads:
+                    raise
+                skipped.append(str(exc))
+                candidate = self._candidate_payloads.pop(0)
+
     def step(self, obs: Observation) -> Action:
         if self._pending_actions:
             action = self._pending_actions.pop(0)
@@ -165,7 +208,7 @@ class _SharedModularAdapterBase(AgentAdapter):
             if self._candidate_payloads:
                 candidate = self._candidate_payloads.pop(0)
                 self._latest_stage_metrics["proposal_nonempty"] = 1
-                planned_actions, planner_debug = self._plan_candidate(obs, candidate)
+                candidate, planned_actions, planner_debug, _skipped = self._plan_next_viable_candidate(obs, candidate)
             else:
                 perception = self._perception.observe(
                     task_spec=self.task_spec,
@@ -180,7 +223,7 @@ class _SharedModularAdapterBase(AgentAdapter):
                 candidates = self._candidate_sequence(payload)
                 candidate = candidates[0]
                 self._candidate_payloads = candidates[1:]
-                planned_actions, planner_debug = self._plan_candidate(obs, candidate)
+                candidate, planned_actions, planner_debug, _skipped = self._plan_next_viable_candidate(obs, candidate)
         except AdapterExecutionError as exc:
             if exc.failure_stage == "grounding_error":
                 self._latest_stage_metrics["grounding_success"] = 0
@@ -383,7 +426,7 @@ class ContactGraspNetAdapter(_SharedModularAdapterBase):
         self._legacy_env_prefix = Path(conda_envs_dir) / legacy_env_name if conda_envs_dir and legacy_env_name else None
         if self._legacy_env_prefix is None or not self._legacy_env_prefix.exists():
             raise AdapterExecutionError(
-                "Contact-GraspNet requires a prepared legacy TensorFlow 2.2 runtime. "
+                "Contact-GraspNet requires a prepared TensorFlow runtime. "
                 "Run python -m grasp_benchmark.prepare_cgn --node <host> --bootstrap-legacy-env first.",
                 failure_stage="legacy_runtime",
             )
@@ -393,6 +436,7 @@ class ContactGraspNetAdapter(_SharedModularAdapterBase):
                 f"Missing Miniforge root required for conda-run bridge: {self._miniforge_root}",
                 failure_stage="legacy_runtime",
             )
+        self._cuda_home = str(config.get("cuda_home", "") or "").rstrip("/")
         self._forward_passes = int(config.get("forward_passes", 1))
         self._z_min = float(config.get("z_min", 0.2))
         self._z_max = float(config.get("z_max", 1.1))
@@ -401,7 +445,9 @@ class ContactGraspNetAdapter(_SharedModularAdapterBase):
         stride_key = "formal_downsample_stride" if is_formal_track_a else "smoke_downsample_stride"
         self._downsample_stride = max(int(self.method_config.get(stride_key, 1)), 1)
         self._gpu_id = str(config.get("gpu_id", "0") or "0")
-        self._native_top_k = max(int(config.get("native_top_k", 1)), 1)
+        self._cuda_visible_devices = _legacy_cuda_visible_devices(self._gpu_id)
+        candidate_top_k = self._planner_config.get("candidate_top_k", 1)
+        self._native_top_k = max(int(config.get("native_top_k", candidate_top_k)), 1)
 
     def _oracle_topdown_payload(self, obs: Observation, perception: PerceptionResult) -> dict[str, Any]:
         points = self._np.asarray(perception.points, dtype=self._np.float32)
@@ -453,6 +499,7 @@ class ContactGraspNetAdapter(_SharedModularAdapterBase):
             tmp_path = Path(tmp_dir)
             input_path = tmp_path / "input.npz"
             output_path = tmp_path / "output.json"
+            trace_path = tmp_path / "trace.json"
             if bool(self.runtime_config.get("native_multiview_fusion", False)):
                 self._np.savez(
                     input_path,
@@ -493,9 +540,10 @@ class ContactGraspNetAdapter(_SharedModularAdapterBase):
                 (
                     'env -u CC -u CXX -u CUDAHOSTCXX '
                     f'PYTHONPATH="{_project_root(self.runtime_config) / "src"}" '
-                    'LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libstdc++.so.6" '
-                    f'LD_LIBRARY_PATH="/usr/lib/x86_64-linux-gnu${{LD_LIBRARY_PATH:+:${{LD_LIBRARY_PATH}}}}" '
-                    f'CUDA_VISIBLE_DEVICES={self._gpu_id} "{self._legacy_env_prefix / "bin" / "python"}" -m grasp_benchmark.runners.contact_graspnet '
+                    f'LD_PRELOAD="{(self._legacy_env_prefix / "lib" / "libstdc++.so.6").as_posix()}" '
+                    f'LD_LIBRARY_PATH="{_legacy_ld_library_path(self._legacy_env_prefix, self._cuda_home)}" '
+                    f'CUDA_HOME="{self._cuda_home}" '
+                    f'CUDA_VISIBLE_DEVICES="{self._cuda_visible_devices}" "{(self._legacy_env_prefix / "bin" / "python").as_posix()}" -m grasp_benchmark.runners.contact_graspnet '
                     f'--input "{input_path}" '
                     f'--output "{output_path}" '
                     f'--upstream-root "{self._upstream_root}" '
@@ -504,7 +552,8 @@ class ContactGraspNetAdapter(_SharedModularAdapterBase):
                     f'--z-min {self._z_min} '
                     f'--z-max {self._z_max} '
                     f'--top-k {self._native_top_k} '
-                    f'--cuda-visible-devices {self._gpu_id}'
+                    f'--cuda-visible-devices "{self._cuda_visible_devices}" '
+                    f'--trace-json "{trace_path}"'
                 ),
             ]
             child_env = {
@@ -528,14 +577,38 @@ class ContactGraspNetAdapter(_SharedModularAdapterBase):
                 }
             }
             child_env["PATH"] = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-            completed = subprocess.run(
-                runner_cmd,
-                capture_output=True,
-                text=True,
-                env=child_env,
-                timeout=max(int(self.runtime_config.get("timeout_ms", 10000)), 300000),
-                check=False,
-            )
+            timeout_s = _legacy_runner_timeout_s(self.runtime_config)
+            try:
+                completed = subprocess.run(
+                    runner_cmd,
+                    capture_output=True,
+                    text=True,
+                    env=child_env,
+                    timeout=timeout_s,
+                    check=False,
+                )
+            except subprocess.TimeoutExpired as exc:
+                debug_dir = _project_root(self.runtime_config) / "artifacts" / "debug" / "cgn_legacy_runtime"
+                debug_dir.mkdir(parents=True, exist_ok=True)
+                with tempfile.NamedTemporaryFile(
+                    mode="w",
+                    delete=False,
+                    encoding="utf-8",
+                    dir=debug_dir,
+                    prefix="cgn_legacy_timeout_",
+                    suffix=".log",
+                ) as handle:
+                    handle.write("COMMAND:\n")
+                    handle.write(" ".join(runner_cmd))
+                    handle.write("\n\nSTDOUT:\n")
+                    handle.write((exc.stdout or b"").decode("utf-8", errors="replace") if isinstance(exc.stdout, bytes) else str(exc.stdout or ""))
+                    handle.write("\n\nSTDERR:\n")
+                    handle.write((exc.stderr or b"").decode("utf-8", errors="replace") if isinstance(exc.stderr, bytes) else str(exc.stderr or ""))
+                    debug_log_path = Path(handle.name)
+                raise AdapterExecutionError(
+                    f"Contact-GraspNet runner timed out after {timeout_s:.1f}s; see {debug_log_path}.",
+                    failure_stage="grasp_proposal",
+                ) from exc
             if completed.returncode != 0:
                 stdout = (completed.stdout or "").strip()
                 stderr = (completed.stderr or "").strip()

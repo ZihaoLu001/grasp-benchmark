@@ -9,6 +9,7 @@ from itertools import combinations
 from pathlib import Path
 from typing import Any
 
+from grasp_benchmark.config import load_named_config
 from grasp_benchmark.paths import ARTIFACTS_DIR, ensure_dir
 from grasp_benchmark.report.stats import build_pair_matrix, exact_mcnemar, paired_bootstrap_delta, wilson_ci
 
@@ -65,13 +66,39 @@ SUBMISSION_EXPECTED_TASK_SETS = {
 }
 
 SUBMISSION_REQUIRED_PARENT_ARGS = {
-    "Track A-Cal": "track_a_cal_parent_run_id",
-    "Track A-Stress": "track_a_stress_parent_run_id",
-    "Instruction Robustness": "instruction_parent_run_id",
+    "Main Shared Grasping Benchmark": "track_a_cal_parent_run_id",
+    "Hard Shared Grasping Stress Test": "track_a_stress_parent_run_id",
+    "Instruction Robustness Check": "instruction_parent_run_id",
     "Sim-to-Real Proxy": "sim2real_parent_run_id",
-    "Phase 2 Pilot": "phase2_parent_run_id",
-    "Track B Native-Like Appendix": "track_b_native_parent_run_id",
+    "Task-Oriented Grasping Pilot": "phase2_parent_run_id",
+    "CGN Native-Reference Appendix": "track_b_native_parent_run_id",
 }
+
+
+def _task_set_display_label(task_set: str) -> str:
+    task_set = str(task_set).strip()
+    if not task_set:
+        return ""
+    try:
+        task_config = load_named_config("tasks", task_set)
+    except FileNotFoundError:
+        return f"`{task_set}`"
+    collaborator_name = str(task_config.get("collaborator_name", "")).strip()
+    display_name = str(task_config.get("display_name", "")).strip()
+    if collaborator_name and display_name and collaborator_name != display_name:
+        return f"{collaborator_name} / {display_name} (`{task_set}`)"
+    if collaborator_name or display_name:
+        return f"{collaborator_name or display_name} (`{task_set}`)"
+    return f"`{task_set}`"
+
+
+def _format_task_set_labels(task_sets: list[str]) -> str:
+    labels = [_task_set_display_label(task_set) for task_set in task_sets]
+    return ", ".join(label for label in labels if label)
+
+
+def _task_set_display_map(task_sets: list[str]) -> dict[str, str]:
+    return {task_set: _task_set_display_label(task_set) for task_set in task_sets}
 
 
 def _infer_method_tier(row: dict[str, object]) -> str:
@@ -602,14 +629,14 @@ def _render_report(
     phase2_task_sets: list[str],
     native_appendix_task_sets: list[str],
 ) -> str:
-    cal_label = "Track A-Cal Shared Benchmark"
-    stress_label = "Track A-Stress Shared Stress Test"
+    cal_label = "Main Shared Grasping Benchmark"
+    stress_label = "Hard Shared Grasping Stress Test"
     protocol_label = "GraspVLA Protocol / Transfer Audit"
-    instruction_label = "Instruction Robustness"
+    instruction_label = "Instruction Robustness Check"
     sim2real_label = "Sim-to-Real Proxy Robustness"
     stage_metrics_label = "Stage-Level Diagnostic Metrics"
-    phase2_label = "Phase 2 Pilot"
-    native_label = "Track B Native-Like Appendix"
+    phase2_label = "Task-Oriented Grasping Pilot"
+    native_label = "CGN Native-Reference Appendix"
     lines = [
         "# CoRL 2026 Simulator Bundle",
         "",
@@ -626,7 +653,7 @@ def _render_report(
         lines.append(f"_parent_run_id(s): `{', '.join(cal_parent_run_ids)}`_")
         lines.append("")
     if cal_task_sets:
-        lines.append(f"_task_set(s): `{', '.join(cal_task_sets)}`_")
+        lines.append(f"_task_set(s): {_format_task_set_labels(cal_task_sets)}_")
         lines.append("")
     lines.extend(
         _markdown_table(
@@ -704,7 +731,7 @@ def _render_report(
         lines.append(f"_parent_run_id(s): `{', '.join(stress_parent_run_ids)}`_")
         lines.append("")
     if stress_task_sets:
-        lines.append(f"_task_set(s): `{', '.join(stress_task_sets)}`_")
+        lines.append(f"_task_set(s): {_format_task_set_labels(stress_task_sets)}_")
         lines.append("")
     lines.extend(
         _markdown_table(
@@ -777,7 +804,7 @@ def _render_report(
             lines.append(f"_parent_run_id(s): `{', '.join(native_appendix_parent_run_ids)}`_")
             lines.append("")
         if native_appendix_task_sets:
-            lines.append(f"_task_set(s): `{', '.join(native_appendix_task_sets)}`_")
+            lines.append(f"_task_set(s): {_format_task_set_labels(native_appendix_task_sets)}_")
             lines.append("")
         lines.extend(
             _markdown_table(
@@ -823,7 +850,7 @@ def _render_report(
         lines.append(f"_parent_run_id(s): `{', '.join(instruction_parent_run_ids)}`_")
         lines.append("")
     if instruction_task_sets:
-        lines.append(f"_task_set(s): `{', '.join(instruction_task_sets)}`_")
+        lines.append(f"_task_set(s): {_format_task_set_labels(instruction_task_sets)}_")
         lines.append("")
     lines.extend(
         _markdown_table(
@@ -847,7 +874,7 @@ def _render_report(
         lines.append(f"_parent_run_id(s): `{', '.join(sim2real_parent_run_ids)}`_")
         lines.append("")
     if sim2real_task_sets:
-        lines.append(f"_task_set(s): `{', '.join(sim2real_task_sets)}`_")
+        lines.append(f"_task_set(s): {_format_task_set_labels(sim2real_task_sets)}_")
         lines.append("")
     lines.extend(
         _markdown_table(
@@ -895,7 +922,7 @@ def _render_report(
         lines.append(f"_parent_run_id(s): `{', '.join(phase2_parent_run_ids)}`_")
         lines.append("")
     if phase2_task_sets:
-        lines.append(f"_task_set(s): `{', '.join(phase2_task_sets)}`_")
+        lines.append(f"_task_set(s): {_format_task_set_labels(phase2_task_sets)}_")
         lines.append("")
     lines.extend(
         _markdown_table(
@@ -916,7 +943,7 @@ def _render_report(
     return "\n".join(lines) + "\n"
 
 
-def _render_teacher_summary(
+def _render_collaborator_summary(
     *,
     cal_summary: list[dict[str, object]],
     stress_summary: list[dict[str, object]],
@@ -948,179 +975,76 @@ def _render_teacher_summary(
             if not method or not task:
                 continue
             output.append(
-                f"- {label}: `{method}` 在 `{task}` 上为 `{row.get('successes', 0)}/{row.get('trials', 0)}` "
-                f"(`{row.get('success_rate', 0.0)}`)"
-            )
-        return output
-
-    lines = [
-        "# CoRL 2026 仿真阶段总结",
-        "",
-        "- 论文 framing 固定为 `shared benchmark + protocol audit`，不是只看 scoreboard，也不是只做 release 诊断。",
-        "- `Track A-Cal v3` 是唯一 headline fair table；`Track A-Stress v4`、instruction robustness、sim-to-real proxy、Phase 2 pilot 和 `Track B` 都是补强层。",
-        "- `AnyGrasp` 在没有 node-matched 新 license 前不进入 submission 版主结论。",
-    ]
-    if total_cal_trials:
-        lines.append(f"- 当前主榜单累计写入 `{total_cal_successes}/{total_cal_trials}` 的正式 paired 结果。")
-    if total_stress_trials:
-        lines.append(f"- 当前 hardest-slice appendix 已累计写入 `{total_stress_successes}/{total_stress_trials}` 的结果。")
-    if cal_task_sets:
-        lines.append(f"- 当前主榜单 task set: `{', '.join(cal_task_sets)}`。")
-    if stress_task_sets:
-        lines.append(f"- 当前 stress task set: `{', '.join(stress_task_sets)}`。")
-    if instruction_task_sets:
-        lines.append(f"- 当前 instruction robustness task set: `{', '.join(instruction_task_sets)}`。")
-    if sim2real_task_sets:
-        lines.append(f"- 当前 sim-to-real proxy task set: `{', '.join(sim2real_task_sets)}`。")
-    if phase2_task_sets:
-        lines.append(f"- 当前 phase 2 pilot task set: `{', '.join(phase2_task_sets)}`。")
-    if pairwise_stats:
-        best = pairwise_stats[0]
-        lines.append(
-            f"- 当前 paper bundle 已输出配对统计：`{best['method_a']} vs {best['method_b']}` 有 `{best['paired_scenes']}` 个 paired scenes，McNemar exact p 值为 `{best['mcnemar_p_exact']}`。"
-        )
-    if protocol_probe:
-        lines.append("- GraspVLA 的 protocol / transfer audit 单独进入 audit section，不混入 headline 结果。")
-    if cgn_bottleneck:
-        lines.append("- CGN bottleneck 会拆开 grounding、proposal、planning 和 strict success semantics 来解释，不把低分归因成一个简单配置错误。")
-    if instruction_summary:
-        lines.append(
-            f"- instruction robustness 已进入 bundle，当前共有 `{sum(int(row.get('trials', 0)) for row in instruction_summary)}` 个方法-变体汇总单元。"
-        )
-    if sim2real_summary:
-        lines.append(
-            f"- sim-to-real proxy 已进入 bundle，当前共有 `{sum(int(row.get('trials', 0)) for row in sim2real_summary)}` 个方法-扰动汇总单元。"
-        )
-    if phase2_summary:
-        lines.append(
-            f"- Phase 2 pilot 已进入 extension section，当前共有 `{sum(int(row.get('trials', 0)) for row in phase2_summary)}` 个方法-任务汇总单元。"
-        )
-    if track_b_reference:
-        lines.append("- `Track B` 继续只保留 native reference，用来解释公开 release 的能力上限，不参与公平主结论。")
-    if native_appendix_summary:
-        lines.append("- `CGN native-like appendix` 已经接入 bundle，用来回答 modular baseline 是否只是因为 shared lane 才显得过低。")
-    if native_appendix_task_sets:
-        lines.append(f"- 当前 native-like appendix task set: `{', '.join(native_appendix_task_sets)}`。")
-    lines.extend(
-        [
-            "",
-            "## 这份 bundle 的用途",
-            "",
-            "- `paper_ready_report.md` 直接用于论文写作、组会汇报和导师过稿。",
-            "- `paper_summary.csv` 与 `paper_stats.json` 提供主表、统计检验和 appendix 的结构化数据。",
-            "- `figures/` 下的 CSV 可直接喂给后续画图脚本。",
-            "",
-            "## 主结果快照",
-            "",
-        ]
-    )
-    lines.extend(_snapshot(cal_summary, "Track A-Cal"))
-    lines.extend(_snapshot(stress_summary, "Track A-Stress"))
-    return "\n".join(lines) + "\n"
-
-
-def _render_teacher_summary_clean(
-    *,
-    cal_summary: list[dict[str, object]],
-    stress_summary: list[dict[str, object]],
-    instruction_summary: list[dict[str, object]],
-    sim2real_summary: list[dict[str, object]],
-    phase2_summary: list[dict[str, object]],
-    native_appendix_summary: list[dict[str, object]],
-    pairwise_stats: list[dict[str, object]],
-    protocol_probe: dict[str, object],
-    cgn_bottleneck: dict[str, object],
-    track_b_reference: list[dict[str, object]],
-    cal_task_sets: list[str],
-    stress_task_sets: list[str],
-    instruction_task_sets: list[str],
-    sim2real_task_sets: list[str],
-    phase2_task_sets: list[str],
-    native_appendix_task_sets: list[str],
-) -> str:
-    total_cal_trials = sum(int(row.get("trials", 0)) for row in cal_summary)
-    total_cal_successes = sum(int(row.get("successes", 0)) for row in cal_summary)
-    total_stress_trials = sum(int(row.get("trials", 0)) for row in stress_summary)
-    total_stress_successes = sum(int(row.get("successes", 0)) for row in stress_summary)
-
-    def _snapshot(rows: list[dict[str, object]], label: str) -> list[str]:
-        output: list[str] = []
-        for row in rows:
-            method = str(row.get("method_tier", "")).strip()
-            task = str(row.get("task", "")).strip()
-            if not method or not task:
-                continue
-            output.append(
-                f"- {label}: `{method}` 在 `{task}` 上为 "
+                f"- {label}: `{method}` scored "
                 f"`{row.get('successes', 0)}/{row.get('trials', 0)}` (`{row.get('success_rate', 0.0)}`)"
             )
         return output
 
     lines = [
-        "# CoRL 2026 仿真阶段总结",
+        "# CoRL 2026 Simulation Summary",
         "",
-        "- 论文 framing 固定为 `shared benchmark + protocol audit`，不是只看 scoreboard，也不是只做 release 诊断。",
-        "- `Track A-Cal v3` 是唯一 headline fair table；`Track A-Stress v4`、instruction robustness、sim-to-real proxy、Phase 2 pilot 和 `Track B` 都是补强层。",
-        "- `AnyGrasp` 在没有 node-matched 新 license 前不进入 submission 版主结论。",
+        "- The paper framing is fixed as `shared benchmark + protocol audit`, not a scoreboard-only report or a release-only diagnosis.",
+        "- The Main Shared Grasping Benchmark is the only headline fair-comparison table; the hard stress test, instruction robustness check, sim-to-real proxy, task-oriented pilot, and `Track B` are supporting sections.",
+        "- `AnyGrasp` stays out of the submission claims until a fresh node-matched license is available.",
     ]
     if total_cal_trials:
-        lines.append(f"- 当前主榜单累计写入 `{total_cal_successes}/{total_cal_trials}` 的正式 paired 结果。")
+        lines.append(f"- The current headline table contains `{total_cal_successes}/{total_cal_trials}` paired results.")
     if total_stress_trials:
-        lines.append(f"- 当前 hardest-slice appendix 累计写入 `{total_stress_successes}/{total_stress_trials}` 的结果。")
+        lines.append(f"- The hard stress appendix contains `{total_stress_successes}/{total_stress_trials}` results.")
     if cal_task_sets:
-        lines.append(f"- 当前主榜单 task set: `{', '.join(cal_task_sets)}`。")
+        lines.append(f"- Headline task set: {_format_task_set_labels(cal_task_sets)}.")
     if stress_task_sets:
-        lines.append(f"- 当前 stress task set: `{', '.join(stress_task_sets)}`。")
+        lines.append(f"- Hard stress task set: {_format_task_set_labels(stress_task_sets)}.")
     if instruction_task_sets:
-        lines.append(f"- 当前 instruction robustness task set: `{', '.join(instruction_task_sets)}`。")
+        lines.append(f"- Instruction robustness task set: {_format_task_set_labels(instruction_task_sets)}.")
     if sim2real_task_sets:
-        lines.append(f"- 当前 sim-to-real proxy task set: `{', '.join(sim2real_task_sets)}`。")
+        lines.append(f"- Sim-to-real proxy task set: {_format_task_set_labels(sim2real_task_sets)}.")
     if phase2_task_sets:
-        lines.append(f"- 当前 Phase 2 pilot task set: `{', '.join(phase2_task_sets)}`。")
+        lines.append(f"- Task-oriented pilot task set: {_format_task_set_labels(phase2_task_sets)}.")
     if pairwise_stats:
         best = pairwise_stats[0]
         lines.append(
-            f"- 当前 paper bundle 已输出配对统计：`{best['method_a']} vs {best['method_b']}` "
-            f"共有 `{best['paired_scenes']}` 个 paired scenes，McNemar exact p 值为 `{best['mcnemar_p_exact']}`。"
+            f"- The paper bundle includes paired statistics for `{best['method_a']} vs {best['method_b']}` "
+            f"with `{best['paired_scenes']}` paired scenes and McNemar exact p `{best['mcnemar_p_exact']}`."
         )
     if protocol_probe:
-        lines.append("- GraspVLA 的 protocol / transfer audit 单独进入 audit section，不混入 headline 结果。")
+        lines.append("- The GraspVLA protocol / transfer audit belongs in the audit section, separate from the headline table.")
     if cgn_bottleneck:
-        lines.append("- CGN bottleneck 会拆开 grounding、proposal、planning 和 strict success semantics 来解释，不把低分归因成一个简单配置错误。")
+        lines.append("- The CGN bottleneck audit separates grounding, proposal, planning, and strict success semantics instead of reducing the low score to a single configuration issue.")
     if instruction_summary:
         lines.append(
-            f"- instruction robustness 已进入 bundle，当前共有 `{sum(int(row.get('trials', 0)) for row in instruction_summary)}` 个方法-变体汇总单元。"
+            f"- Instruction robustness is included with `{sum(int(row.get('trials', 0)) for row in instruction_summary)}` method-variant summary units."
         )
     if sim2real_summary:
         lines.append(
-            f"- sim-to-real proxy 已进入 bundle，当前共有 `{sum(int(row.get('trials', 0)) for row in sim2real_summary)}` 个方法-扰动汇总单元。"
+            f"- The sim-to-real proxy is included with `{sum(int(row.get('trials', 0)) for row in sim2real_summary)}` method-shift summary units."
         )
     if phase2_summary:
         lines.append(
-            f"- Phase 2 pilot 已进入 extension section，当前共有 `{sum(int(row.get('trials', 0)) for row in phase2_summary)}` 个方法-任务汇总单元。"
+            f"- The task-oriented pilot is included with `{sum(int(row.get('trials', 0)) for row in phase2_summary)}` method-task summary units."
         )
     if track_b_reference:
-        lines.append("- `Track B` 继续只保留 native reference，用来解释公开 release 的能力上限，不参与公平主结论。")
+        lines.append("- `Track B` remains a native-reference section and is not mixed into fair-comparison claims.")
     if native_appendix_summary:
-        lines.append("- `CGN native-like appendix` 已经接入 bundle，用来回答 modular baseline 是否只是因为 shared lane 才显得过低。")
+        lines.append("- The CGN native-reference appendix is included to test whether the modular baseline only looks weak because of the shared lane.")
     if native_appendix_task_sets:
-        lines.append(f"- 当前 native-like appendix task set: `{', '.join(native_appendix_task_sets)}`。")
+        lines.append(f"- CGN native-reference appendix task set: {_format_task_set_labels(native_appendix_task_sets)}.")
 
     lines.extend(
         [
             "",
-            "## 这份 bundle 的用途",
+            "## Intended Use",
             "",
-            "- `paper_ready_report.md` 直接用于论文写作、组会汇报和导师过稿。",
-            "- `paper_summary.csv` 与 `paper_stats.json` 提供主表、统计检验和 appendix 的结构化数据。",
-            "- `figures/` 下的 CSV 可直接喂给后续画图脚本。",
+            "- `paper_ready_report.md` is the prose source for paper drafting and collaborator review.",
+            "- `paper_summary.csv` and `paper_stats.json` provide structured data for tables, statistics, and appendices.",
+            "- CSV files under `figures/` are ready for plotting scripts.",
             "",
-            "## 主结果快照",
+            "## Result Snapshot",
             "",
         ]
     )
-    lines.extend(_snapshot(cal_summary, "Track A-Cal"))
-    lines.extend(_snapshot(stress_summary, "Track A-Stress"))
+    lines.extend(_snapshot(cal_summary, "Main Shared Grasping Benchmark"))
+    lines.extend(_snapshot(stress_summary, "Hard Shared Grasping Stress Test"))
     return "\n".join(lines) + "\n"
 
 
@@ -1217,7 +1141,7 @@ def main() -> None:
     )
 
     if not cal_rows:
-        raise SystemExit("No Track A-Cal rows matched the requested execution mode / parent_run_id filter.")
+        raise SystemExit("No Main Shared Grasping Benchmark rows matched the requested execution mode / parent_run_id filter.")
 
     cal_task_sets = sorted({str(row.get("task_set", "")).strip() for row in cal_rows if str(row.get("task_set", "")).strip()})
     stress_task_sets = sorted({str(row.get("task_set", "")).strip() for row in stress_rows if str(row.get("task_set", "")).strip()})
@@ -1233,26 +1157,26 @@ def main() -> None:
     )
 
     if args.submission_mode:
-        _validate_nonempty_rows(cal_rows, section="Track A-Cal")
-        _validate_nonempty_rows(stress_rows, section="Track A-Stress")
-        _validate_nonempty_rows(instruction_rows, section="Instruction Robustness")
+        _validate_nonempty_rows(cal_rows, section="Main Shared Grasping Benchmark")
+        _validate_nonempty_rows(stress_rows, section="Hard Shared Grasping Stress Test")
+        _validate_nonempty_rows(instruction_rows, section="Instruction Robustness Check")
         _validate_nonempty_rows(sim2real_rows, section="Sim-to-Real Proxy")
-        _validate_nonempty_rows(phase2_rows, section="Phase 2 Pilot")
-        _validate_nonempty_rows(native_appendix_rows, section="Track B Native-Like Appendix")
+        _validate_nonempty_rows(phase2_rows, section="Task-Oriented Grasping Pilot")
+        _validate_nonempty_rows(native_appendix_rows, section="CGN Native-Reference Appendix")
 
-        _validate_expected_task_set(cal_rows, track="track_a_cal", section="Track A-Cal")
-        _validate_expected_task_set(stress_rows, track="track_a_stress", section="Track A-Stress")
-        _validate_expected_task_set(instruction_rows, track="track_a_instruction", section="Instruction Robustness")
+        _validate_expected_task_set(cal_rows, track="track_a_cal", section="Main Shared Grasping Benchmark")
+        _validate_expected_task_set(stress_rows, track="track_a_stress", section="Hard Shared Grasping Stress Test")
+        _validate_expected_task_set(instruction_rows, track="track_a_instruction", section="Instruction Robustness Check")
         _validate_expected_task_set(sim2real_rows, track="track_a_transfer", section="Sim-to-Real Proxy")
-        _validate_expected_task_set(phase2_rows, track="track_a_phase2", section="Phase 2 Pilot")
-        _validate_expected_task_set(native_appendix_rows, track="track_b_native", section="Track B Native-Like Appendix")
+        _validate_expected_task_set(phase2_rows, track="track_a_phase2", section="Task-Oriented Grasping Pilot")
+        _validate_expected_task_set(native_appendix_rows, track="track_b_native", section="CGN Native-Reference Appendix")
 
-        _validate_stage_metrics_complete(cal_rows, section="Track A-Cal")
-        _validate_stage_metrics_complete(stress_rows, section="Track A-Stress")
-        _validate_stage_metrics_complete(instruction_rows, section="Instruction Robustness")
+        _validate_stage_metrics_complete(cal_rows, section="Main Shared Grasping Benchmark")
+        _validate_stage_metrics_complete(stress_rows, section="Hard Shared Grasping Stress Test")
+        _validate_stage_metrics_complete(instruction_rows, section="Instruction Robustness Check")
         _validate_stage_metrics_complete(sim2real_rows, section="Sim-to-Real Proxy")
-        _validate_stage_metrics_complete(phase2_rows, section="Phase 2 Pilot")
-        _validate_stage_metrics_complete(native_appendix_rows, section="Track B Native-Like Appendix")
+        _validate_stage_metrics_complete(phase2_rows, section="Task-Oriented Grasping Pilot")
+        _validate_stage_metrics_complete(native_appendix_rows, section="CGN Native-Reference Appendix")
 
     cal_summary = _aggregate(cal_rows, ["track", "method", "method_tier", "task"])
     cal_by_condition = _aggregate(cal_rows, ["track", "method", "method_tier", "task", "condition"])
@@ -1298,6 +1222,7 @@ def main() -> None:
         "track_a_cal": {
             "parent_run_ids": cal_parent_run_ids,
             "task_sets": cal_task_sets,
+            "task_set_labels": _task_set_display_map(cal_task_sets),
             "summary": cal_summary,
             "by_condition": cal_by_condition,
             "by_object_group": cal_by_object_group,
@@ -1305,6 +1230,7 @@ def main() -> None:
         "track_a_stress": {
             "parent_run_ids": stress_parent_run_ids,
             "task_sets": stress_task_sets,
+            "task_set_labels": _task_set_display_map(stress_task_sets),
             "summary": stress_summary,
             "by_condition": stress_by_condition,
             "by_object_group": stress_by_object_group,
@@ -1312,22 +1238,26 @@ def main() -> None:
         "instruction_robustness": {
             "parent_run_ids": instruction_parent_run_ids,
             "task_sets": instruction_task_sets,
+            "task_set_labels": _task_set_display_map(instruction_task_sets),
             "summary": instruction_summary,
         },
         "sim2real_proxy": {
             "parent_run_ids": sim2real_parent_run_ids,
             "task_sets": sim2real_task_sets,
+            "task_set_labels": _task_set_display_map(sim2real_task_sets),
             "summary": sim2real_summary,
             "rank_stability": sim2real_rank_stability,
         },
         "phase2_pilot": {
             "parent_run_ids": phase2_parent_run_ids,
             "task_sets": phase2_task_sets,
+            "task_set_labels": _task_set_display_map(phase2_task_sets),
             "summary": phase2_summary,
         },
         "track_b_native_appendix": {
             "parent_run_ids": native_appendix_parent_run_ids,
             "task_sets": native_appendix_task_sets,
+            "task_set_labels": _task_set_display_map(native_appendix_task_sets),
             "summary": native_appendix_summary,
             "by_condition": native_appendix_by_condition,
         },
@@ -1378,7 +1308,7 @@ def main() -> None:
         ),
         encoding="utf-8",
     )
-    teacher_summary = _render_teacher_summary_clean(
+    collaborator_summary = _render_collaborator_summary(
         cal_summary=cal_summary,
         stress_summary=stress_summary,
         instruction_summary=instruction_summary,
@@ -1396,31 +1326,7 @@ def main() -> None:
         phase2_task_sets=phase2_task_sets,
         native_appendix_task_sets=native_appendix_task_sets,
     )
-    (output_dir / "teacher_summary_zh.md").write_text(
-        teacher_summary,
-        encoding="utf-8-sig",
-    )
-    (output_dir / "teacher_summary_zh_clean.md").write_text(
-        _render_teacher_summary_clean(
-            cal_summary=cal_summary,
-            stress_summary=stress_summary,
-            instruction_summary=instruction_summary,
-            sim2real_summary=sim2real_summary,
-            phase2_summary=phase2_summary,
-            native_appendix_summary=native_appendix_summary,
-            pairwise_stats=pairwise_stats,
-            protocol_probe=protocol_probe,
-            cgn_bottleneck=cgn_bottleneck,
-            track_b_reference=track_b_reference,
-            cal_task_sets=cal_task_sets,
-            stress_task_sets=stress_task_sets,
-            instruction_task_sets=instruction_task_sets,
-            sim2real_task_sets=sim2real_task_sets,
-            phase2_task_sets=phase2_task_sets,
-            native_appendix_task_sets=native_appendix_task_sets,
-        ),
-        encoding="utf-8",
-    )
+    (output_dir / "collaborator_summary.md").write_text(collaborator_summary, encoding="utf-8")
 
     _write_csv(figures_dir / "track_a_cal_summary.csv", cal_summary)
     _write_csv(figures_dir / "track_a_cal_by_condition.csv", cal_by_condition)

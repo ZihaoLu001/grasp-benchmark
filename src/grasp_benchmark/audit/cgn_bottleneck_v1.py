@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-from grasp_benchmark.config import load_named_config
+from grasp_benchmark.config import load_cluster_config, load_named_config, resolve_cluster_config_name
 from grasp_benchmark.paths import ARTIFACTS_DIR, PROJECT_ROOT, ensure_dir
 from grasp_benchmark.provenance import resolve_commit
 from grasp_benchmark.shell import run_command
@@ -75,6 +75,7 @@ def _build_remote_command(
     parent_run_id: str,
     remote_output_dir: str,
     scene_ids: str,
+    cluster_config_name: str = "default",
 ) -> str:
     miniforge_root = cluster_config["miniforge_root"]
     env_prefix = f'{cluster_config["conda_envs_dir"]}/{method_config["env_name"]}'
@@ -87,8 +88,10 @@ def _build_remote_command(
         f'source "{miniforge_root}/etc/profile.d/conda.sh" && '
         f'conda activate "{env_prefix}" && '
         f'cd "{remote_root}" && '
+        f'export GRASP_BENCHMARK_CLUSTER_CONFIG="{cluster_config_name}" && '
         f'export PYTHONPATH="{remote_root}/src${{PYTHONPATH:+:${{PYTHONPATH}}}}" && '
         f'python -m grasp_benchmark.run.worker '
+        f'--cluster-config "{cluster_config_name}" '
         f'--method "cgn" '
         f'--task-set "{task_set}" '
         f'--sensor-config "{sensor_config_name}" '
@@ -340,18 +343,18 @@ def _render_report(
     report_lines.extend(["", f"_Generated under `{root_dir.name}`._"])
 
     teacher_lines = [
-        "# CGN bottleneck v1 总结",
+        "# CGN Bottleneck v1 Summary",
         "",
-        f"- 当前 shared CGN 基线 `D0` 的结果是 `{d0['successes']}/{d0['trials']}`。",
-        f"- `D0 -> D1` 量化的是 detector / segmentation 误差，success-rate 变化是 `{d1_delta['success_rate_delta']:+.4f}`。",
-        f"- `D1 -> D2` 量化的是 grasp proposal 误差，success-rate 变化是 `{d2_delta['success_rate_delta']:+.4f}`。",
-        f"- `D0 -> D3` 量化的是 strict success semantics，success-rate 变化是 `{d3_delta['success_rate_delta']:+.4f}`。",
-        f"- 即使把 perception 和 grasp proposal 都做成 oracle，`D2` 也只有 `{d2['successes']}/{d2['trials']}`，说明剩余瓶颈还在 planner / execution / shared control mismatch 这一层。",
+        f"- The shared CGN baseline `D0` scored `{d0['successes']}/{d0['trials']}`.",
+        f"- `D0 -> D1` quantifies detector / segmentation error; the success-rate delta is `{d1_delta['success_rate_delta']:+.4f}`.",
+        f"- `D1 -> D2` quantifies grasp proposal error; the success-rate delta is `{d2_delta['success_rate_delta']:+.4f}`.",
+        f"- `D0 -> D3` quantifies strict success semantics; the success-rate delta is `{d3_delta['success_rate_delta']:+.4f}`.",
+        f"- Even with oracle perception and grasp proposal, `D2` reaches only `{d2['successes']}/{d2['trials']}`, leaving planner / execution / shared-control mismatch as the remaining bottleneck.",
         "",
-        "## 论文口径",
+        "## Paper Claim",
         "",
-        "- 这组实验不是为了替 CGN 提分，而是为了把 shared-lane 的低分拆解成可解释的阶段性瓶颈。",
-        "- 论文里它进入 modular bottleneck section，用来支持“CGN shared-lane gap 既有真实方法差异，也有可量化的 pipeline bottleneck”这个主张。",
+        "- This audit is not intended to tune CGN upward; it decomposes the shared-lane low score into interpretable stage bottlenecks.",
+        "- In the paper, it belongs in the modular bottleneck section and supports the claim that the CGN shared-lane gap reflects both method differences and measurable pipeline bottlenecks.",
     ]
     return "\n".join(report_lines) + "\n", "\n".join(teacher_lines) + "\n"
 
@@ -362,9 +365,16 @@ def main() -> None:
     parser.add_argument("--sensor-config", default="track_a_dual_realsense")
     parser.add_argument("--scene-ids", default="", help="Optional comma-separated scene ids for smoke runs.")
     parser.add_argument("--task-set", default="cgn_bottleneck_v1")
+    parser.add_argument("--dry-run", action="store_true", help="Write remote commands without executing them.")
+    parser.add_argument(
+        "--cluster-config",
+        default="",
+        help="Cluster config name under configs/cluster. Defaults to GRASP_BENCHMARK_CLUSTER_CONFIG or default.",
+    )
     args = parser.parse_args()
 
-    cluster_config = load_named_config("cluster", "default")
+    cluster_config_name = resolve_cluster_config_name(args.cluster_config)
+    cluster_config = load_cluster_config(cluster_config_name)
     method_config = load_named_config("methods", "cgn")
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     date_token = timestamp[:8]
@@ -377,8 +387,10 @@ def main() -> None:
         "node": args.node,
         "sensor_config": args.sensor_config,
         "task_set": args.task_set,
+        "cluster_config": cluster_config_name,
         "parent_run_id": parent_run_id,
         "scene_ids_filter": args.scene_ids,
+        "dry_run": args.dry_run,
         "variants": [
             {
                 "name": variant.name,
@@ -395,6 +407,7 @@ def main() -> None:
     variant_rows: dict[str, list[dict[str, str]]] = {}
     summary_rows: list[dict[str, object]] = []
     by_task_rows: list[dict[str, object]] = []
+    variant_commands: list[dict[str, str]] = []
 
     for variant in VARIANTS:
         local_variant_dir = ensure_dir(local_root / variant.name)
@@ -408,7 +421,18 @@ def main() -> None:
             parent_run_id=parent_run_id,
             remote_output_dir=remote_variant_dir,
             scene_ids=args.scene_ids,
+            cluster_config_name=cluster_config_name,
         )
+        variant_commands.append(
+            {
+                "variant": variant.name,
+                "remote_output_dir": remote_variant_dir,
+                "remote_command": remote_command,
+            }
+        )
+        (local_variant_dir / "remote_command.txt").write_text(remote_command + "\n", encoding="utf-8")
+        if args.dry_run:
+            continue
         result = run_command(["ssh", "-o", "BatchMode=yes", args.node, f"bash -lc '{remote_command}'"], timeout=28800)
         (local_variant_dir / "dispatch_stdout.txt").write_text(result.stdout, encoding="utf-8")
         (local_variant_dir / "dispatch_stderr.txt").write_text(result.stderr, encoding="utf-8")
@@ -422,6 +446,12 @@ def main() -> None:
         for row in _aggregate(rows, ["task"]):
             row["variant"] = variant.name
             by_task_rows.append(row)
+
+    if args.dry_run:
+        manifest["variant_commands"] = variant_commands
+        (local_root / "dispatch_manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+        print(json.dumps({"dry_run": True, "manifest": str(local_root / "dispatch_manifest.json")}, indent=2))
+        return
 
     d0_attempt_payloads = _load_attempt_payloads(local_root / "D0_shared_cgn" / "episodes")
     d3_rows = _rescore_relaxed_success(variant_rows["D0_shared_cgn"], d0_attempt_payloads)
@@ -492,8 +522,7 @@ def main() -> None:
     _write_csv(local_root / "success_delta.csv", delta_rows)
     _write_csv(local_root / "d3_relaxed_success_rows.csv", d3_rows)
     _write_text(local_root / "report.md", report_text)
-    _write_text(local_root / "teacher_summary_zh.md", teacher_text)
-    _write_text(local_root / "teacher_summary_zh_clean.md", teacher_text, encoding="utf-8-sig")
+    _write_text(local_root / "collaborator_summary.md", teacher_text)
     _write_json(
         local_root / "summary.json",
         {
@@ -506,7 +535,7 @@ def main() -> None:
     )
     docs_dir = _docs_reports_dir()
     _write_text(docs_dir / f"{args.task_set}_{date_token}.md", report_text)
-    _write_text(docs_dir / f"{args.task_set}_{date_token}_zh.md", teacher_text, encoding="utf-8-sig")
+    _write_text(docs_dir / f"{args.task_set}_{date_token}_collaborator.md", teacher_text)
     print(json.dumps({"audit_root": str(local_root), "parent_run_id": parent_run_id}, indent=2))
 
 

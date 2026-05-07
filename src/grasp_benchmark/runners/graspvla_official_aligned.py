@@ -15,6 +15,7 @@ from grasp_benchmark.runners.graspvla_track_a_sim import (
     SharedFrankaKinematics,
     SharedTrackARemoteAgent,
     _camera_metadata,
+    _patch_playground_franka_config,
     _refresh_obs,
     _step_trace_entry,
 )
@@ -55,6 +56,7 @@ def _playground_root() -> Path:
 def _ensure_playground_imports(playground_root: Path) -> None:
     import sys
 
+    _patch_playground_franka_config(playground_root)
     playground_path = str(playground_root)
     robosuite_path = str(playground_root / "third_party" / "robosuite")
     if robosuite_path not in sys.path:

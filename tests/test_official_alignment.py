@@ -9,7 +9,13 @@ from grasp_benchmark.runners.graspvla_official_aligned import (
     OfficialLiberoTaskSpec,
     select_non_invalid_official_tasks,
 )
-from grasp_benchmark.run.sim import _allocate_run_dir, _remote_env_name, _select_matrix_hosts
+from grasp_benchmark.run.sim import (
+    _allocate_run_dir,
+    _build_remote_command,
+    _remote_env_name,
+    _select_matrix_hosts,
+    _wrap_scheduler_command,
+)
 from grasp_benchmark.config import load_named_config
 
 
@@ -135,6 +141,23 @@ class OfficialAlignmentSelectionTest(unittest.TestCase):
         )
         self.assertEqual(selected, ["em14"])
 
+    def test_matrix_mode_falls_back_to_lakeshore_dispatch_host(self) -> None:
+        available_nodes = {
+            "dispatch_hosts": ["lakeshore"],
+            "nodes": [
+                {"host": "lakeshore", "status": "warning", "gpu_names": ["slurm:batch_gpu2:gpu:1:slot0"]},
+            ],
+        }
+        method_config = load_named_config("methods", "cgn")
+        selected = _select_matrix_hosts(
+            method_name="cgn",
+            method_config=method_config,
+            available_nodes=available_nodes,
+            explicit_nodes="",
+            explicit_node="",
+        )
+        self.assertEqual(selected, ["lakeshore"])
+
     def test_allocate_run_dir_appends_dup_suffix_on_collision(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -144,6 +167,58 @@ class OfficialAlignmentSelectionTest(unittest.TestCase):
             self.assertEqual(second.name, "example_run__dup01")
             self.assertTrue(first.exists())
             self.assertTrue(second.exists())
+
+    def test_lakeshore_scheduler_wraps_worker_in_srun(self) -> None:
+        command = _wrap_scheduler_command(
+            {
+                "source_files": ["/etc/profile.d/modules.sh"],
+                "module_loads": ["slurm/lakeshore/23.02.4"],
+                "scheduler": {
+                    "type": "slurm",
+                    "account": "cs_yifan16_chi",
+                    "partition": "batch_gpu2",
+                    "gres": "gpu:1",
+                    "cpus_per_task": 2,
+                    "mem": "48G",
+                    "time": "04:00:00",
+                },
+            },
+            'cd "/repo" && python -m grasp_benchmark.run.worker --gpu-id "0"',
+        )
+
+        self.assertIn("module load slurm/lakeshore/23.02.4", command)
+        self.assertIn("srun", command)
+        self.assertIn("-A cs_yifan16_chi", command)
+        self.assertIn("-p batch_gpu2", command)
+        self.assertIn("--gres=gpu:1", command)
+        self.assertIn("grasp_benchmark.run.worker", command)
+
+    def test_remote_worker_command_preseeds_libero_config(self) -> None:
+        command = _build_remote_command(
+            cluster_config={
+                "remote_root": "/projects/cs_yifan16_chi/zlu31/grasp-benchmark",
+                "miniforge_root": "/projects/cs_yifan16_chi/zlu31/miniforge3",
+                "conda_envs_dir": "/projects/cs_yifan16_chi/zlu31/conda_envs",
+                "cuda_home": "/cm/shared/apps/cuda11.8/toolkit/11.8.0",
+            },
+            method_config={"name": "cgn", "env_name": "gb-cgn"},
+            task_set="cgn_bottleneck_v2",
+            sensor_config="track_a_dual_realsense",
+            run_dir="/projects/cs_yifan16_chi/zlu31/grasp-benchmark/artifacts/runs/example",
+            execution_mode="shared_track_a_sim",
+            smoke_only=False,
+            max_trials=1,
+            cluster_config_name="lakeshore",
+        )
+
+        self.assertIn("> \"/projects/cs_yifan16_chi/zlu31/grasp-benchmark/artifacts/libero_config/config.yaml\"", command)
+        self.assertIn("benchmark_root:", command)
+        self.assertIn("datasets:", command)
+        self.assertIn('export CUDA_HOME="/cm/shared/apps/cuda11.8/toolkit/11.8.0"', command)
+        self.assertIn('export TORCH_EXTENSIONS_DIR="/projects/cs_yifan16_chi/zlu31/grasp-benchmark/artifacts/cache/torch_extensions"', command)
+        self.assertIn('export HF_HOME="/projects/cs_yifan16_chi/zlu31/grasp-benchmark/artifacts/cache/huggingface"', command)
+        self.assertIn("GB_FAULTHANDLER_PATH", command)
+        self.assertIn("worker_stdout.log", command)
 
 
 if __name__ == "__main__":

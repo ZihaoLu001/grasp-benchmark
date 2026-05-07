@@ -158,13 +158,10 @@ def _render_report(
     goal_delta = float(lookup["goal_vs_minimal_lift_rule"]["success_rate_delta"])
     if abs(hold_delta) > abs(threshold_delta):
         main_component = "hold-time requirement"
-        main_component_zh = "持续保持时间"
     elif abs(threshold_delta) > abs(hold_delta):
         main_component = "lift-threshold increase"
-        main_component_zh = "抬升高度阈值"
     else:
         main_component = "lift-threshold increase and hold-time requirement at the same order of magnitude"
-        main_component_zh = "抬升阈值和保持时间的量级接近"
 
     report_lines = [
         "# GraspVLA Success-Rule Isolation Audit",
@@ -225,13 +222,13 @@ def _render_report(
     )
 
     teacher_lines = [
-        "# GraspVLA success rule 因子拆解",
+        "# GraspVLA Success-Rule Factor Breakdown",
         "",
-        "- 这次把 `shared success rule` 拆成了更细的三层。",
-        f"- `env_done -> lift10_hold1` 的变化是 `{goal_delta:+.4f}`。",
-        f"- `lift10_hold1 -> lift15_hold1` 的变化是 `{threshold_delta:+.4f}`。",
-        f"- `lift15_hold1 -> lift15_hold10` 的变化是 `{hold_delta:+.4f}`。",
-        f"- 当前量化下来，影响最大的 success-rule 子因子是：`{main_component_zh}`。",
+        "- This audit decomposes the `shared success rule` into three finer components.",
+        f"- `env_done -> lift10_hold1` changes success rate by `{goal_delta:+.4f}`.",
+        f"- `lift10_hold1 -> lift15_hold1` changes success rate by `{threshold_delta:+.4f}`.",
+        f"- `lift15_hold1 -> lift15_hold10` changes success rate by `{hold_delta:+.4f}`.",
+        f"- The largest measured success-rule component is `{main_component}`.",
     ]
     return "\n".join(report_lines) + "\n", "\n".join(teacher_lines) + "\n"
 
@@ -321,8 +318,7 @@ def main() -> None:
     _write_csv(audit_root / "success_delta.csv", delta_rows)
     _write_csv(audit_root / "compatible_subset.csv", compatible_rows)
     _write_text(audit_root / "report.md", report_text)
-    _write_text(audit_root / "teacher_summary_zh.md", teacher_text)
-    _write_text(audit_root / "teacher_summary_zh_clean.md", teacher_text, encoding="utf-8-sig")
+    _write_text(audit_root / "collaborator_summary.md", teacher_text)
     _write_json(
         audit_root / "report.json",
         {
@@ -337,7 +333,7 @@ def main() -> None:
     )
     docs_dir = _docs_reports_dir()
     _write_text(docs_dir / f"graspvla_success_rule_isolation_{date_token}.md", report_text)
-    _write_text(docs_dir / f"graspvla_success_rule_isolation_{date_token}_zh.md", teacher_text, encoding="utf-8-sig")
+    _write_text(docs_dir / f"graspvla_success_rule_isolation_{date_token}_collaborator.md", teacher_text)
     print(json.dumps({"audit_root": str(audit_root), "delta_rows": delta_rows}, indent=2))
 
 

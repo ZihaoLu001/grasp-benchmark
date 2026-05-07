@@ -4,6 +4,7 @@ import unittest
 
 import numpy as np
 
+from grasp_benchmark.adapters.base import AdapterExecutionError
 from grasp_benchmark.adapters.modular_components import build_shared_pick_plan
 from grasp_benchmark.types import Observation
 
@@ -100,6 +101,76 @@ class ModularPlannerTest(unittest.TestCase):
         )
         self.assertAlmostEqual(debug["target_world"][0], 0.05, places=5)
         self.assertAlmostEqual(debug["target_base"][0], 0.65, places=5)
+
+    def test_rejects_full_grasp_pose_below_workspace_floor(self) -> None:
+        obs = _observation()
+        grasp = np.eye(4, dtype=np.float32)
+        grasp[2, 3] = -0.05
+        with self.assertRaises(AdapterExecutionError) as exc_info:
+            build_shared_pick_plan(
+                obs,
+                np,
+                translation_cam=grasp[:3, 3],
+                grasp_matrix_cam=grasp,
+                planner_config={
+                    "reject_below_table_grasps": True,
+                    "grasp_min_z_m": 0.02,
+                    "approach_clearance_m": 0.08,
+                    "lift_height_m": 0.18,
+                    "chunk_size_m": 0.02,
+                    "close_steps": 2,
+                },
+            )
+        self.assertEqual(exc_info.exception.failure_stage, "planner_failure")
+
+    def test_allows_full_grasp_pose_within_floor_tolerance(self) -> None:
+        obs = _observation()
+        grasp = np.eye(4, dtype=np.float32)
+        grasp[2, 3] = 0.0198
+        actions, debug = build_shared_pick_plan(
+            obs,
+            np,
+            translation_cam=grasp[:3, 3],
+            grasp_matrix_cam=grasp,
+            planner_config={
+                "reject_below_table_grasps": True,
+                "grasp_min_z_m": 0.02,
+                "grasp_min_z_tolerance_m": 0.002,
+                "approach_clearance_m": 0.08,
+                "lift_height_m": 0.18,
+                "chunk_size_m": 0.02,
+                "close_steps": 2,
+            },
+            return_debug=True,
+        )
+
+        self.assertGreater(len(actions), 0)
+        self.assertAlmostEqual(debug["target_base"][2], 0.0198, places=4)
+
+    def test_post_lift_hold_keeps_gripper_closed(self) -> None:
+        obs = _observation()
+        plan, debug = build_shared_pick_plan(
+            obs,
+            np,
+            translation_cam=np.asarray([0.05, -0.02, 0.12], dtype=np.float32),
+            planner_config={
+                "split_hover_waypoints": True,
+                "hover_raise_m": 0.1,
+                "approach_clearance_m": 0.08,
+                "grasp_offset_m": 0.015,
+                "lift_height_m": 0.18,
+                "chunk_size_m": 0.02,
+                "chunk_size_rad": 0.2,
+                "close_steps": 2,
+                "post_lift_hold_steps": 3,
+            },
+            return_debug=True,
+        )
+
+        self.assertEqual(debug["post_lift_hold_steps"], 3)
+        self.assertEqual([action.gripper for action in plan[-3:]], [-1, -1, -1])
+        for action in plan[-3:]:
+            self.assertEqual(action.ee_delta, (0.0, 0.0, 0.0, 0.0, 0.0, 0.0))
 
 
 if __name__ == "__main__":

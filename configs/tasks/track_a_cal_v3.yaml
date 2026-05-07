@@ -1,4 +1,6 @@
 name: track_a_cal_v3
+display_name: Main Shared Grasping Benchmark
+collaborator_name: Main Shared Grasping Benchmark
 track: track_a_cal
 scene_catalog: graspvla_track_a_playground_cal_v3
 catalog:

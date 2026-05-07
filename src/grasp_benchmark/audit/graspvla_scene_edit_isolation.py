@@ -179,13 +179,10 @@ def _render_report(
     delta = float(scene_edit_delta["success_rate_delta"])
     if abs(delta) <= 0.02:
         scene_edit_summary = "nearly no measurable performance effect"
-        scene_edit_summary_zh = "几乎没有可测的性能影响"
     elif abs(delta) <= 0.1:
         scene_edit_summary = "a modest measurable performance effect"
-        scene_edit_summary_zh = "有一个有限但可测的性能影响"
     else:
         scene_edit_summary = "a large measurable performance effect"
-        scene_edit_summary_zh = "有一个明显且较大的性能影响"
     compatible_table = [
         "| benchmark | task_id | task_name | instruction |",
         "| --- | --- | --- | --- |",
@@ -211,7 +208,7 @@ def _render_report(
         "- Basket-linked official tasks are not just harder without scene edits; in the current public release they become incompatible with raw init states.",
         "- A clean scene-edit performance delta can still be measured on the scene-edit-compatible overlap subset.",
         f"- On that compatible subset, `V3 -> V4` changes success rate from `{scene_edit_delta['from_success_rate']:.4f}` to `{scene_edit_delta['to_success_rate']:.4f}` (`{scene_edit_delta['success_rate_delta']:+.4f}`).",
-        f"- The latest formal Track A-Cal reference remains `{track_a_cal['graspvla_successes']}/{track_a_cal['graspvla_trials']}`.",
+        f"- The latest formal Main Shared Grasping Benchmark reference remains `{track_a_cal['graspvla_successes']}/{track_a_cal['graspvla_trials']}`.",
         "",
         "## Compatible Overlap Subset",
         "",
@@ -242,26 +239,26 @@ def _render_report(
         "  - gripper change is small",
         "  - shared success rule matters a lot",
         "  - basket-linked scene edits are a release-boundary constraint",
-        "  - latest Track A-Cal is runnable and should no longer be described as all-zero",
+        "  - latest Main Shared Grasping Benchmark is runnable and should no longer be described as all-zero",
         "",
         f"_Generated from probe and child audit under `{parent_root.name}`._",
     ]
 
     teacher_lines = [
-        "# GraspVLA scene-edit 因子隔离结论",
+        "# GraspVLA Scene-Edit Isolation Collaborator Summary",
         "",
-        "- 这次已经把 `scene edit` 分成两层讲清楚了。",
-        f"- 在可兼容子集上，`V3 -> V4` 的 success rate 变化是 `{scene_edit_delta['success_rate_delta']:+.4f}`，属于有限但真实的影响。",
-        "- 但在 basket 相关官方任务上，scene edit 不是单纯影响分数，而是公开 release 的兼容性门槛。",
-        f"- 最新正式 `Track A-Cal` 仍是 `{track_a_cal['graspvla_successes']}/{track_a_cal['graspvla_trials']}`，所以 shared calibration 不该再按旧的全 0 口径描述。",
+        "- This audit separates `scene edit` into two distinct issues: a compatibility gate for basket-linked tasks and a measurable performance factor on compatible tasks.",
+        f"- On the compatible subset, `V3 -> V4` changes success rate by `{scene_edit_delta['success_rate_delta']:+.4f}`, indicating {scene_edit_summary}.",
+        "- For basket-linked official tasks, scene editing is not only a score factor; it is a public-release compatibility boundary.",
+        f"- The latest formal Main Shared Grasping Benchmark reference is `{track_a_cal['graspvla_successes']}/{track_a_cal['graspvla_trials']}`, so shared calibration should no longer be described using the older all-zero framing.",
         "",
-        "## 该怎么对外解释",
+        "## External Framing",
         "",
-        "- `2 cm` 加长爪子不是主因。",
-        "- 更严格的 shared success rule 是目前最大的单一可测因素。",
-        "- `scene edit` 重要，但要分两层：",
-        f"- 对 `libero_goal` 这类兼容任务来说，它目前{scene_edit_summary_zh}。",
-        "- 对 basket 相关官方任务来说，它还是公开 release 的兼容性边界。",
+        "- The `2 cm` gripper extension is not the primary driver.",
+        "- The stricter shared success rule remains the largest single measured factor.",
+        "- Scene editing matters, but the claim should be split clearly:",
+        f"- for compatible tasks such as `libero_goal`, it currently has {scene_edit_summary}",
+        "- for basket-linked official tasks, it remains a public-release compatibility boundary",
     ]
     return "\n".join(report_lines) + "\n", "\n".join(teacher_lines) + "\n"
 
@@ -311,8 +308,7 @@ def main() -> None:
         parent_root=parent_root,
     )
     _write_text(parent_root / "report.md", report_text)
-    _write_text(parent_root / "teacher_summary_zh.md", teacher_text)
-    _write_text(parent_root / "teacher_summary_zh_clean.md", teacher_text, encoding="utf-8-sig")
+    _write_text(parent_root / "collaborator_summary.md", teacher_text)
     _write_json(
         parent_root / "report.json",
         {
@@ -354,7 +350,7 @@ def main() -> None:
     )
     docs_dir = _docs_reports_dir()
     _write_text(docs_dir / f"graspvla_scene_edit_isolation_{date_token}.md", report_text)
-    _write_text(docs_dir / f"graspvla_scene_edit_isolation_{date_token}_zh.md", teacher_text, encoding="utf-8-sig")
+    _write_text(docs_dir / f"graspvla_scene_edit_isolation_{date_token}_collaborator.md", teacher_text)
     print(
         json.dumps(
             {

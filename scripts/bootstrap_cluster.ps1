@@ -1,5 +1,6 @@
 param(
     [string]$Node = "em14",
+    [string]$ClusterConfig = "default",
     [string]$RemoteRoot = "/datasets/ss/current/zihao/grasp-benchmark",
     [string]$MiniforgeRoot = "/datasets/ss/current/zihao/miniforge3",
     [string]$CondaEnvsDir = "/datasets/ss/current/zihao/conda/envs",
@@ -8,6 +9,22 @@ param(
 )
 
 $repoRoot = Split-Path $PSScriptRoot -Parent
+if ($ClusterConfig) {
+    $clusterJson = @'
+import json
+import sys
+
+from grasp_benchmark.config import load_cluster_config
+
+config = load_cluster_config(sys.argv[1])
+print(json.dumps(config))
+'@ | python - $ClusterConfig
+    $cluster = $clusterJson | ConvertFrom-Json
+    $RemoteRoot = $cluster.remote_root
+    $MiniforgeRoot = $cluster.miniforge_root
+    $CondaEnvsDir = $cluster.conda_envs_dir
+    $CondaPkgsDir = $cluster.conda_pkgs_dir
+}
 $syncToken = [guid]::NewGuid().ToString("N")
 $archivePath = Join-Path $env:TEMP "grasp-benchmark-bootstrap-$syncToken.tar"
 $metadataPath = Join-Path $env:TEMP "grasp-benchmark-sync-$syncToken.json"

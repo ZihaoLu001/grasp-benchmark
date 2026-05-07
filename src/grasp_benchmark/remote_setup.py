@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-CLUSTER_CUROBO_CUDA_ARCH_LIST = "7.5;8.0"
+CLUSTER_CUROBO_CUDA_ARCH_LIST = "7.5;8.0;8.9;9.0"
 
 
 def _env_prefix(cluster_config: dict[str, Any], method_config: dict[str, Any]) -> str:
@@ -19,7 +19,13 @@ def build_method_install_script(
     miniforge_root = cluster_config["miniforge_root"]
     remote_root = cluster_config["remote_root"]
     env_prefix = _env_prefix(cluster_config, method_config)
+    cuda_home = str(cluster_config.get("cuda_home", "/usr/local/cuda")).rstrip("/")
     arch_export = f'export TORCH_CUDA_ARCH_LIST="${{TORCH_CUDA_ARCH_LIST:-{CLUSTER_CUROBO_CUDA_ARCH_LIST}}}"'
+    cuda_export = (
+        f'export CUDA_HOME="{cuda_home}"; '
+        f'export PATH="{cuda_home}/bin:$PATH"; '
+        f'export LD_LIBRARY_PATH="{cuda_home}/lib64:${{LD_LIBRARY_PATH:-}}"'
+    )
     lines = [
         "set -eo pipefail",
         f'source "{miniforge_root}/etc/profile.d/conda.sh"',
@@ -63,7 +69,7 @@ def build_method_install_script(
                 'python -m pip install "numpy<2" "opencv-python==4.6.0.66" "transformers==4.41.2" "numba" "termcolor"',
                 f'python -m pip install -e "{remote_root}/third_party/upstreams/GraspVLA-playground/third_party/robosuite"',
                 f'python -m pip install -e "{remote_root}/third_party/upstreams/GraspVLA-playground/third_party/bddl"',
-                'if [ -d "/usr/local/cuda-11.8" ]; then export CUDA_HOME=/usr/local/cuda-11.8; else export CUDA_HOME="${CUDA_HOME:-/usr/local/cuda}"; fi',
+                cuda_export,
                 'export CC="$(command -v x86_64-conda-linux-gnu-gcc || command -v gcc)"',
                 'export CXX="$(command -v x86_64-conda-linux-gnu-g++ || command -v g++)"',
                 'export CUDAHOSTCXX="${CXX}"',
@@ -96,13 +102,14 @@ def build_method_install_script(
         lines.extend(
             [
                 'export SKLEARN_ALLOW_DEPRECATED_SKLEARN_PACKAGE_INSTALL=True',
-                'python -m pip install scikit-learn torch torchvision',
+                'python -m pip install scikit-learn',
+                'python -m pip install "torch==2.2.2" "torchvision==0.17.2" "torchaudio==2.2.2" --index-url https://download.pytorch.org/whl/cu118',
                 'conda install -y -c conda-forge cmake ninja ffmpeg gcc_linux-64=11 gxx_linux-64=11',
                 'python -m pip install "hydra-core==1.2.0" "gym==0.25.2" "cloudpickle==2.1.0" "termcolor" "transforms3d" "opencv-python==4.6.0.66" "matplotlib" "pyzmq" "numpy==1.26.4" "Pillow" "future==0.18.2" "easydict==1.9" "numba" "mujoco==3.6.0" "h5py"',
                 'python -m pip install "transformers==4.41.2"',
                 f'python -m pip install -e "{remote_root}/third_party/upstreams/GraspVLA-playground/third_party/robosuite"',
                 f'python -m pip install -e "{remote_root}/third_party/upstreams/GraspVLA-playground/third_party/bddl"',
-                'if [ -d "/usr/local/cuda-11.8" ]; then export CUDA_HOME=/usr/local/cuda-11.8; else export CUDA_HOME="${CUDA_HOME:-/usr/local/cuda}"; fi',
+                cuda_export,
                 'export CC="$(command -v x86_64-conda-linux-gnu-gcc || command -v gcc)"',
                 'export CXX="$(command -v x86_64-conda-linux-gnu-g++ || command -v g++)"',
                 'export CUDAHOSTCXX="${CXX}"',
@@ -111,15 +118,15 @@ def build_method_install_script(
                 f'find "{remote_root}/third_party/upstreams/curobo/src/curobo/curobolib" -name "*.so" -delete',
                 f'python -m pip install -e "{remote_root}/third_party/upstreams/curobo" --no-build-isolation',
                 f'python -m pip install -r "{remote_root}/third_party/upstreams/GroundingDINO/requirements.txt"',
+                f'python -m pip install -e "{remote_root}/third_party/upstreams/GroundingDINO" --no-build-isolation',
                 'python -m pip install "transformers==4.41.2"',
             ]
         )
         notes.extend(
             [
-                "Contact-GraspNet upstream pins a legacy TensorFlow 2.2 / Python 3.7 stack that is not auto-installed here.",
+                "Contact-GraspNet proposal inference uses a dedicated TensorFlow runtime; on Lakeshore this is gb-cgn-tf212 for H100/CUDA 11.8.",
                 "The shared Track A simulation lane also needs the GraspVLA playground + curobo stack inside gb-cgn.",
-                "You will need a dedicated legacy runtime before full Contact-GraspNet inference can be enabled.",
-                "Run python -m grasp_benchmark.prepare_cgn --node <host> --bootstrap-legacy-env to probe or create the legacy runtime.",
+                "Run python -m grasp_benchmark.prepare_cgn --node <host> --cluster-config lakeshore --bootstrap-legacy-env --compile-tf-ops to prepare Contact-GraspNet proposal inference.",
             ]
         )
     else:

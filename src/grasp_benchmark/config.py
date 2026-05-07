@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any
 
@@ -26,3 +27,10 @@ def load_named_config(category: str, name: str) -> dict[str, Any]:
         raise FileNotFoundError(f"Config not found: {path}")
     return load_yaml(path)
 
+
+def resolve_cluster_config_name(explicit_name: str = "") -> str:
+    return explicit_name.strip() or os.environ.get("GRASP_BENCHMARK_CLUSTER_CONFIG", "").strip() or "default"
+
+
+def load_cluster_config(explicit_name: str = "") -> dict[str, Any]:
+    return load_named_config("cluster", resolve_cluster_config_name(explicit_name))

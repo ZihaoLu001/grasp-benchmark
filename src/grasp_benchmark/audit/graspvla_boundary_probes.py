@@ -251,7 +251,7 @@ def _render_report(
         "",
         "## Headline",
         "",
-        f"- Latest formal `Track A-Cal` reference remains `{track_a_cal_reference['graspvla_successes']}/{track_a_cal_reference['graspvla_trials']}`.",
+        f"- Latest formal Main Shared Grasping Benchmark reference remains `{track_a_cal_reference['graspvla_successes']}/{track_a_cal_reference['graspvla_trials']}`.",
         f"- On the dedicated boundary suite, dual-view GraspVLA reaches `{dual_summary['successes']}/{dual_summary['trials']}`.",
         f"- On the same suite with `front_only_duplicate`, GraspVLA reaches `{front_summary['successes']}/{front_summary['trials']}`.",
         f"- The weakest dual-view slice is `{weakest_dual_condition['task']} / {weakest_dual_condition['condition']}` at `{weakest_dual_condition['successes']}/{weakest_dual_condition['trials']}`.",
@@ -326,19 +326,19 @@ def _render_report(
         )
 
     teacher_lines = [
-        "# GraspVLA 边界实验总结",
+        "# GraspVLA Boundary Probe Collaborator Summary",
         "",
-        "## 先说结论",
+        "## Main Takeaways",
         "",
-        f"- 当前主榜单 `Track A-Cal` 的参考结果仍然是 `{track_a_cal_reference['graspvla_successes']}/{track_a_cal_reference['graspvla_trials']}`，说明 GraspVLA 在共享校准层里很强。",
-        f"- 在新的边界探针套件上，双视角结果是 `{dual_summary['successes']}/{dual_summary['trials']}`，前视单视角结果是 `{front_summary['successes']}/{front_summary['trials']}`。",
-        "- 这套实验专门用来回答三个问题：",
-        "  - 条件扰动下会不会掉很多",
-        "  - 指令换说法后还能不能抓",
-        "  - 透明物体是不是当前明显边界",
-        f"- 这轮双视角里最弱的一格是 `{weakest_dual_condition['task']} / {weakest_dual_condition['condition']}`，成绩是 `{weakest_dual_condition['successes']}/{weakest_dual_condition['trials']}`。",
+        f"- The primary Main Shared Grasping Benchmark reference remains `{track_a_cal_reference['graspvla_successes']}/{track_a_cal_reference['graspvla_trials']}`, which indicates strong shared-calibration performance.",
+        f"- On the boundary probe suite, the dual-view result is `{dual_summary['successes']}/{dual_summary['trials']}` and the front-only proxy result is `{front_summary['successes']}/{front_summary['trials']}`.",
+        "- This suite is designed to answer three questions:",
+        "  - whether condition perturbations cause large drops",
+        "  - whether paraphrased instructions remain graspable",
+        "  - whether transparent objects are an obvious current boundary",
+        f"- The weakest dual-view cell is `{weakest_dual_condition['task']} / {weakest_dual_condition['condition']}`, with `{weakest_dual_condition['successes']}/{weakest_dual_condition['trials']}` successes.",
         "",
-        "## 双视角下哪里表现好",
+        "## Dual-View Strengths",
         "",
     ]
     dual_task_lookup = {str(row["task"]): row for row in task_rows if row["variant"] == "boundary_dual_view"}
@@ -353,42 +353,41 @@ def _render_report(
         if row is None:
             continue
         teacher_lines.append(
-            f"- `{task_name}`：`{row['successes']}/{row['trials']}`，success_rate=`{row['success_rate']}`。"
+            f"- `{task_name}`: `{row['successes']}/{row['trials']}`, success_rate=`{row['success_rate']}`."
         )
-    teacher_lines.extend(["", "## 哪些地方是边界", ""])
+    teacher_lines.extend(["", "## Boundary Signals", ""])
     if transparent_row is not None:
         if float(transparent_row["success_rate"]) >= 1.0:
             teacher_lines.append(
-                "- 透明物体在这版 probe 里不是明显边界；当前 public release 在这 4 个 transparent 场景上全部成功。"
+                "- Transparent objects do not surface as an obvious boundary in this probe version; the current public release succeeds on all 4 transparent scenes."
             )
         else:
             teacher_lines.append(
-                f"- transparent 子集当前是 `arbitrary_grasping_transparent = {transparent_row['successes']}/{transparent_row['trials']}`，这里已经表现出透明物体边界。"
+                f"- The transparent subset currently scores `arbitrary_grasping_transparent = {transparent_row['successes']}/{transparent_row['trials']}`, which makes transparent objects a visible boundary in this run."
             )
     teacher_lines.append(
-        f"- 当前最明显的软边界是 `{weakest_dual_condition['task']} / {weakest_dual_condition['condition']}`，也就是背景扰动下的语言抓取。"
+        f"- The clearest soft boundary is `{weakest_dual_condition['task']} / {weakest_dual_condition['condition']}`, which corresponds to language-conditioned grasping under background perturbation."
     )
     if strongest_view_gap is not None:
         teacher_lines.append(
-            f"- 这轮最大的视角差异出现在 `{strongest_view_gap['task']} / {strongest_view_gap['condition']}`，差值是 `{strongest_view_gap['success_rate_delta']}`。"
+            f"- The largest measured view-mode gap appears in `{strongest_view_gap['task']} / {strongest_view_gap['condition']}`, with delta `{strongest_view_gap['success_rate_delta']}`."
         )
     teacher_lines.extend(
         [
             "",
-            "## 解读口径",
+            "## Interpretation",
             "",
-            "- 这组实验不是新的 benchmark 主榜单，而是 GraspVLA 的能力边界探针。",
-            "- 主榜单仍然是 `Track A-Cal`。",
-            "- 这组 probe 主要帮助我们回答：GraspVLA 在什么设置下很稳，在什么设置下开始掉，掉是因为视角、条件扰动，还是 instruction/generalization。",
-            "- `front_only_duplicate` 只是单视角代理实验，不等于重新训练过的单视角版本。",
+            "- This experiment is not a new primary benchmark leaderboard; it is a GraspVLA capability-boundary probe.",
+            "- The primary leaderboard remains the Main Shared Grasping Benchmark.",
+            "- The probe helps identify where GraspVLA is stable, where it begins to degrade, and whether drops are associated with view mode, condition perturbation, or instruction generalization.",
+            "- `front_only_duplicate` is a single-view proxy experiment, not a retrained single-view model.",
         ]
     )
 
     report_text = "\n".join(english_lines) + "\n"
     teacher_text = "\n".join(teacher_lines) + "\n"
     _write_text(root_dir / "report.md", report_text)
-    _write_text(root_dir / "teacher_summary_zh.md", teacher_text)
-    _write_text(root_dir / "teacher_summary_zh_clean.md", teacher_text, encoding="utf-8-sig")
+    _write_text(root_dir / "collaborator_summary.md", teacher_text)
     return report_text, teacher_text
 
 
@@ -481,7 +480,7 @@ def main() -> None:
     date_token = datetime.now(timezone.utc).strftime("%Y%m%d")
     docs_dir = _docs_reports_dir()
     _write_text(docs_dir / f"graspvla_boundary_probes_{date_token}.md", report_text)
-    _write_text(docs_dir / f"graspvla_boundary_probes_{date_token}_zh.md", teacher_text, encoding="utf-8-sig")
+    _write_text(docs_dir / f"graspvla_boundary_probes_{date_token}_collaborator.md", teacher_text)
     _write_json(
         local_root / "summary.json",
         {

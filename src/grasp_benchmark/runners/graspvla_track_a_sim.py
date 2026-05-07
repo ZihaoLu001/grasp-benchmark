@@ -102,6 +102,35 @@ def _playground_root() -> Path:
     return PROJECT_ROOT / "third_party" / "upstreams" / "GraspVLA-playground"
 
 
+def _patch_playground_franka_config(playground_root: Path) -> Path | None:
+    asset_dir = playground_root / "assets" / "franka_with_extended_finger"
+    config_path = asset_dir / "franka.yml"
+    if not config_path.exists():
+        return None
+
+    replacements = [
+        (
+            "/mnt/afs/grasp-sim/yanmi/LIBERO-test/assets/franka_with_extended_finger/franka_with_extended_finger.urdf",
+            str(asset_dir / "franka_with_extended_finger.urdf"),
+        ),
+        (
+            "/mnt/afs/grasp-sim/yanmi/LIBERO-test/assets/franka_with_extended_finger/collision_spheres.yml",
+            str(asset_dir / "collision_spheres.yml"),
+        ),
+        (
+            "/mnt/afs/grasp-sim/yanmi/LIBERO-test/assets/franka_with_extended_finger",
+            str(asset_dir),
+        ),
+    ]
+    original = config_path.read_text(encoding="utf-8")
+    patched = original
+    for old, new in replacements:
+        patched = patched.replace(old, new)
+    if patched != original:
+        config_path.write_text(patched, encoding="utf-8")
+    return config_path
+
+
 def _ensure_playground_imports(playground_root: Path) -> None:
     playground_path = str(playground_root)
     robosuite_path = str(playground_root / "third_party" / "robosuite")
@@ -114,6 +143,7 @@ def _ensure_playground_imports(playground_root: Path) -> None:
         sys.path.insert(0, playground_path)
     # Some playground assets are still resolved via cwd-relative paths during import time.
     if playground_root.exists():
+        _patch_playground_franka_config(playground_root)
         os.chdir(playground_root)
 
 

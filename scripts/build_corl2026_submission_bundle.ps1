@@ -11,9 +11,9 @@ param(
     [string]$Phase2ParentRunIds,
     [Parameter(Mandatory = $true)]
     [string]$TrackBNativeParentRunIds,
-    [string]$InputRoot = "D:\codex\grasp-benchmark\artifacts\runs",
-    [string]$OutputDir = "D:\codex\grasp-benchmark\artifacts\reports\corl2026_submission_bundle_latest",
-    [string]$OfficialTrackBReference = "D:\codex\grasp-benchmark\artifacts\official_sim\20260402_231726_em14_full\summary.json",
+    [string]$InputRoot = "",
+    [string]$OutputDir = "",
+    [string]$OfficialTrackBReference = "",
     [string]$ProtocolProbeSummary = "",
     [string]$CgnBottleneckSummary = "",
     [string]$AlignmentSummary = ""
@@ -23,6 +23,16 @@ $ErrorActionPreference = "Stop"
 
 $repoRoot = Split-Path $PSScriptRoot -Parent
 Set-Location $repoRoot
+
+if (-not $InputRoot) {
+    $InputRoot = Join-Path $repoRoot "artifacts\runs"
+}
+if (-not $OutputDir) {
+    $OutputDir = Join-Path $repoRoot "artifacts\reports\corl2026_submission_bundle_latest"
+}
+if (-not $OfficialTrackBReference) {
+    $OfficialTrackBReference = Join-Path $repoRoot "artifacts\official_sim\20260402_231726_em14_full\summary.json"
+}
 
 $args = @(
     "-m", "grasp_benchmark.report.paper_bundle",
@@ -50,17 +60,17 @@ if ($AlignmentSummary) {
 }
 
 Write-Host "Building CoRL 2026 submission bundle..." -ForegroundColor Cyan
-Write-Host "Track A-Cal: $TrackACalParentRunIds" -ForegroundColor DarkGray
-Write-Host "Track A-Stress: $TrackAStressParentRunIds" -ForegroundColor DarkGray
+Write-Host "Main Shared Grasping Benchmark: $TrackACalParentRunIds" -ForegroundColor DarkGray
+Write-Host "Hard Shared Grasping Stress Test: $TrackAStressParentRunIds" -ForegroundColor DarkGray
 Write-Host "Instruction Robustness: $InstructionParentRunIds" -ForegroundColor DarkGray
 Write-Host "Sim-to-Real Proxy: $Sim2RealParentRunIds" -ForegroundColor DarkGray
-Write-Host "Phase 2 Pilot: $Phase2ParentRunIds" -ForegroundColor DarkGray
-Write-Host "Track B Native-Like: $TrackBNativeParentRunIds" -ForegroundColor DarkGray
+Write-Host "Task-Oriented Grasping Pilot: $Phase2ParentRunIds" -ForegroundColor DarkGray
+Write-Host "CGN Native-Reference Appendix: $TrackBNativeParentRunIds" -ForegroundColor DarkGray
 if ($ProtocolProbeSummary) { Write-Host "Protocol probe: $ProtocolProbeSummary" -ForegroundColor DarkGray }
 if ($CgnBottleneckSummary) { Write-Host "CGN bottleneck: $CgnBottleneckSummary" -ForegroundColor DarkGray }
 if ($AlignmentSummary) { Write-Host "Alignment summary: $AlignmentSummary" -ForegroundColor DarkGray }
 
-$env:PYTHONPATH = "D:\codex\grasp-benchmark\src"
+$env:PYTHONPATH = Join-Path $repoRoot "src"
 python @args
 if ($LASTEXITCODE -ne 0) {
     throw "paper_bundle.py exited with code $LASTEXITCODE"

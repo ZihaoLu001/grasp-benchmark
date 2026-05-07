@@ -96,7 +96,7 @@ def main() -> None:
             '`python -m pip install --target "D:\\Program Files (x86)\\codex-tools\\py" python-pptx`.'
         ) from exc
 
-    output_path = Path("D:/codex/grasp-benchmark/docs/slides/graspvla_inner_workings.pptx")
+    output_path = Path(__file__).resolve().parents[1] / "docs" / "slides" / "graspvla_inner_workings.pptx"
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     presentation = Presentation()

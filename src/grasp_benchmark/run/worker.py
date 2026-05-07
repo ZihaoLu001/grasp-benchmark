@@ -13,7 +13,7 @@ from pathlib import Path
 from grasp_benchmark.adapters import build_adapter
 from grasp_benchmark.adapters.base import AdapterExecutionError
 from grasp_benchmark.adapters.modular_components import method_tier as resolve_method_tier
-from grasp_benchmark.config import load_named_config
+from grasp_benchmark.config import load_cluster_config, load_named_config
 from grasp_benchmark.execution import run_integration_suite
 from grasp_benchmark.paths import PROJECT_ROOT, ensure_dir
 from grasp_benchmark.provenance import resolve_commit
@@ -62,6 +62,7 @@ def _runtime_config(method_config: dict, cluster_config: dict) -> dict:
         "miniforge_root": cluster_config["miniforge_root"],
         "conda_envs_dir": cluster_config["conda_envs_dir"],
         "remote_root": cluster_config["remote_root"],
+        "cuda_home": cluster_config.get("cuda_home", ""),
     }
     server = method_config.get("server")
     if isinstance(server, dict):
@@ -182,6 +183,11 @@ def main() -> None:
     _maybe_enable_faulthandler()
     _maybe_enable_numpy_compat()
     parser = argparse.ArgumentParser(description="Remote benchmark worker scaffold.")
+    parser.add_argument(
+        "--cluster-config",
+        default="",
+        help="Cluster config name under configs/cluster. Defaults to GRASP_BENCHMARK_CLUSTER_CONFIG or default.",
+    )
     parser.add_argument("--method", required=True)
     parser.add_argument("--task-set", required=True)
     parser.add_argument("--sensor-config", default="track_a_dual_realsense")
@@ -221,7 +227,7 @@ def main() -> None:
     parser.add_argument("--official-run-playground-sanity", action="store_true")
     args = parser.parse_args()
 
-    cluster_config = load_named_config("cluster", "default")
+    cluster_config = load_cluster_config(args.cluster_config)
     method_config = load_named_config("methods", args.method)
     sensor_config = load_named_config("sensors", args.sensor_config)
     task_config = load_named_config("tasks", args.task_set)

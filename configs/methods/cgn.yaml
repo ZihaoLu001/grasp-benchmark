@@ -2,6 +2,16 @@ name: cgn
 display_name: Contact-GraspNet + Segmentation + Grounding DINO + Motion Planner
 benchmark_method_tier: cgn_full_modular
 env_name: gb-cgn
+shared_sim_env_name: gb-cgn
+proposal_env_name: gb-cgn-tf212
+claim_boundary: benchmark_owned_shared_lane_not_official_contact_graspnet_native
+pipeline_contract:
+  task_localization: GroundingDINO
+  mask_source: depth_band_segmentation_or_oracle_gt_diagnostics
+  grasp_proposal: Contact-GraspNet
+  execution: shared_planner_controller
+  success_rule: shared_track_a_lift_15cm_hold_2s
+  collaborator_note: CGN shared lane is a benchmark-owned integration; do not report it as official Contact-GraspNet native-system performance.
 preferred_nodes:
   - em14
   - rll_6000_1
@@ -49,6 +59,9 @@ segmentation:
   fallback_depth_band_m: 0.04
 planner:
   use_grasp_pose: true
+  candidate_top_k: 5
+  reject_below_table_grasps: true
+  grasp_min_z_m: 0.02
   single_plan_per_attempt: true
   approach_clearance_m: 0.08
   grasp_offset_m: 0.015
@@ -61,6 +74,7 @@ planner:
   pregrasp_settle_steps: 6
   grasp_settle_steps: 6
   post_close_settle_steps: 6
+  post_lift_hold_steps: 12
   replan_action_horizon: 0
 native_track_b:
   top_k_retry: 3
@@ -73,6 +87,7 @@ native_track_b:
     pregrasp_settle_steps: 4
     grasp_settle_steps: 4
     post_close_settle_steps: 4
+    post_lift_hold_steps: 12
     close_steps: 2
 track_a_input_policy:
   observation_contract: shared_observation
@@ -89,7 +104,19 @@ track_a_input_policy:
     - intrinsics_side
     - extrinsics_side
   scene_edit_policy: shared_only
-legacy_env_name: gb-cgn-tf22
+legacy_env_name: gb-cgn-tf212
+legacy_runtime:
+  profile: tf212_cuda118_h100
+  python_version: "3.10"
+  tensorflow_version: "2.12.0"
+  cuda_version: "11.8"
+  cudnn_version: "8.6"
+  custom_op_arch_flags:
+    - "-gencode=arch=compute_80,code=sm_80"
+    - "-gencode=arch=compute_86,code=sm_86"
+    - "-gencode=arch=compute_89,code=sm_89"
+    - "-gencode=arch=compute_90,code=sm_90"
+    - "-gencode=arch=compute_90,code=compute_90"
 checkpoint_relpath: checkpoints/scene_test_2048_bs3_hor_sigma_001
 formal_downsample_stride: 1
 smoke_downsample_stride: 4
@@ -106,3 +133,9 @@ task_runtime_overrides:
     planner_overrides:
       single_plan_per_attempt: false
       use_grasp_pose: true
+  cgn_bottleneck_v2:
+    native_top_k: 10
+    planner_overrides:
+      reject_below_table_grasps: true
+      grasp_min_z_m: 0.02
+      grasp_min_z_tolerance_m: 0.002
