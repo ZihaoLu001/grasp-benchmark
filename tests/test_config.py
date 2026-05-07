@@ -4,6 +4,7 @@ import unittest
 from unittest.mock import patch
 
 from grasp_benchmark.config import load_cluster_config, load_named_config, resolve_cluster_config_name
+from grasp_benchmark.paths import PROJECT_ROOT
 from grasp_benchmark.run.worker import _runtime_config
 
 
@@ -41,6 +42,12 @@ class ConfigTest(unittest.TestCase):
         runtime = _runtime_config(load_named_config("methods", "cgn"), cluster_config)
 
         self.assertEqual(runtime["cuda_home"], cluster_config["cuda_home"])
+
+    def test_bootstrap_cluster_uses_repository_config_module(self) -> None:
+        script = (PROJECT_ROOT / "scripts" / "bootstrap_cluster.ps1").read_text(encoding="utf-8")
+
+        self.assertIn('sys.path.insert(0, str(repo_root / "src"))', script)
+        self.assertIn("'@ | python - $ClusterConfig $repoRoot", script)
 
 
 if __name__ == "__main__":

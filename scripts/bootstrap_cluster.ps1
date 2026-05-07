@@ -13,12 +13,15 @@ if ($ClusterConfig) {
     $clusterJson = @'
 import json
 import sys
+from pathlib import Path
 
+repo_root = Path(sys.argv[2])
+sys.path.insert(0, str(repo_root / "src"))
 from grasp_benchmark.config import load_cluster_config
 
 config = load_cluster_config(sys.argv[1])
 print(json.dumps(config))
-'@ | python - $ClusterConfig
+'@ | python - $ClusterConfig $repoRoot
     $cluster = $clusterJson | ConvertFrom-Json
     $RemoteRoot = $cluster.remote_root
     $MiniforgeRoot = $cluster.miniforge_root
