@@ -10,6 +10,23 @@ from pathlib import Path
 import numpy as np
 
 
+def _raw_point_segments(points: np.ndarray, segment_ids: np.ndarray | None) -> dict[int, np.ndarray]:
+    pc_full = np.asarray(points, dtype=np.float32)
+    if pc_full.ndim != 2 or pc_full.shape[1] < 3 or pc_full.shape[0] == 0:
+        return {}
+    if segment_ids is None:
+        return {1: pc_full[:, :3]}
+    ids = np.asarray(segment_ids).reshape(-1)
+    if ids.shape[0] != pc_full.shape[0]:
+        return {1: pc_full[:, :3]}
+    segments: dict[int, np.ndarray] = {}
+    for raw_id in sorted(set(int(item) for item in ids.tolist() if int(item) > 0)):
+        segment = pc_full[ids == raw_id, :3]
+        if segment.size:
+            segments[int(raw_id)] = segment.astype(np.float32)
+    return segments or {1: pc_full[:, :3]}
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Headless Contact-GraspNet inference helper.")
     parser.add_argument("--input", required=True)
@@ -71,6 +88,7 @@ def main() -> None:
     use_raw_points = "points" in payload.files
     points = payload["points"] if use_raw_points else None
     colors = payload["colors"] if "colors" in payload.files else None
+    segment_ids = payload["segment_ids"] if "segment_ids" in payload.files else None
     depth = payload["depth"] if "depth" in payload.files else None
     K = payload["K"] if "K" in payload.files else None
     rgb = payload["rgb"] if "rgb" in payload.files else None
@@ -80,6 +98,7 @@ def main() -> None:
         files=list(payload.files),
         use_raw_points=use_raw_points,
         points_shape=list(points.shape) if points is not None else None,
+        segment_ids_shape=list(segment_ids.shape) if segment_ids is not None else None,
         depth_shape=list(depth.shape) if depth is not None else None,
         segmap_shape=list(segmap.shape) if segmap is not None else None,
     )
@@ -105,7 +124,7 @@ def main() -> None:
         trace("weights_loaded")
         if use_raw_points:
             pc_full = points.astype(np.float32)
-            pc_segments = {}
+            pc_segments = _raw_point_segments(pc_full, segment_ids)
         else:
             pc_full, pc_segments, _ = grasp_estimator.extract_point_clouds(
                 depth,
@@ -121,16 +140,16 @@ def main() -> None:
         )
         trace(
             "predict_scene_grasps_start",
-            local_regions=(segmap is not None) and not use_raw_points,
-            filter_grasps=(segmap is not None) and not use_raw_points,
+            local_regions=bool(pc_segments),
+            filter_grasps=bool(pc_segments),
             forward_passes=args.forward_passes,
         )
         pred_grasps_cam, scores, contact_pts, gripper_openings = grasp_estimator.predict_scene_grasps(
             sess,
             pc_full,
             pc_segments=pc_segments,
-            local_regions=(segmap is not None) and not use_raw_points,
-            filter_grasps=(segmap is not None) and not use_raw_points,
+            local_regions=bool(pc_segments),
+            filter_grasps=bool(pc_segments),
             forward_passes=args.forward_passes,
         )
         trace(

@@ -31,6 +31,7 @@ class PerceptionResult:
     mask: Any
     detection: DetectionResult | None
     debug: dict[str, Any]
+    segment_ids: Any | None = None
     side_mask: Any | None = None
     side_points: Any | None = None
     side_colors: Any | None = None
@@ -974,6 +975,7 @@ class SharedModularPerception:
                     depth_band_m=float(self._segmentation_config.get("fallback_depth_band_m", 0.04)),
                 )
         points, colors = point_cloud_from_mask(obs, mask, self._np)
+        segment_ids = self._np.ones((int(points.shape[0]),), dtype=self._np.int32)
         side_mask = None
         side_points = None
         side_colors = None
@@ -991,11 +993,14 @@ class SharedModularPerception:
                 side_points = _camera_to_front_frame(obs, raw_side_points, self._np, view="side")
                 points = self._np.concatenate([points, side_points], axis=0)
                 colors = self._np.concatenate([colors, side_colors], axis=0)
+                segment_ids = self._np.ones((int(points.shape[0]),), dtype=self._np.int32)
                 debug["point_cloud_mode"] = "front_plus_side_fused_in_front_frame"
                 debug["front_point_count"] = int(points.shape[0] - side_points.shape[0])
                 debug["side_point_count"] = int(side_points.shape[0])
+                debug["segment_filtering"] = "single_target_segment_preserved_for_cgn_local_regions"
             else:
                 debug["point_cloud_mode"] = "front_only_fallback"
+                debug["segment_filtering"] = "front_target_segment_preserved_for_cgn_local_regions"
         else:
             debug = dict(seg_debug)
         segmap = mask.astype("uint8")
@@ -1013,6 +1018,7 @@ class SharedModularPerception:
             mask=mask,
             detection=detection,
             debug=debug,
+            segment_ids=segment_ids,
             side_mask=side_mask,
             side_points=side_points,
             side_colors=side_colors,

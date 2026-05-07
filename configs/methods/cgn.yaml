@@ -138,10 +138,12 @@ task_runtime_overrides:
       use_grasp_pose: true
   track_b_cgn_native_v2:
     native_multiview_fusion: true
-    native_top_k: 5
+    native_top_k: 20
     planner_overrides:
       single_plan_per_attempt: false
       use_grasp_pose: true
+      candidate_top_k: 20
+      grasp_frame_to_tcp_status: contact_graspnet_panda_frame_to_franka_eef_identity_reference
   cgn_bottleneck_v2:
     native_top_k: 10
     planner_overrides:

@@ -15,6 +15,7 @@ from grasp_benchmark.adapters.modular_adapters import (
 from grasp_benchmark.adapters.modular_components import DetectionResult, SharedModularPerception
 from grasp_benchmark.config import load_named_config
 from grasp_benchmark.methods import UPSTREAMS_BY_NAME
+from grasp_benchmark.runners.contact_graspnet import _raw_point_segments
 from grasp_benchmark.types import Observation
 
 
@@ -162,7 +163,50 @@ class CgnPipelineContractTest(unittest.TestCase):
         method_config = load_named_config("methods", "cgn")
         override = method_config["task_runtime_overrides"]["track_b_cgn_native_v2"]
         self.assertTrue(override["native_multiview_fusion"])
-        self.assertEqual(override["native_top_k"], 5)
+        self.assertEqual(override["native_top_k"], 20)
+        self.assertEqual(override["planner_overrides"]["candidate_top_k"], 20)
+
+    def test_native_multiview_fusion_preserves_target_segment_for_official_cgn_filtering(self) -> None:
+        with patch("grasp_benchmark.adapters.modular_components.GroundingDinoDetector", FakeDetector):
+            perception = SharedModularPerception(
+                method_config=load_named_config("methods", "cgn"),
+                runtime_config={
+                    "task_set": "track_b_cgn_native_v2",
+                    "project_root": str(REPO_ROOT),
+                    "native_multiview_fusion": True,
+                },
+                np_module=np,
+                cv2_module=FakeCV2,
+            )
+            result = perception.observe(
+                task_spec={
+                    "task": "language_conditioned_single_target_pick",
+                    "object_label": "banana",
+                    "object_group": "native_opaque_cal",
+                },
+                instruction="pick up the banana",
+                obs=_observation(),
+            )
+
+        self.assertIsNotNone(result.segment_ids)
+        self.assertEqual(len(result.segment_ids), result.points.shape[0])
+        self.assertEqual(set(np.asarray(result.segment_ids).tolist()), {1})
+        self.assertEqual(result.debug["segment_filtering"], "single_target_segment_preserved_for_cgn_local_regions")
+
+    def test_raw_point_runner_builds_official_object_segments_from_segment_ids(self) -> None:
+        points = np.asarray(
+            [
+                [0.0, 0.0, 0.5],
+                [0.01, 0.0, 0.5],
+                [0.5, 0.0, 0.8],
+            ],
+            dtype=np.float32,
+        )
+        segments = _raw_point_segments(points, np.asarray([1, 1, 2], dtype=np.int32))
+
+        self.assertEqual(sorted(segments), [1, 2])
+        self.assertEqual(segments[1].shape, (2, 3))
+        self.assertEqual(segments[2].shape, (1, 3))
 
     def test_cgn_legacy_bridge_keeps_cuda_and_env_libraries_visible(self) -> None:
         ld_library_path = _legacy_ld_library_path(

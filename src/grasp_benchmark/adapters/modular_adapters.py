@@ -540,6 +540,11 @@ class ContactGraspNetAdapter(_SharedModularAdapterBase):
                     input_path,
                     points=self._np.asarray(perception.points, dtype=self._np.float32),
                     colors=self._np.asarray(perception.colors, dtype=self._np.float32),
+                    segment_ids=(
+                        self._np.asarray(perception.segment_ids, dtype=self._np.int32)
+                        if perception.segment_ids is not None
+                        else self._np.ones((int(len(perception.points)),), dtype=self._np.int32)
+                    ),
                 )
             else:
                 depth = self._np.asarray(obs.depth_front, dtype=self._np.float32)
