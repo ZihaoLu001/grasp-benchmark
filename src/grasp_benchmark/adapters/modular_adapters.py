@@ -53,6 +53,31 @@ def _legacy_runner_timeout_s(runtime_config: dict[str, Any]) -> float:
     return max(timeout_ms / 1000.0, 300.0)
 
 
+def _cgn_runner_trace_summary(trace_events: list[Any]) -> dict[str, Any]:
+    summary: dict[str, Any] = {}
+    for event in trace_events:
+        if not isinstance(event, dict):
+            continue
+        stage = str(event.get("stage", ""))
+        if stage == "tensorflow_imported":
+            summary["tensorflow_gpu_count"] = int(event.get("gpu_count", 0) or 0)
+        elif stage == "input_loaded":
+            summary["use_raw_points"] = bool(event.get("use_raw_points", False))
+            summary["points_shape"] = event.get("points_shape")
+            summary["segment_ids_shape"] = event.get("segment_ids_shape")
+        elif stage == "point_cloud_ready":
+            summary["pc_full_shape"] = event.get("pc_full_shape")
+            summary["segment_shapes"] = event.get("segment_shapes")
+        elif stage == "predict_scene_grasps_start":
+            summary["local_regions"] = bool(event.get("local_regions", False))
+            summary["filter_grasps"] = bool(event.get("filter_grasps", False))
+            summary["forward_passes"] = int(event.get("forward_passes", 0) or 0)
+        elif stage == "predict_scene_grasps_done":
+            summary["grasp_counts"] = event.get("grasp_counts")
+            summary["score_counts"] = event.get("score_counts")
+    return summary
+
+
 def _workspace_limits(sensor_config: dict[str, Any]) -> list[float]:
     workspace_cm = sensor_config.get("workspace_cm", {})
     half_x = float(workspace_cm.get("x", 40.0)) / 200.0
@@ -143,10 +168,18 @@ class _SharedModularAdapterBase(AgentAdapter):
         candidates = payload.get("candidate_grasps")
         if isinstance(candidates, list) and candidates:
             normalized: list[dict[str, Any]] = []
+            inherited_debug = {
+                key: payload[key]
+                for key in ("segment_key", "grasp_count", "runner_trace_summary")
+                if key in payload
+            }
             for candidate in candidates:
                 if not isinstance(candidate, dict):
                     continue
-                normalized.append(dict(candidate))
+                candidate_payload = dict(candidate)
+                for key, value in inherited_debug.items():
+                    candidate_payload.setdefault(key, value)
+                normalized.append(candidate_payload)
             if normalized:
                 return normalized
         return [dict(payload)]
@@ -685,6 +718,13 @@ class ContactGraspNetAdapter(_SharedModularAdapterBase):
                 )
 
             payload = json.loads(output_path.read_text(encoding="utf-8"))
+            if trace_path.exists():
+                try:
+                    trace_events = json.loads(trace_path.read_text(encoding="utf-8"))
+                except json.JSONDecodeError:
+                    trace_events = []
+                if isinstance(trace_events, list):
+                    payload["runner_trace_summary"] = _cgn_runner_trace_summary(trace_events)
             if not payload.get("ok"):
                 self._write_debug_payload("cgn_payload_", payload)
                 raise AdapterExecutionError(

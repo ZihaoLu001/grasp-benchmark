@@ -8,6 +8,7 @@ import numpy as np
 
 from grasp_benchmark.adapters.base import AdapterExecutionError
 from grasp_benchmark.adapters.modular_adapters import (
+    _cgn_runner_trace_summary,
     _legacy_cuda_visible_devices,
     _legacy_ld_library_path,
     _legacy_runner_timeout_s,
@@ -207,6 +208,43 @@ class CgnPipelineContractTest(unittest.TestCase):
         self.assertEqual(sorted(segments), [1, 2])
         self.assertEqual(segments[1].shape, (2, 3))
         self.assertEqual(segments[2].shape, (1, 3))
+
+    def test_cgn_runner_trace_summary_preserves_official_filtering_evidence(self) -> None:
+        summary = _cgn_runner_trace_summary(
+            [
+                {"stage": "tensorflow_imported", "gpu_count": 1},
+                {
+                    "stage": "input_loaded",
+                    "use_raw_points": True,
+                    "points_shape": [128, 3],
+                    "segment_ids_shape": [128],
+                },
+                {
+                    "stage": "point_cloud_ready",
+                    "pc_full_shape": [128, 3],
+                    "segment_shapes": {"1": [128, 3]},
+                },
+                {
+                    "stage": "predict_scene_grasps_start",
+                    "local_regions": True,
+                    "filter_grasps": True,
+                    "forward_passes": 1,
+                },
+                {
+                    "stage": "predict_scene_grasps_done",
+                    "grasp_counts": {"1": 5},
+                    "score_counts": {"1": 5},
+                },
+            ]
+        )
+
+        self.assertEqual(summary["tensorflow_gpu_count"], 1)
+        self.assertTrue(summary["use_raw_points"])
+        self.assertEqual(summary["segment_ids_shape"], [128])
+        self.assertEqual(summary["segment_shapes"], {"1": [128, 3]})
+        self.assertTrue(summary["local_regions"])
+        self.assertTrue(summary["filter_grasps"])
+        self.assertEqual(summary["grasp_counts"], {"1": 5})
 
     def test_cgn_legacy_bridge_keeps_cuda_and_env_libraries_visible(self) -> None:
         ld_library_path = _legacy_ld_library_path(
