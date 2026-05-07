@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from grasp_benchmark.adapters.base import AgentAdapter
+from grasp_benchmark.adapters.graspvla import GraspVLAAdapter
 from grasp_benchmark.adapters.modular_adapters import AnyGraspAdapter, ContactGraspNetAdapter
-from grasp_benchmark.adapters.placeholders import GraspVLAAdapter
 
 
 ADAPTERS: dict[str, type[AgentAdapter]] = {

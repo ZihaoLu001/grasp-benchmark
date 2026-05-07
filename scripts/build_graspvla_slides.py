@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-import sys
 
 
 SLIDES = [
@@ -60,43 +59,35 @@ SLIDES = [
     (
         "Current Lab Status",
         [
-            "Official model server is running on em14:6666",
-            "Official validate_server.py and offline_test.py both succeeded on em14",
-            "Official playground.py and evaluate_libero_tasks.py now run in gb-graspvla-sim",
-            "Official complete sim batch is done: playground 8/10, libero_object 482/500, libero_10 325/350, libero_goal 336/350",
-            "The 350 denominators are expected: libero_10 exposes 7 tasks and libero_goal skips 3 invalid tasks",
-            "GraspVLA smoke success 1/1 at about 377 ms",
-            "Contact-GraspNet smoke success 1/1 at about 405.6 s",
-            "AnyGrasp is blocked only by license, not by repo setup",
+            "GraspVLA shared-protocol results are stable for the current simulator suites",
+            "CGN now means the benchmark-owned shared lane, not official native Contact-GraspNet",
+            "Patched CGN H100 rerun completed: 25/90, 20/168, 8/40, and 0/24",
+            "Tracked evidence lives in configs/results/cgn_h100_posthold_20260507.json",
+            "AnyGrasp is excluded from current comparative claims until fresh license/runtime revalidation",
         ],
     ),
     (
         "Next Step For The Team",
         [
-            "Use the complete official GraspVLA sim run as the anchor reference",
-            "Run a small Track A batch with GraspVLA and Contact-GraspNet",
-            "Fetch the AnyGrasp license and complete the third baseline",
-            "Collect plots, failure taxonomy, and videos for the benchmark meeting",
+            "Use README.md and docs/current_benchmark_report.md as the collaborator-facing source of truth",
+            "Keep generated slides, plots, and videos under artifacts rather than tracked docs",
+            "Describe CGN only as the shared lane unless native TCP calibration is completed",
+            "Prioritize CGN frame/TCP calibration and camera-geometry smoke tests before further claims",
         ],
     ),
 ]
 
 
 def main() -> None:
-    tool_python_dir = Path(r"D:\Program Files (x86)\codex-tools\py")
-    if tool_python_dir.exists():
-        sys.path.insert(0, str(tool_python_dir))
-
     try:
         from pptx import Presentation
         from pptx.util import Inches, Pt
     except ImportError as exc:
         raise SystemExit(
-            "python-pptx is required. Install it first, for example with "
-            '`python -m pip install --target "D:\\Program Files (x86)\\codex-tools\\py" python-pptx`.'
+            "python-pptx is required. Install it into the active environment before building slides."
         ) from exc
 
-    output_path = Path(__file__).resolve().parents[1] / "docs" / "slides" / "graspvla_inner_workings.pptx"
+    output_path = Path(__file__).resolve().parents[1] / "artifacts" / "slides" / "graspvla_inner_workings.pptx"
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     presentation = Presentation()

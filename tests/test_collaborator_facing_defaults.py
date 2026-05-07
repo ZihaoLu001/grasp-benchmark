@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import tomllib
 import unittest
 from pathlib import Path
 
@@ -98,6 +99,12 @@ class CollaboratorFacingDefaultsTest(unittest.TestCase):
         self.assertIn("validate_gripper_opening: true", text)
         self.assertIn("grasp_frame_to_tcp_status: explicit_identity_shared_lane_not_native_calibration", text)
 
+    def test_adapter_modules_do_not_keep_old_placeholder_implementations(self) -> None:
+        self.assertFalse((REPO_ROOT / "src/grasp_benchmark/adapters/placeholders.py").exists())
+        text = self._read("src/grasp_benchmark/adapters/__init__.py")
+        self.assertIn("from grasp_benchmark.adapters.graspvla import GraspVLAAdapter", text)
+        self.assertNotIn("placeholders", text)
+
     def test_cgn_h100_rerun_report_documents_nonzero_shared_lane(self) -> None:
         text = self._read("docs/current_benchmark_report.md")
         self.assertIn("27.78%", text)
@@ -140,6 +147,22 @@ class CollaboratorFacingDefaultsTest(unittest.TestCase):
         self.assertIn('Join-Path $repoRoot "artifacts\\runs"', text)
         self.assertIn('Join-Path $repoRoot "src"', text)
         self.assertNotIn("D:\\codex", text)
+
+    def test_slide_script_matches_current_documentation_policy(self) -> None:
+        text = self._read("scripts/build_graspvla_slides.py")
+        self.assertIn('"artifacts" / "slides"', text)
+        self.assertIn("AnyGrasp is excluded from current comparative claims", text)
+        self.assertIn("25/90, 20/168, 8/40, and 0/24", text)
+        self.assertNotIn('"docs" / "slides"', text)
+        self.assertNotIn("Fetch the AnyGrasp license", text)
+        self.assertNotIn("D:\\", text)
+
+    def test_pyproject_declares_core_runtime_dependencies(self) -> None:
+        payload = tomllib.loads(self._read("pyproject.toml"))
+        dependencies = payload["project"]["dependencies"]
+        self.assertIn("numpy>=1.26,<2", dependencies)
+        self.assertIn("PyYAML>=6.0,<7", dependencies)
+        self.assertIn("transforms3d>=0.4,<1", dependencies)
 
 
 if __name__ == "__main__":
