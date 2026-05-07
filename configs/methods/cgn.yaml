@@ -60,9 +60,18 @@ segmentation:
 planner:
   use_grasp_pose: true
   candidate_top_k: 5
+  validate_gripper_opening: true
+  min_gripper_opening_m: 0.005
+  max_gripper_opening_m: 0.08
   reject_below_table_grasps: true
   grasp_min_z_m: 0.02
   single_plan_per_attempt: true
+  grasp_frame_to_tcp_status: explicit_identity_shared_lane_not_native_calibration
+  grasp_frame_to_tcp_matrix:
+    - [1.0, 0.0, 0.0, 0.0]
+    - [0.0, 1.0, 0.0, 0.0]
+    - [0.0, 0.0, 1.0, 0.0]
+    - [0.0, 0.0, 0.0, 1.0]
   approach_clearance_m: 0.08
   grasp_offset_m: 0.015
   lift_height_m: 0.18

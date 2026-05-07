@@ -37,8 +37,10 @@ Patched CGN rerun status:
 - Hard Shared Grasping Stress Test (`track_a_stress_v4`) completed all four CGN shards at `20 / 168` (`11.90%`).
 - Instruction Robustness Check (`instruction_robustness_v2`) completed all four CGN shards at `8 / 40` (`20.00%`).
 - Task-Oriented Grasping Pilot (`phase2_pilot_v1`) completed all four CGN shards at `0 / 24` (`0.00%`).
+- Machine-readable tracked evidence: `configs/results/cgn_h100_posthold_20260507.json`.
+- The canonical patched suites recorded zero wrong-object successes.
 
-The CGN successes from the May 7 H100 rerun all came from arbitrary opaque watermelon. These are pre planner-hold patch numbers:
+Historical pre-patch H100 successes are kept only as diagnostic context. They all came from arbitrary opaque watermelon:
 
 - `track_a_cal_v3`: `watermelon / opaque_basic / r02`, attempt 1, lift `31.5338 cm`, hold `2.0 s`
 - `track_a_stress_v4`: `watermelon / opaque_clutter / r06`, attempt 2, lift `47.0583 cm`, hold `2.0 s`
@@ -67,11 +69,13 @@ May 7 audit conclusion: the low CGN success rate should not be interpreted as of
 Confirmed implementation issue now fixed in code:
 
 - The shared modular planner previously ended the attempt immediately after the lift trajectory. Because Track A success requires `15 cm` lift and `10` control steps (`2 s` at `5 Hz`) of hold, this could fail episodes that had already lifted the object but had not held it long enough. `planner.post_lift_hold_steps: 12` has been added for CGN so the gripper stays closed after lift.
+- Planner orientation interpolation now uses SO(3) relative rotation chunks instead of subtracting Euler vectors and treating the result as repeated relative rotations.
+- CGN candidate filtering now validates `gripper_opening_m` against the Franka gripper opening range before planning, so impossible-width proposals are skipped rather than executed.
 
 High-risk items that still require targeted ablation:
 
-- Contact-GraspNet's upstream pose convention is not simply "object contact point as target pose." The upstream implementation builds the grasp translation as contact point plus half width along the gripper base axis minus gripper depth along the approach axis. The shared planner currently sends the resulting matrix directly as an end-effector pose, so a TCP/tool-frame mapping error remains plausible.
-- The runner records `contact_point_cam` and `gripper_opening_m`, but the shared planner still uses binary open/close actions and does not use CGN's predicted opening. This can make close timing and width filtering brittle.
+- Contact-GraspNet's upstream pose convention is not simply "object contact point as target pose." The upstream implementation builds the grasp translation as contact point plus half width along the gripper base axis minus gripper depth along the approach axis. The shared planner now has an explicit `grasp_frame_to_tcp_matrix`; it is currently identity and labeled `explicit_identity_shared_lane_not_native_calibration`, so a native CGN-gripper-frame to Franka TCP/tool-frame calibration remains required before any official-CGN-style claim.
+- The runner records `contact_point_cam` and `gripper_opening_m`; width range filtering is now enforced, but the shared `Action` contract still uses binary open/close commands rather than continuous gripper-width commands.
 - GroundingDINO plus depth-band masking is fragile for language scenes and transparent/fallback cases; the H100 rerun still has many `grounding_error` and `grasp_proposal` failures.
 - The camera image/depth/mask flip path and real robosuite camera extrinsics need a geometry smoke test with a known 3D point, not only identity-matrix unit tests.
 
@@ -80,7 +84,7 @@ Post-fix H100 diagnostic:
 - `1/90`, `2/168`, `0/40`, and `0/24` are valid records of the May 7 pre-patch shared-lane run.
 - They should be described as "pre-patch CGN shared-lane diagnostics," not as final Contact-GraspNet capability.
 - A targeted patched H100 rerun of `oracle_gt + real CGN` on `cgn_bottleneck_v2` completed successfully as `20260507_cgn_posthold_oracle_gt_real_cgn_h100`: `3 / 12` successes, all with `hold_s = 2.0`.
-- The successes were `ceramic_bowl / basic` (`15.3344 cm`), `banana / distractors_heavy` (`17.6541 cm`, with `wrong_object = 1`), and `power_drill / distractors_heavy` (`16.4609 cm`).
+- The diagnostic successes were `ceramic_bowl / basic` (`15.3344 cm`), `banana / distractors_heavy` (`17.6541 cm`, with `wrong_object = 1`), and `power_drill / distractors_heavy` (`16.4609 cm`). That wrong-object flag belongs to the bottleneck diagnostic only, not to the canonical patched suite table.
 - The full patched CGN rerun batch completed as Slurm jobs `364545-364563`; manifest path:
 
 ```text
@@ -115,19 +119,19 @@ custom ops: sm_80/sm_86/sm_89/sm_90 + compute_90 PTX
 
 The saved H100 probe records `NVIDIA H100 NVL`, completed TensorFlow matmul, completed PointNet++ sampling, and raw Contact-GraspNet returned `47` grasps in about 21.2 seconds. Current Slurm feature labels may not be a reliable substitute for that saved allocation/probe artifact.
 
-The valid Lakeshore rerun batch was `364039-364062`; all jobs completed with `ExitCode=0:0`. The first batch, `364009-364032`, failed immediately because `set -u` conflicted with the conda activation hook and did not produce valid experiment evidence.
+The valid pre-patch Lakeshore rerun batch was `364039-364062`; all jobs completed with `ExitCode=0:0`. The full patched Lakeshore rerun batch was `364545-364563`; all jobs completed with `ExitCode=0:0`. The first attempted batch, `364009-364032`, failed immediately because `set -u` conflicted with the conda activation hook and did not produce valid experiment evidence.
 
 Remote evidence paths:
 
 ```text
-/projects/cs_yifan16_chi/zlu31/grasp-benchmark/artifacts/slurm/cgn_h100_away_20260506_142345_retry/manifest.tsv
-/projects/cs_yifan16_chi/zlu31/grasp-benchmark/artifacts/reports/cgn_h100_away2_20260507/
+/projects/cs_yifan16_chi/zlu31/grasp-benchmark/artifacts/slurm/cgn_posthold_full_20260507_01/manifest.tsv
+/projects/cs_yifan16_chi/zlu31/grasp-benchmark/artifacts/runs/20260507_posthold_cgn_*
 ```
 
-Local fetched summary:
+Tracked local evidence:
 
 ```text
-artifacts/reports/cgn_h100_away2_20260507/summary.csv
+configs/results/cgn_h100_posthold_20260507.json
 ```
 
 ## Failure Breakdown

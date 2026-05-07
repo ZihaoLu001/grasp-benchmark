@@ -37,6 +37,8 @@ Current patched CGN H100 results:
 | Instruction Robustness Check | `38 / 40` | `8 / 40` | wording/paraphrase diagnostic |
 | Task-Oriented Grasping Pilot | `23 / 24` | `0 / 24` | small task-oriented extension |
 
+Tracked machine-readable evidence: [configs/results/cgn_h100_posthold_20260507.json](configs/results/cgn_h100_posthold_20260507.json). The canonical patched CGN suites recorded zero wrong-object successes; the separate `cgn_bottleneck_v2` diagnostic with one wrong-object flag is not part of the headline table.
+
 The pre-patch CGN H100 table (`1 / 90`, `2 / 168`, `0 / 40`, `0 / 24`) is now only a diagnostic reference. The patched diagnostic `oracle_gt + real CGN` run on `cgn_bottleneck_v2` improved from `0 / 12` to `3 / 12`, confirming that the old CGN shared-lane score included a benchmark integration problem.
 
 ## Experiment Name Guide
@@ -82,6 +84,7 @@ Use the friendly names first. Put internal IDs in parentheses only when readers 
 configs/
   cluster/      Lakeshore and other execution environments
   methods/      method definitions, runtime overrides, checkpoints
+  results/      small tracked evidence summaries for collaborator-facing tables
   scenes/       simulator scene catalogs
   sensors/      shared camera/gripper/success-rule contracts
   tasks/        stable task-set IDs and collaborator-facing names

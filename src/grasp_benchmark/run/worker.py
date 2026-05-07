@@ -179,6 +179,103 @@ def _setup_failure_results(
     return results
 
 
+def _official_setup_failure_results(
+    *,
+    adapter_name: str,
+    method_tier: str,
+    sensor_stack: str,
+    benchmarks: list[str],
+    tasks_per_benchmark: int,
+    seeds: list[int],
+    playground_seed_list: list[int],
+    run_playground_sanity: bool,
+    node: str,
+    commit: str,
+    execution_mode: str,
+    exc: BaseException,
+    parent_run_id: str = "",
+    shard_id: str = "",
+    gpu_id: str = "",
+) -> list[EpisodeResult]:
+    failure_stage = exc.failure_stage if isinstance(exc, AdapterExecutionError) else "adapter_setup"
+    failure_reason = _sanitize_reason(exc)
+    results: list[EpisodeResult] = []
+    for benchmark in benchmarks:
+        for task_index in range(max(int(tasks_per_benchmark), 0)):
+            for seed in seeds:
+                results.append(
+                    EpisodeResult(
+                        method=adapter_name,
+                        method_tier=method_tier,
+                        track="official_alignment",
+                        execution_mode=execution_mode,
+                        task=benchmark,
+                        scene_id=f"{benchmark}__setup_failure_task{task_index:03d}__seed{int(seed)}",
+                        scene_recipe_id=f"{benchmark}__setup_failure_task{task_index:03d}",
+                        object_id="official_alignment_setup",
+                        object_group="official_alignment_setup",
+                        condition="setup_failure",
+                        instruction="",
+                        sensor_stack=sensor_stack,
+                        attempts=0,
+                        success=False,
+                        lift_cm=0.0,
+                        hold_s=0.0,
+                        spl=0.0,
+                        inference_ms=0.0,
+                        cycle_time_s=0.0,
+                        failure_stage=failure_stage,
+                        failure_reason=failure_reason,
+                        collision=False,
+                        video_path="",
+                        node=node,
+                        commit=commit,
+                        replicate_index=task_index + 1,
+                        seed=int(seed),
+                        parent_run_id=parent_run_id,
+                        shard_id=shard_id,
+                        gpu_id=gpu_id,
+                    )
+                )
+    if run_playground_sanity:
+        for seed in playground_seed_list:
+            results.append(
+                EpisodeResult(
+                    method=adapter_name,
+                    method_tier=method_tier,
+                    track="official_alignment",
+                    execution_mode=execution_mode,
+                    task="playground_sanity",
+                    scene_id=f"playground_sanity__setup_failure__seed{int(seed)}",
+                    scene_recipe_id="playground_sanity__setup_failure",
+                    object_id="official_alignment_setup",
+                    object_group="official_alignment_setup",
+                    condition="setup_failure",
+                    instruction="",
+                    sensor_stack=sensor_stack,
+                    attempts=0,
+                    success=False,
+                    lift_cm=0.0,
+                    hold_s=0.0,
+                    spl=0.0,
+                    inference_ms=0.0,
+                    cycle_time_s=0.0,
+                    failure_stage=failure_stage,
+                    failure_reason=failure_reason,
+                    collision=False,
+                    video_path="",
+                    node=node,
+                    commit=commit,
+                    replicate_index=1,
+                    seed=int(seed),
+                    parent_run_id=parent_run_id,
+                    shard_id=shard_id,
+                    gpu_id=gpu_id,
+                )
+            )
+    return results
+
+
 def main() -> None:
     _maybe_enable_faulthandler()
     _maybe_enable_numpy_compat()
@@ -389,19 +486,38 @@ def main() -> None:
         payload["setup_error"] = _sanitize_reason(exc)
         payload["setup_traceback"] = traceback.format_exc(limit=50)
         (output_dir / "run_metadata.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
-        results = _setup_failure_results(
-            adapter_name=adapter.name,
-            method_tier=benchmark_method_tier,
-            sensor_stack=str(sensor_config["sensor_stack"]),
-            task_specs=task_specs,
-            node=payload["node"],
-            commit=payload["commit"],
-            execution_mode=args.execution_mode,
-            exc=exc,
-            parent_run_id=args.parent_run_id,
-            shard_id=payload["shard_id"],
-            gpu_id=args.gpu_id,
-        )
+        if _is_official_aligned_execution_mode(args.execution_mode) and not task_specs:
+            results = _official_setup_failure_results(
+                adapter_name=adapter.name,
+                method_tier=benchmark_method_tier,
+                sensor_stack=str(sensor_config["sensor_stack"]),
+                benchmarks=[item.strip() for item in args.official_benchmarks.split(",") if item.strip()],
+                tasks_per_benchmark=args.official_task_count,
+                seeds=parse_seed_csv(args.official_seeds),
+                playground_seed_list=parse_seed_csv(args.official_playground_seeds),
+                run_playground_sanity=args.official_run_playground_sanity,
+                node=payload["node"],
+                commit=payload["commit"],
+                execution_mode=args.execution_mode,
+                exc=exc,
+                parent_run_id=args.parent_run_id,
+                shard_id=payload["shard_id"],
+                gpu_id=args.gpu_id,
+            )
+        else:
+            results = _setup_failure_results(
+                adapter_name=adapter.name,
+                method_tier=benchmark_method_tier,
+                sensor_stack=str(sensor_config["sensor_stack"]),
+                task_specs=task_specs,
+                node=payload["node"],
+                commit=payload["commit"],
+                execution_mode=args.execution_mode,
+                exc=exc,
+                parent_run_id=args.parent_run_id,
+                shard_id=payload["shard_id"],
+                gpu_id=args.gpu_id,
+            )
     finally:
         adapter.close()
 

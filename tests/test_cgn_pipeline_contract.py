@@ -97,7 +97,13 @@ class CgnPipelineContractTest(unittest.TestCase):
         self.assertEqual(method_config["legacy_runtime"]["tensorflow_version"], "2.12.0")
         self.assertIn("-gencode=arch=compute_90,code=sm_90", method_config["legacy_runtime"]["custom_op_arch_flags"])
         self.assertGreaterEqual(method_config["planner"]["candidate_top_k"], 5)
+        self.assertTrue(method_config["planner"]["validate_gripper_opening"])
+        self.assertLessEqual(method_config["planner"]["max_gripper_opening_m"], 0.08)
         self.assertTrue(method_config["planner"]["reject_below_table_grasps"])
+        self.assertEqual(
+            method_config["planner"]["grasp_frame_to_tcp_status"],
+            "explicit_identity_shared_lane_not_native_calibration",
+        )
 
     def test_curobo_upstream_is_pinned_to_playground_compatible_api(self) -> None:
         self.assertEqual(UPSTREAMS_BY_NAME["curobo"].ref, "v0.7.8")

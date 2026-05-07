@@ -4,6 +4,7 @@ import unittest
 
 import numpy as np
 
+from grasp_benchmark.adapters.base import AdapterExecutionError
 from grasp_benchmark.adapters.modular_adapters import _SharedModularAdapterBase
 from grasp_benchmark.adapters.modular_components import PerceptionResult
 from grasp_benchmark.types import Observation
@@ -91,6 +92,40 @@ class _CandidateRetryAdapter(_StubModularAdapter):
         }
 
 
+class _WidthFilterRetryAdapter(_StubModularAdapter):
+    def _proposal_payload(self, obs: Observation, perception: PerceptionResult) -> dict:
+        return {
+            "candidate_grasps": [
+                {
+                    "best_translation": [0.05, -0.02, 0.12],
+                    "best_score": 0.9,
+                    "proposal_source": "too_wide",
+                    "gripper_opening_m": 0.12,
+                },
+                {
+                    "best_translation": [0.05, -0.02, 0.12],
+                    "best_score": 0.8,
+                    "proposal_source": "width_valid",
+                    "gripper_opening_m": 0.04,
+                },
+            ]
+        }
+
+
+class _WidthFilterRejectAllAdapter(_StubModularAdapter):
+    def _proposal_payload(self, obs: Observation, perception: PerceptionResult) -> dict:
+        return {
+            "candidate_grasps": [
+                {
+                    "best_translation": [0.05, -0.02, 0.12],
+                    "best_score": 0.9,
+                    "proposal_source": "too_wide",
+                    "gripper_opening_m": 0.12,
+                }
+            ]
+        }
+
+
 class ModularAttemptSemanticsTest(unittest.TestCase):
     def test_single_plan_per_attempt_flips_complete_after_last_action(self) -> None:
         adapter = _StubModularAdapter(
@@ -129,6 +164,50 @@ class ModularAttemptSemanticsTest(unittest.TestCase):
         self.assertGreater(action.ee_delta[0], 0.0)
         self.assertEqual(debug["planner"]["proposal_source"], "fallback_translation")
         self.assertIn("skipped_planner_candidates", debug["planner"])
+
+    def test_planner_retries_next_candidate_when_gripper_opening_is_out_of_range(self) -> None:
+        adapter = _WidthFilterRetryAdapter(
+            method_config={
+                "name": "stub",
+                "planner": {
+                    "single_plan_per_attempt": True,
+                    "validate_gripper_opening": True,
+                    "min_gripper_opening_m": 0.005,
+                    "max_gripper_opening_m": 0.08,
+                },
+            },
+            sensor_config={},
+        )
+        adapter.setup({})
+        adapter.reset({"instruction": "pick up banana"})
+
+        action = adapter.step(_observation())
+        debug = adapter.latest_debug_payload()
+
+        self.assertGreater(action.ee_delta[0], 0.0)
+        self.assertEqual(debug["planner"]["proposal_source"], "width_valid")
+        self.assertIn("above max_gripper_opening_m", debug["planner"]["skipped_planner_candidates"][0])
+
+    def test_planner_reports_grasp_proposal_failure_when_all_candidates_are_width_invalid(self) -> None:
+        adapter = _WidthFilterRejectAllAdapter(
+            method_config={
+                "name": "stub",
+                "planner": {
+                    "single_plan_per_attempt": True,
+                    "validate_gripper_opening": True,
+                    "min_gripper_opening_m": 0.005,
+                    "max_gripper_opening_m": 0.08,
+                },
+            },
+            sensor_config={},
+        )
+        adapter.setup({})
+        adapter.reset({"instruction": "pick up banana"})
+
+        with self.assertRaises(AdapterExecutionError) as exc_info:
+            adapter.step(_observation())
+        self.assertEqual(exc_info.exception.failure_stage, "grasp_proposal")
+        self.assertIn("All modular grasp candidates were rejected", str(exc_info.exception))
 
 
 if __name__ == "__main__":

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import unittest
 from pathlib import Path
 
@@ -31,6 +32,7 @@ class CollaboratorFacingDefaultsTest(unittest.TestCase):
         self.assertIn("25 / 90", text)
         self.assertIn("20 / 168", text)
         self.assertIn("8 / 40", text)
+        self.assertIn("configs/results/cgn_h100_posthold_20260507.json", text)
         self.assertIn("docs/current_benchmark_report.md", text)
         self.assertNotIn("docs/reports/", text)
         self.assertNotIn("_zh.md", text)
@@ -48,6 +50,8 @@ class CollaboratorFacingDefaultsTest(unittest.TestCase):
         self.assertIn("25/90", text)
         self.assertIn("20/168", text)
         self.assertIn("8/40", text)
+        self.assertIn("configs/results/cgn_h100_posthold_20260507.json", text)
+        self.assertIn("zero wrong-object successes", text)
         self.assertIn("GroundingDINO", text)
         self.assertIn("do not establish that official Contact-GraspNet capability is zero", text)
         self.assertNotIn("D:/codex", text)
@@ -60,6 +64,9 @@ class CollaboratorFacingDefaultsTest(unittest.TestCase):
         self.assertIn("sim2real_proxy_v2", text)
         self.assertIn("phase2_pilot_v1", text)
         self.assertIn("track_b_cgn_native_v2", text)
+        self.assertIn("Get-RunTrialCount", text)
+        self.assertIn('Join-Path $Candidate.FullName "shards"', text)
+        self.assertIn('Get-ChildItem $shardsRoot -Recurse -Filter "results.csv"', text)
         self.assertNotIn("track_a_stress_v3_shared_sim", text)
         self.assertNotIn("track_b_cgn_native_v1", text)
         self.assertNotIn("D:\\codex", text)
@@ -88,6 +95,8 @@ class CollaboratorFacingDefaultsTest(unittest.TestCase):
         self.assertIn("task_localization: GroundingDINO", text)
         self.assertIn("grasp_proposal: Contact-GraspNet", text)
         self.assertIn("success_rule: shared_track_a_lift_15cm_hold_2s", text)
+        self.assertIn("validate_gripper_opening: true", text)
+        self.assertIn("grasp_frame_to_tcp_status: explicit_identity_shared_lane_not_native_calibration", text)
 
     def test_cgn_h100_rerun_report_documents_nonzero_shared_lane(self) -> None:
         text = self._read("docs/current_benchmark_report.md")
@@ -96,6 +105,27 @@ class CollaboratorFacingDefaultsTest(unittest.TestCase):
         self.assertIn("watermelon", text)
         self.assertIn("oracle topdown", text)
         self.assertIn("pre-rerun", text)
+
+    def test_current_cgn_h100_numbers_are_backed_by_tracked_evidence(self) -> None:
+        evidence = json.loads(self._read("configs/results/cgn_h100_posthold_20260507.json"))
+        suites = {suite["task_set"]: suite for suite in evidence["suites"]}
+        expected = {
+            "track_a_cal_v3": (25, 90, "27.78%"),
+            "track_a_stress_v4": (20, 168, "11.90%"),
+            "instruction_robustness_v2": (8, 40, "20.00%"),
+            "phase2_pilot_v1": (0, 24, "0.00%"),
+        }
+        readme = self._read("README.md")
+        report = self._read("docs/current_benchmark_report.md")
+        for task_set, (successes, trials, percent) in expected.items():
+            self.assertEqual(suites[task_set]["successes"], successes)
+            self.assertEqual(suites[task_set]["trials"], trials)
+            self.assertEqual(suites[task_set]["observed_shard_count"], suites[task_set]["expected_shard_count"])
+            self.assertEqual(suites[task_set]["duplicate_scene_ids"], 0)
+            self.assertEqual(suites[task_set]["wrong_object_successes"], 0)
+            self.assertIn(f"{successes} / {trials}", readme)
+            self.assertIn(f"{successes} / {trials}", report)
+            self.assertIn(percent, report)
 
     def test_tracked_docs_are_kept_small(self) -> None:
         docs = [

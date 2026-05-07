@@ -151,6 +151,31 @@ class _SharedModularAdapterBase(AgentAdapter):
                 return normalized
         return [dict(payload)]
 
+    def _candidate_validation_failure(self, candidate: dict[str, Any]) -> str:
+        if not bool(self._planner_config.get("validate_gripper_opening", False)):
+            return ""
+        if "gripper_opening_m" not in candidate:
+            return ""
+        try:
+            opening_m = float(candidate.get("gripper_opening_m"))
+        except (TypeError, ValueError):
+            return "candidate rejected: gripper_opening_m is not numeric"
+        if not bool(self._np.isfinite(opening_m)):
+            return "candidate rejected: gripper_opening_m is not finite"
+        min_opening_m = float(self._planner_config.get("min_gripper_opening_m", 0.0))
+        max_opening_m = float(self._planner_config.get("max_gripper_opening_m", 0.085))
+        if opening_m < min_opening_m:
+            return (
+                "candidate rejected: gripper_opening_m "
+                f"{opening_m:.4f} below min_gripper_opening_m {min_opening_m:.4f}"
+            )
+        if opening_m > max_opening_m:
+            return (
+                "candidate rejected: gripper_opening_m "
+                f"{opening_m:.4f} above max_gripper_opening_m {max_opening_m:.4f}"
+            )
+        return ""
+
     def _plan_candidate(self, obs: Observation, candidate: dict[str, Any]) -> tuple[list[Action], dict[str, Any]]:
         translation = candidate.get("best_translation")
         if translation is None:
@@ -182,6 +207,16 @@ class _SharedModularAdapterBase(AgentAdapter):
         candidate = first_candidate
         skipped: list[str] = []
         while True:
+            validation_failure = self._candidate_validation_failure(candidate)
+            if validation_failure:
+                skipped.append(validation_failure)
+                if not self._candidate_payloads:
+                    raise AdapterExecutionError(
+                        "All modular grasp candidates were rejected before planning: " + "; ".join(skipped),
+                        failure_stage="grasp_proposal",
+                    )
+                candidate = self._candidate_payloads.pop(0)
+                continue
             try:
                 planned_actions, planner_debug = self._plan_candidate(obs, candidate)
                 if skipped:

@@ -81,6 +81,11 @@ def _iter_csv_rows(root: Path) -> list[dict[str, object]]:
                 coerced = _coerce_row(row)
                 if inferred_parent_run_id and not str(coerced.get("parent_run_id", "")).strip():
                     coerced["parent_run_id"] = inferred_parent_run_id
+                if path.parent.parent.name == "shards":
+                    coerced["_parent_run_dir"] = str(path.parent.parent.parent)
+                else:
+                    coerced["_parent_run_dir"] = str(path.parent)
+                coerced["_results_path"] = str(path)
                 rows.append(coerced)
     return rows
 
@@ -170,7 +175,7 @@ def _resolve_parent_run_ids(
 ) -> list[str]:
     if explicit_parent_run_id:
         return _parse_parent_run_ids(explicit_parent_run_id)
-    latest = ""
+    latest_by_method_tier: dict[str, str] = {}
     for row in rows:
         candidate = str(row.get("parent_run_id", "")).strip()
         if (
@@ -178,8 +183,13 @@ def _resolve_parent_run_ids(
             and str(row.get("track", "")).startswith("track_a")
             and str(row.get("execution_mode", "")) == execution_mode
         ):
-            latest = candidate
-    return [latest] if latest else []
+            tier = str(row.get("method_tier", "")).strip() or _infer_method_tier(row)
+            latest_by_method_tier[tier] = candidate
+    resolved: list[str] = []
+    for candidate in latest_by_method_tier.values():
+        if candidate not in resolved:
+            resolved.append(candidate)
+    return resolved
 
 
 def _track_a_rows(
@@ -202,6 +212,61 @@ def _track_a_rows(
 def _by_shard(rows: list[dict[str, object]]) -> list[dict[str, object]]:
     shard_rows = [row for row in rows if str(row.get("shard_id", "")).strip()]
     return _aggregate(shard_rows, ["track", "method", "method_tier", "parent_run_id", "shard_id", "node", "gpu_id"])
+
+
+def _validate_matrix_completion(rows: list[dict[str, object]]) -> list[dict[str, object]]:
+    parents: dict[str, dict[str, object]] = {}
+    for row in rows:
+        shard_id = str(row.get("shard_id", "")).strip()
+        parent_run_id = str(row.get("parent_run_id", "")).strip()
+        parent_run_dir = str(row.get("_parent_run_dir", "")).strip()
+        if not shard_id or not parent_run_id or not parent_run_dir:
+            continue
+        parent = parents.setdefault(
+            parent_run_id,
+            {
+                "parent_run_id": parent_run_id,
+                "parent_run_dir": parent_run_dir,
+                "observed_shard_ids": set(),
+                "row_count": 0,
+            },
+        )
+        parent["observed_shard_ids"].add(shard_id)
+        parent["row_count"] = int(parent["row_count"]) + 1
+
+    records: list[dict[str, object]] = []
+    errors: list[str] = []
+    for parent_run_id, parent in sorted(parents.items()):
+        parent_run_dir = Path(str(parent["parent_run_dir"]))
+        completion_path = parent_run_dir / "matrix_completion.json"
+        if not completion_path.exists():
+            continue
+        completion = json.loads(completion_path.read_text(encoding="utf-8"))
+        expected_shard_count = int(completion.get("shard_count", 0) or 0)
+        failure_count = int(completion.get("failure_count", 0) or 0)
+        observed_shard_ids = sorted(parent["observed_shard_ids"])
+        record = {
+            "parent_run_id": parent_run_id,
+            "expected_shard_count": expected_shard_count,
+            "observed_shard_count": len(observed_shard_ids),
+            "failure_count": failure_count,
+            "row_count": int(parent["row_count"]),
+            "completion_path": str(completion_path),
+            "status": "ok",
+        }
+        if failure_count:
+            record["status"] = "error"
+            errors.append(f"{parent_run_id}: matrix_completion reports failure_count={failure_count}")
+        if expected_shard_count and len(observed_shard_ids) != expected_shard_count:
+            record["status"] = "error"
+            errors.append(
+                f"{parent_run_id}: observed {len(observed_shard_ids)} shard result(s), "
+                f"expected {expected_shard_count}"
+            )
+        records.append(record)
+    if errors:
+        raise SystemExit("Matrix shard validation failed:\n" + "\n".join(errors))
+    return records
 
 
 def _parse_track_b_reference(summary_path: Path) -> list[dict[str, object]]:
@@ -301,6 +366,7 @@ def _write_markdown(
     *,
     interim_summary: list[dict[str, object]],
     parent_run_ids: list[str],
+    matrix_validation: list[dict[str, object]],
     diagnostic_note: list[str],
     stress_reference: dict[str, Any],
     stress_reference_path: str,
@@ -340,6 +406,22 @@ def _write_markdown(
             conditions,
         )
     )
+
+    if matrix_validation:
+        lines.extend(["", "## Matrix Shard Validation", ""])
+        lines.extend(
+            _markdown_table(
+                [
+                    "parent_run_id",
+                    "expected_shard_count",
+                    "observed_shard_count",
+                    "failure_count",
+                    "row_count",
+                    "status",
+                ],
+                matrix_validation,
+            )
+        )
 
     lines.extend(["", f"## {PRIMARY_BY_OBJECT_GROUP_TITLE}", ""])
     lines.extend(
@@ -399,6 +481,7 @@ def _render_collaborator_summary(
     *,
     interim_summary: list[dict[str, object]],
     parent_run_ids: list[str],
+    matrix_validation: list[dict[str, object]],
     diagnostic_note: list[str],
     stress_reference: dict[str, Any],
     stress_reference_path: str,
@@ -440,6 +523,15 @@ def _render_collaborator_summary(
             )
     else:
         lines.append("- No condition breakdown is available.")
+
+    if matrix_validation:
+        lines.extend(["", "## Matrix Shard Validation", ""])
+        for row in matrix_validation:
+            lines.append(
+                f"- {row['parent_run_id']}: observed {row['observed_shard_count']} / "
+                f"{row['expected_shard_count']} shards, failure_count={row['failure_count']}, "
+                f"rows={row['row_count']}, status={row['status']}"
+            )
 
     lines.extend(["", f"## {PRIMARY_BY_OBJECT_GROUP_TITLE}", ""])
     if by_object_group:
@@ -560,6 +652,7 @@ def main() -> None:
     by_object_group = _aggregate(headline_rows, ["track", "method", "method_tier", "task", "object_group"])
     interim_summary = _aggregate(interim_rows, ["track", "method", "method_tier", "task"])
     by_shard = _by_shard(track_a_rows)
+    matrix_validation = _validate_matrix_completion(track_a_rows)
     taxonomy = _failure_taxonomy(track_a_rows)
     track_b_reference = _parse_track_b_reference(Path(args.track_b_reference)) if args.track_b_reference else []
     diagnostic_report = Path(args.diagnostic_report) if args.diagnostic_report else None
@@ -583,6 +676,7 @@ def main() -> None:
         track_b_reference,
         interim_summary=interim_summary,
         parent_run_ids=parent_run_ids,
+        matrix_validation=matrix_validation,
         diagnostic_note=diagnostic_note,
         stress_reference=stress_reference,
         stress_reference_path=stress_reference_path,
@@ -595,6 +689,7 @@ def main() -> None:
         track_b_reference,
         interim_summary=interim_summary,
         parent_run_ids=parent_run_ids,
+        matrix_validation=matrix_validation,
         diagnostic_note=diagnostic_note,
         stress_reference=stress_reference,
         stress_reference_path=stress_reference_path,
@@ -607,6 +702,7 @@ def main() -> None:
                 "by_object_group": by_object_group,
                 "historical_interim_summary": interim_summary,
                 "by_shard": by_shard,
+                "matrix_validation": matrix_validation,
                 "failure_taxonomy": taxonomy,
                 "track_b_reference": track_b_reference,
                 "track_a_stress_reference": stress_reference,

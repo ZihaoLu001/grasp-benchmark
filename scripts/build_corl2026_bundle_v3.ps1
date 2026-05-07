@@ -34,30 +34,44 @@ function Get-LatestRunId {
     if (-not (Test-Path $InputRoot)) {
         return $null
     }
+    function Get-RunTrialCount {
+        param(
+            [Parameter(Mandatory = $true)]
+            [System.IO.DirectoryInfo]$Candidate
+        )
+        $summaryPath = Join-Path $Candidate.FullName "summary.json"
+        if (Test-Path $summaryPath) {
+            try {
+                $summary = Get-Content $summaryPath -Raw | ConvertFrom-Json
+                if ($summary.trial_count) {
+                    return [int]$summary.trial_count
+                }
+            } catch {
+            }
+        }
+        $resultsPath = Join-Path $Candidate.FullName "results.csv"
+        if (Test-Path $resultsPath) {
+            $lineCount = (Get-Content $resultsPath | Measure-Object -Line).Lines
+            return [Math]::Max(0, $lineCount - 1)
+        }
+        $trialCount = 0
+        $shardsRoot = Join-Path $Candidate.FullName "shards"
+        if (Test-Path $shardsRoot) {
+            $shardResults = Get-ChildItem $shardsRoot -Recurse -Filter "results.csv"
+            foreach ($path in $shardResults) {
+                $lineCount = (Get-Content $path.FullName | Measure-Object -Line).Lines
+                $trialCount += [Math]::Max(0, $lineCount - 1)
+            }
+        }
+        return $trialCount
+    }
+
     $candidates = Get-ChildItem $InputRoot -Directory -Filter $Pattern | Sort-Object LastWriteTime -Descending
     $eligible = foreach ($candidate in $candidates) {
         if ($ExcludePattern -and $candidate.Name -like $ExcludePattern) {
             continue
         }
-        $resultsPath = Join-Path $candidate.FullName "results.csv"
-        if (-not (Test-Path $resultsPath)) {
-            continue
-        }
-        $trialCount = 0
-        $summaryPath = Join-Path $candidate.FullName "summary.json"
-        if (Test-Path $summaryPath) {
-            try {
-                $summary = Get-Content $summaryPath -Raw | ConvertFrom-Json
-                if ($summary.trial_count) {
-                    $trialCount = [int]$summary.trial_count
-                }
-            } catch {
-            }
-        }
-        if ($trialCount -le 0) {
-            $lineCount = (Get-Content $resultsPath | Measure-Object -Line).Lines
-            $trialCount = [Math]::Max(0, $lineCount - 1)
-        }
+        $trialCount = Get-RunTrialCount -Candidate $candidate
         if ($trialCount -lt $MinTrials) {
             continue
         }

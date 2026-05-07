@@ -216,7 +216,7 @@ def _resolve_parent_run_ids(
 ) -> list[str]:
     if explicit:
         return _parse_parent_run_ids(explicit)
-    latest = ""
+    latest_by_method_tier: dict[str, str] = {}
     for row in rows:
         if str(row.get("track", "")).strip() != track:
             continue
@@ -224,8 +224,13 @@ def _resolve_parent_run_ids(
             continue
         candidate = str(row.get("parent_run_id", "")).strip()
         if candidate:
-            latest = candidate
-    return [latest] if latest else []
+            tier = str(row.get("method_tier", "")).strip() or _infer_method_tier(row)
+            latest_by_method_tier[tier] = candidate
+    resolved: list[str] = []
+    for candidate in latest_by_method_tier.values():
+        if candidate not in resolved:
+            resolved.append(candidate)
+    return resolved
 
 
 def _filter_rows(

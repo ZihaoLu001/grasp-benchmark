@@ -236,7 +236,7 @@ class ReportTest(unittest.TestCase):
             self.assertNotIn("120", summary_text)
             self.assertIn("task_failure", taxonomy_text)
 
-    def test_aggregate_defaults_to_latest_parent_run_id(self) -> None:
+    def test_aggregate_defaults_to_latest_parent_run_id_per_method_tier(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
             runs_dir = root / "runs" / "sample"
@@ -245,8 +245,10 @@ class ReportTest(unittest.TestCase):
                 "\n".join(
                     [
                         self.HEADER,
-                        "graspvla,graspvla_official,track_a_cal,shared_track_a_sim,language_conditioned_single_target_pick,scene_old,scene_old,obj_1,native_opaque_cal,basic,pick up the banana,dual_fixed_realsense_rgbd,1,1,20,2.0,1.0,120,4.0,,,0,,em14,deadbeef,1,3001,20260403_old,shard_000,0",
-                        "cgn,cgn_full_modular,track_a_cal,shared_track_a_sim,language_conditioned_single_target_pick,scene_new,scene_new,obj_1,native_opaque_cal,basic,pick up the banana,dual_fixed_realsense_rgbd,2,0,0,0.0,0.0,220,14.0,task_failure,not_met,0,,rll_6000_1,deadbeef,1,3002,20260403_new,shard_001,1",
+                        "graspvla,graspvla_official,track_a_cal,shared_track_a_sim,language_conditioned_single_target_pick,scene_gvla_old,scene_gvla_old,obj_1,native_opaque_cal,basic,pick up the banana,dual_fixed_realsense_rgbd,1,0,0,0.0,0.0,120,4.0,task_failure,old,0,,em14,deadbeef,1,3001,20260403_graspvla_old,shard_000,0",
+                        "cgn,cgn_full_modular,track_a_cal,shared_track_a_sim,language_conditioned_single_target_pick,scene_cgn_old,scene_cgn_old,obj_1,native_opaque_cal,basic,pick up the banana,dual_fixed_realsense_rgbd,2,0,0,0.0,0.0,220,14.0,task_failure,old,0,,rll_6000_1,deadbeef,1,3002,20260403_cgn_old,shard_000,1",
+                        "graspvla,graspvla_official,track_a_cal,shared_track_a_sim,language_conditioned_single_target_pick,scene_gvla_new,scene_gvla_new,obj_1,native_opaque_cal,basic,pick up the banana,dual_fixed_realsense_rgbd,1,1,20,2.0,1.0,120,4.0,,,0,,em14,deadbeef,1,3003,20260404_graspvla_new,shard_001,0",
+                        "cgn,cgn_full_modular,track_a_cal,shared_track_a_sim,language_conditioned_single_target_pick,scene_cgn_new,scene_cgn_new,obj_1,native_opaque_cal,basic,pick up the banana,dual_fixed_realsense_rgbd,2,0,0,0.0,0.0,220,14.0,task_failure,not_met,0,,rll_6000_1,deadbeef,1,3004,20260404_cgn_new,shard_001,1",
                     ]
                 )
                 + "\n",
@@ -256,11 +258,50 @@ class ReportTest(unittest.TestCase):
             output_dir = self._run_aggregate(root)
 
             summary_text = (output_dir / "summary.csv").read_text(encoding="utf-8")
-            self.assertIn("20260403_new", (output_dir / "report.json").read_text(encoding="utf-8"))
+            report_json = (output_dir / "report.json").read_text(encoding="utf-8")
+            self.assertIn("20260404_graspvla_new", report_json)
+            self.assertIn("20260404_cgn_new", report_json)
+            self.assertNotIn("20260403_graspvla_old", report_json)
+            self.assertNotIn("20260403_cgn_old", report_json)
+            self.assertIn("graspvla", summary_text)
             self.assertIn("cgn", summary_text)
-            self.assertNotIn("scene_old", summary_text)
             shard_text = (output_dir / "by_shard.csv").read_text(encoding="utf-8")
             self.assertIn("shard_001", shard_text)
+            self.assertNotIn("shard_000", shard_text)
+
+    def test_aggregate_rejects_incomplete_matrix_parent(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            parent_dir = root / "runs" / "20260404_matrix_cgn"
+            for shard_id in ("shard_000_node_gpu0", "shard_001_node_gpu0", "shard_002_node_gpu0"):
+                shard_dir = parent_dir / "shards" / shard_id
+                shard_dir.mkdir(parents=True)
+                (shard_dir / "results.csv").write_text(
+                    "\n".join(
+                        [
+                            self.HEADER,
+                            f"cgn,cgn_full_modular,track_a_cal,shared_track_a_sim,language_conditioned_single_target_pick,{shard_id},{shard_id},obj_1,native_opaque_cal,basic,pick up the banana,dual_fixed_realsense_rgbd,2,0,0,0.0,0.0,220,14.0,task_failure,not_met,0,,rll_6000_1,deadbeef,1,3004,20260404_matrix_cgn,{shard_id[:9]},0",
+                        ]
+                    )
+                    + "\n",
+                    encoding="utf-8",
+                )
+            (parent_dir / "matrix_completion.json").write_text(
+                json.dumps(
+                    {
+                        "parent_run_id": "20260404_matrix_cgn",
+                        "shard_count": 4,
+                        "failure_count": 0,
+                        "failures": [],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaises(SystemExit) as exc_info:
+                self._run_aggregate(root)
+            self.assertIn("Matrix shard validation failed", str(exc_info.exception))
+            self.assertIn("observed 3 shard result", str(exc_info.exception))
 
     def test_aggregate_infers_parent_run_id_from_results_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

@@ -141,27 +141,77 @@ def _chunk_delta_actions(
     start = np_module.asarray(start_pose, dtype=np_module.float32)
     goal = np_module.asarray(goal_pose, dtype=np_module.float32)
     pos_delta = goal[:3] - start[:3]
-    rot_delta = goal[3:6] - start[3:6]
+
+    try:
+        import transforms3d as t3d
+    except ImportError as exc:
+        raise AdapterExecutionError(
+            f"Shared modular planner requires transforms3d for SO(3) action interpolation: {exc}",
+            failure_stage="dependency_setup",
+        ) from exc
+
+    start_rot = np_module.asarray(t3d.euler.euler2mat(*[float(item) for item in start[3:6]], axes="sxyz"))
+    goal_rot = np_module.asarray(t3d.euler.euler2mat(*[float(item) for item in goal[3:6]], axes="sxyz"))
+    total_rot_delta = goal_rot @ start_rot.T
+    axis, angle = t3d.axangles.mat2axangle(total_rot_delta)
+    axis = np_module.asarray(axis, dtype=np_module.float64)
+    angle = float(angle)
+    if not np_module.all(np_module.isfinite(axis)) or not np_module.isfinite(angle):
+        axis = np_module.asarray([1.0, 0.0, 0.0], dtype=np_module.float64)
+        angle = 0.0
+    axis_norm = float(np_module.linalg.norm(axis))
+    if axis_norm < 1e-8 or abs(angle) < 1e-8:
+        axis = np_module.asarray([1.0, 0.0, 0.0], dtype=np_module.float64)
+        angle = 0.0
+    else:
+        axis = axis / axis_norm
+
     max_pos = float(np_module.max(np_module.abs(pos_delta)))
-    max_rot = float(np_module.max(np_module.abs(rot_delta)))
     pos_chunks = int(np_module.ceil(max_pos / max(chunk_size_m, 1e-4))) if max_pos > 0 else 1
-    rot_chunks = int(np_module.ceil(max_rot / max(chunk_size_rad, 1e-4))) if max_rot > 0 else 1
+    rot_chunks = int(np_module.ceil(abs(angle) / max(chunk_size_rad, 1e-4))) if abs(angle) > 0 else 1
     chunks = max(1, pos_chunks, rot_chunks)
-    step_delta = (goal - start) / float(chunks)
+    step_pos_delta = pos_delta / float(chunks)
+    step_rot_delta = np_module.eye(3, dtype=np_module.float64)
+    if abs(angle) > 0:
+        step_rot_delta = np_module.asarray(t3d.axangles.axangle2mat(axis, angle / float(chunks)))
+    step_rot_euler = np_module.asarray(t3d.euler.mat2euler(step_rot_delta, axes="sxyz"), dtype=np_module.float32)
     return [
         Action(
             ee_delta=(
-                float(step_delta[0]),
-                float(step_delta[1]),
-                float(step_delta[2]),
-                float(step_delta[3]),
-                float(step_delta[4]),
-                float(step_delta[5]),
+                float(step_pos_delta[0]),
+                float(step_pos_delta[1]),
+                float(step_pos_delta[2]),
+                float(step_rot_euler[0]),
+                float(step_rot_euler[1]),
+                float(step_rot_euler[2]),
             ),
             gripper=gripper,
         )
         for _ in range(chunks)
     ]
+
+
+def _planner_transform_matrix(
+    np_module: Any,
+    planner_config: dict[str, Any],
+    key: str,
+) -> Any:
+    raw = planner_config.get(key)
+    if raw is None:
+        return np_module.eye(4, dtype=np_module.float32)
+    matrix = raw.get("matrix") if isinstance(raw, dict) else raw
+    transform = np_module.asarray(matrix, dtype=np_module.float32)
+    if transform.shape != (4, 4):
+        raise AdapterExecutionError(
+            f"Planner config `{key}` must be a 4x4 transform matrix.",
+            failure_stage="planner_failure",
+        )
+    if not bool(np_module.all(np_module.isfinite(transform))):
+        raise AdapterExecutionError(
+            f"Planner config `{key}` contains non-finite values.",
+            failure_stage="planner_failure",
+        )
+    return transform
 
 
 def build_shared_pick_plan(
@@ -212,7 +262,9 @@ def build_shared_pick_plan(
                 "Shared modular planner expected a 4x4 grasp pose in camera coordinates.",
                 failure_stage="planner_failure",
             )
-        grasp_world = world_from_camera @ grasp_cam
+        grasp_frame_to_tcp = _planner_transform_matrix(np_module, planner_config, "grasp_frame_to_tcp_matrix")
+        grasp_tcp_cam = grasp_cam @ grasp_frame_to_tcp
+        grasp_world = world_from_camera @ grasp_tcp_cam
         world_to_base = _world_to_base_matrix(obs, np_module)
         if world_to_base is not None:
             grasp_base = world_to_base @ grasp_world
@@ -252,7 +304,10 @@ def build_shared_pick_plan(
         lift_pose = np_module.concatenate([lift_translation, grasp_euler])
         planner_debug = {
             "planner_mode": "grasp_pose",
-            "translation_cam": np_module.asarray(grasp_cam[:3, 3], dtype=np_module.float32).tolist(),
+            "translation_cam": np_module.asarray(grasp_tcp_cam[:3, 3], dtype=np_module.float32).tolist(),
+            "raw_grasp_translation_cam": np_module.asarray(grasp_cam[:3, 3], dtype=np_module.float32).tolist(),
+            "grasp_frame_to_tcp_matrix": grasp_frame_to_tcp.astype(np_module.float32).tolist(),
+            "grasp_frame_to_tcp_status": str(planner_config.get("grasp_frame_to_tcp_status", "identity_default")),
             "target_world": grasp_world[:3, 3].astype(np_module.float32).tolist(),
             "target_base": grasp_translation.tolist(),
             "pregrasp_pose": pregrasp_pose.tolist(),

@@ -1,0 +1,150 @@
+{
+  "name": "cgn_h100_posthold_20260507",
+  "status": "completed",
+  "claim_boundary": "benchmark_owned_cgn_shared_lane_not_official_contact_graspnet_native_system_performance",
+  "generated_from": {
+    "cluster": "lakeshore",
+    "account": "cs_yifan16_chi",
+    "user_space": "/projects/cs_yifan16_chi/zlu31",
+    "slurm_jobs": "364545-364563",
+    "slurm_state": "COMPLETED",
+    "exit_code": "0:0",
+    "manifest": "/projects/cs_yifan16_chi/zlu31/grasp-benchmark/artifacts/slurm/cgn_posthold_full_20260507_01/manifest.tsv",
+    "run_glob": "/projects/cs_yifan16_chi/zlu31/grasp-benchmark/artifacts/runs/20260507_posthold_cgn_*"
+  },
+  "runtime": {
+    "gpu": "NVIDIA H100 NVL",
+    "proposal_env": "gb-cgn-tf212",
+    "tensorflow": "2.12.0",
+    "cuda": "11.8",
+    "cudnn": "8.6",
+    "custom_ops": "sm_80/sm_86/sm_89/sm_90 plus compute_90 PTX"
+  },
+  "shared_protocol": {
+    "execution_mode": "shared_track_a_sim",
+    "method": "cgn",
+    "method_tier": "cgn_full_modular",
+    "success_rule": "15 cm lift held for 2 s",
+    "pipeline": "GroundingDINO -> depth mask -> Contact-GraspNet -> shared planner/controller"
+  },
+  "suites": [
+    {
+      "suite": "Main Shared Grasping Benchmark",
+      "task_set": "track_a_cal_v3",
+      "successes": 25,
+      "trials": 90,
+      "success_rate": 0.2778,
+      "expected_shard_count": 4,
+      "observed_shard_count": 4,
+      "duplicate_scene_ids": 0,
+      "wrong_object_successes": 0,
+      "failure_breakdown": {
+        "task_failure": 29,
+        "grounding_error": 24,
+        "grasp_proposal": 12
+      },
+      "by_task": {
+        "language_conditioned_single_target_pick": {
+          "successes": 12,
+          "trials": 60
+        },
+        "arbitrary_grasping_common_opaque": {
+          "successes": 13,
+          "trials": 30
+        }
+      }
+    },
+    {
+      "suite": "Hard Shared Grasping Stress Test",
+      "task_set": "track_a_stress_v4",
+      "successes": 20,
+      "trials": 168,
+      "success_rate": 0.119,
+      "expected_shard_count": 4,
+      "observed_shard_count": 4,
+      "duplicate_scene_ids": 0,
+      "wrong_object_successes": 0,
+      "failure_breakdown": {
+        "task_failure": 68,
+        "grasp_proposal": 48,
+        "grounding_error": 32
+      },
+      "by_task": {
+        "language_conditioned_single_target_pick": {
+          "successes": 2,
+          "trials": 80
+        },
+        "arbitrary_grasping_common_opaque": {
+          "successes": 18,
+          "trials": 40
+        },
+        "arbitrary_grasping_transparent": {
+          "successes": 0,
+          "trials": 48
+        }
+      }
+    },
+    {
+      "suite": "Instruction Robustness Check",
+      "task_set": "instruction_robustness_v2",
+      "successes": 8,
+      "trials": 40,
+      "success_rate": 0.2,
+      "expected_shard_count": 4,
+      "observed_shard_count": 4,
+      "duplicate_scene_ids": 0,
+      "wrong_object_successes": 0,
+      "failure_breakdown": {
+        "grounding_error": 16,
+        "task_failure": 8,
+        "grasp_proposal": 8
+      },
+      "by_task": {
+        "language_conditioned_single_target_pick": {
+          "successes": 8,
+          "trials": 40
+        }
+      }
+    },
+    {
+      "suite": "Task-Oriented Grasping Pilot",
+      "task_set": "phase2_pilot_v1",
+      "successes": 0,
+      "trials": 24,
+      "success_rate": 0.0,
+      "expected_shard_count": 4,
+      "observed_shard_count": 4,
+      "duplicate_scene_ids": 0,
+      "wrong_object_successes": 0,
+      "failure_breakdown": {
+        "grasp_proposal": 16,
+        "task_failure": 8
+      },
+      "by_task": {
+        "part_oriented_grasping": {
+          "successes": 0,
+          "trials": 8
+        },
+        "handle_grasping": {
+          "successes": 0,
+          "trials": 8
+        },
+        "functional_grasping": {
+          "successes": 0,
+          "trials": 8
+        }
+      }
+    }
+  ],
+  "pre_patch_reference": {
+    "track_a_cal_v3": "1/90",
+    "track_a_stress_v4": "2/168",
+    "instruction_robustness_v2": "0/40",
+    "phase2_pilot_v1": "0/24"
+  },
+  "notes": [
+    "These results are for the benchmark-owned CGN shared lane only.",
+    "The canonical patched suites above recorded zero wrong-object successes.",
+    "The separate cgn_bottleneck_v2 oracle_gt + real CGN diagnostic had 3/12 successes and one wrong_object diagnostic success; that diagnostic is not part of the headline tables."
+  ]
+}
