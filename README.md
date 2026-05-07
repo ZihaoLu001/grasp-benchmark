@@ -26,19 +26,18 @@ As of May 7, 2026:
 - CGN has been migrated on Lakeshore to `gb-cgn-tf212` with TensorFlow 2.12.0 / CUDA 11.8 / cuDNN 8.6 and H100-compatible custom ops.
 - The raw Contact-GraspNet proposal generation works on H100: the saved probe returned 47 grasp proposals, so proposal generation itself is not the reason for the earlier all-zero shared-lane table.
 - A shared planner timing bug was found and patched: CGN plans now hold the object after lift instead of ending the attempt immediately.
-- A full patched CGN rerun is currently queued/running on Lakeshore as jobs `364545-364563`; update the CGN headline table after that batch completes.
-- Current patched-rerun progress: Main Shared Grasping Benchmark is complete at `25 / 90` for the CGN shared lane, and the first two Hard Shared Grasping Stress Test shards are `11 / 84`. Treat these as run-progress numbers until the full batch is consolidated.
+- The full patched CGN rerun on Lakeshore jobs `364545-364563` completed successfully with `ExitCode=0:0` for every job.
 
-Current pre-patch CGN H100 numbers, kept only as diagnostic references:
+Current patched CGN H100 results:
 
-| Suite | GraspVLA | CGN shared lane before post-lift-hold patch | Use |
+| Suite | GraspVLA | CGN shared lane after post-lift-hold patch | Use |
 | --- | ---: | ---: | --- |
-| Main Shared Grasping Benchmark | `88 / 90` | `1 / 90` | headline fair-comparison suite |
-| Hard Shared Grasping Stress Test | `160 / 168` | `2 / 168` | difficult-scene stress suite |
-| Instruction Robustness Check | `38 / 40` | `0 / 40` | wording/paraphrase diagnostic |
+| Main Shared Grasping Benchmark | `88 / 90` | `25 / 90` | headline fair-comparison suite |
+| Hard Shared Grasping Stress Test | `160 / 168` | `20 / 168` | difficult-scene stress suite |
+| Instruction Robustness Check | `38 / 40` | `8 / 40` | wording/paraphrase diagnostic |
 | Task-Oriented Grasping Pilot | `23 / 24` | `0 / 24` | small task-oriented extension |
 
-The patched diagnostic `oracle_gt + real CGN` run on `cgn_bottleneck_v2` improved from `0 / 12` to `3 / 12`, confirming that the old CGN shared-lane score included a benchmark integration problem.
+The pre-patch CGN H100 table (`1 / 90`, `2 / 168`, `0 / 40`, `0 / 24`) is now only a diagnostic reference. The patched diagnostic `oracle_gt + real CGN` run on `cgn_bottleneck_v2` improved from `0 / 12` to `3 / 12`, confirming that the old CGN shared-lane score included a benchmark integration problem.
 
 ## Experiment Name Guide
 

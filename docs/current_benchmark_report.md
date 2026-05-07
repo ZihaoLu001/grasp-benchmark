@@ -11,7 +11,7 @@ This is the only detailed report intended to live in the GitHub repository. Gene
 - `Track A`: shared-protocol fair comparison. Cameras, gripper, workspace, controller semantics, attempt budget, and the lift-and-hold success rule are fixed across methods.
 - `Track B`: native-release reference. These numbers are engineering references and are not used for head-to-head fair-comparison claims.
 
-The May 5, 2026 PDF draft is now pre-H100-rerun for CGN. Do not share it as-is without revising the CGN tables and text. The May 7 H100 CGN table below is also pre planner-hold patch and should be treated as diagnostic evidence until the patched lane is fully consolidated.
+The May 5, 2026 PDF draft is pre-H100-rerun for CGN. Do not share it as-is without revising the CGN tables and text. The current CGN numbers below are from the patched H100 rerun after the post-lift-hold planner fix.
 
 ## Current Claim Boundary
 
@@ -25,16 +25,18 @@ The May 5, 2026 PDF draft is now pre-H100-rerun for CGN. Do not share it as-is w
 
 | suite | GraspVLA | CGN shared lane | interpretation |
 | --- | ---: | ---: | --- |
-| Main Shared Grasping Benchmark (`track_a_cal_v3`) | `88 / 90` | `1 / 90` (`1.11%`) | headline fair table |
-| Hard Shared Grasping Stress Test (`track_a_stress_v4`) | `160 / 168` | `2 / 168` (`1.19%`) | hardest-slice appendix |
-| Instruction Robustness Check (`instruction_robustness_v2`) | `38 / 40` | `0 / 40` (`0.00%`) | prompt/paraphrase diagnostic |
+| Main Shared Grasping Benchmark (`track_a_cal_v3`) | `88 / 90` | `25 / 90` (`27.78%`) | headline fair table |
+| Hard Shared Grasping Stress Test (`track_a_stress_v4`) | `160 / 168` | `20 / 168` (`11.90%`) | hardest-slice appendix |
+| Instruction Robustness Check (`instruction_robustness_v2`) | `38 / 40` | `8 / 40` (`20.00%`) | prompt/paraphrase diagnostic |
 | Task-Oriented Grasping Pilot (`phase2_pilot_v1`) | `23 / 24` | `0 / 24` (`0.00%`) | small task-oriented extension |
 
-Patched CGN rerun progress as of the latest Lakeshore check:
+Patched CGN rerun status:
 
-- Main Shared Grasping Benchmark (`track_a_cal_v3`) has completed all four CGN shards at `25 / 90` (`27.78%`).
-- Hard Shared Grasping Stress Test (`track_a_stress_v4`) has completed the first two CGN shards at `11 / 84` (`13.10%`); remaining stress, instruction, and pilot shards are still running or pending.
-- These are progress numbers from jobs `364545-364563`, not final collaborator-facing tables until the full batch is complete and aggregated.
+- Lakeshore jobs `364545-364563` all completed with `ExitCode=0:0`.
+- Main Shared Grasping Benchmark (`track_a_cal_v3`) completed all four CGN shards at `25 / 90` (`27.78%`).
+- Hard Shared Grasping Stress Test (`track_a_stress_v4`) completed all four CGN shards at `20 / 168` (`11.90%`).
+- Instruction Robustness Check (`instruction_robustness_v2`) completed all four CGN shards at `8 / 40` (`20.00%`).
+- Task-Oriented Grasping Pilot (`phase2_pilot_v1`) completed all four CGN shards at `0 / 24` (`0.00%`).
 
 The CGN successes from the May 7 H100 rerun all came from arbitrary opaque watermelon. These are pre planner-hold patch numbers:
 
@@ -56,7 +58,7 @@ For arbitrary-object tasks, the lane first tries catalog-label GroundingDINO and
 
 Older `0/N` CGN results were real pre-rerun shared-lane evidence, but they must not be described as official Contact-GraspNet native-system performance and do not establish that official Contact-GraspNet capability is zero. After the Lakeshore H100 runtime migration and post-lift-hold planner patch, the correct collaborator-facing wording is:
 
-> CGN shared lane is nonzero under the frozen shared protocol, and the previous near-zero table was affected by a benchmark integration issue. The pre-patch May 7 H100 rerun produced `1/90`, `2/168`, `0/40`, and `0/24`. The patched rerun is still in progress; its completed main benchmark shards currently show `25/90`. Remaining failures still need to be split across GroundingDINO misses, zero Contact-GraspNet proposals, pose/control conversion, and strict lift-hold success semantics after the full batch is aggregated.
+> CGN shared lane is nonzero under the frozen shared protocol, and the previous near-zero table was affected by a benchmark integration issue. The pre-patch May 7 H100 rerun produced `1/90`, `2/168`, `0/40`, and `0/24`. After the post-lift-hold planner patch, the completed H100 rerun is `25/90`, `20/168`, `8/40`, and `0/24`. Remaining failures are split across GroundingDINO misses, zero Contact-GraspNet proposals, pose/control conversion, and strict lift-hold success semantics.
 
 ## CGN Implementation Audit
 
@@ -66,7 +68,7 @@ Confirmed implementation issue now fixed in code:
 
 - The shared modular planner previously ended the attempt immediately after the lift trajectory. Because Track A success requires `15 cm` lift and `10` control steps (`2 s` at `5 Hz`) of hold, this could fail episodes that had already lifted the object but had not held it long enough. `planner.post_lift_hold_steps: 12` has been added for CGN so the gripper stays closed after lift.
 
-High-risk items that still require a patched CGN rerun or targeted ablation:
+High-risk items that still require targeted ablation:
 
 - Contact-GraspNet's upstream pose convention is not simply "object contact point as target pose." The upstream implementation builds the grasp translation as contact point plus half width along the gripper base axis minus gripper depth along the approach axis. The shared planner currently sends the resulting matrix directly as an end-effector pose, so a TCP/tool-frame mapping error remains plausible.
 - The runner records `contact_point_cam` and `gripper_opening_m`, but the shared planner still uses binary open/close actions and does not use CGN's predicted opening. This can make close timing and width filtering brittle.
@@ -79,7 +81,7 @@ Post-fix H100 diagnostic:
 - They should be described as "pre-patch CGN shared-lane diagnostics," not as final Contact-GraspNet capability.
 - A targeted patched H100 rerun of `oracle_gt + real CGN` on `cgn_bottleneck_v2` completed successfully as `20260507_cgn_posthold_oracle_gt_real_cgn_h100`: `3 / 12` successes, all with `hold_s = 2.0`.
 - The successes were `ceramic_bowl / basic` (`15.3344 cm`), `banana / distractors_heavy` (`17.6541 cm`, with `wrong_object = 1`), and `power_drill / distractors_heavy` (`16.4609 cm`).
-- A full patched CGN rerun batch has been submitted as Slurm jobs `364545-364563`; manifest path:
+- The full patched CGN rerun batch completed as Slurm jobs `364545-364563`; manifest path:
 
 ```text
 /projects/cs_yifan16_chi/zlu31/grasp-benchmark/artifacts/slurm/cgn_posthold_full_20260507_01/manifest.tsv
@@ -88,7 +90,7 @@ Post-fix H100 diagnostic:
 Practical claim boundary after this audit:
 
 - The post-hold diagnostic confirms that at least part of the low CGN score was a shared planner/controller timing bug.
-- Before collaborator-facing tables are final, finish and aggregate the full CGN patched rerun, banana real-CGN trace, banana oracle-topdown trace, and canonical CGN shards with the post-lift hold patch.
+- The patched CGN results can be used as the current benchmark-owned CGN shared-lane table, with the explicit caveat that this is not official Contact-GraspNet native-system performance.
 
 ## Lakeshore / H100 Status
 
@@ -130,12 +132,14 @@ artifacts/reports/cgn_h100_away2_20260507/summary.csv
 
 ## Failure Breakdown
 
-May 7 CGN shared-lane failures:
+Patched May 7 CGN shared-lane failures:
 
-- `track_a_cal_v3`: `task_failure = 53`, `grounding_error = 24`, `grasp_proposal = 12`
-- `track_a_stress_v4`: `task_failure = 86`, `grounding_error = 32`, `grasp_proposal = 48`
-- `instruction_robustness_v2`: `task_failure = 16`, `grounding_error = 16`, `grasp_proposal = 8`
+- `track_a_cal_v3`: `task_failure = 29`, `grounding_error = 24`, `grasp_proposal = 12`
+- `track_a_stress_v4`: `task_failure = 68`, `grounding_error = 32`, `grasp_proposal = 48`
+- `instruction_robustness_v2`: `grounding_error = 16`, `task_failure = 8`, `grasp_proposal = 8`
 - `phase2_pilot_v1`: `grasp_proposal = 16`, `task_failure = 8`
+
+The two most repeated grounding failures are `power drill` and `carrot`; both should be checked before attributing all remaining failures to Contact-GraspNet proposal quality.
 
 `cgn_bottleneck_v2` diagnostics:
 
@@ -184,4 +188,4 @@ python -m grasp_benchmark.run.sim --cluster-config lakeshore --method cgn --task
 
 Use this concise wording in email or meetings:
 
-> We rechecked the CGN lane because the earlier all-zero result looked suspicious. In this repository, CGN is a benchmark-owned shared modular lane: GroundingDINO localization, depth masking, Contact-GraspNet proposals, and the shared planner/controller under a frozen `15 cm / 2 s` success rule. The old `0/N` result was pre-rerun shared-lane evidence and should not be presented as official Contact-GraspNet native performance. After migrating the Lakeshore runtime to TensorFlow 2.12 / CUDA 11.8 / cuDNN 8.6, raw Contact-GraspNet proposal generation works on the H100-probed setup. The May 7 pre-patch rerun was nonzero but still weak: `1/90`, `2/168`, `0/40`, and `0/24`. We then found and patched a shared planner timing bug: the CGN plan ended immediately after lift, before the required hold window. A targeted patched H100 diagnostic improved `oracle_gt + real CGN` on `cgn_bottleneck_v2` from `0/12` to `3/12`; the full patched rerun is still in progress, with the completed main benchmark shards currently at `25/90`, so final CGN tables should wait for full aggregation.
+> We rechecked the CGN lane because the earlier all-zero result looked suspicious. In this repository, CGN is a benchmark-owned shared modular lane: GroundingDINO localization, depth masking, Contact-GraspNet proposals, and the shared planner/controller under a frozen `15 cm / 2 s` success rule. The old `0/N` result was pre-rerun shared-lane evidence and should not be presented as official Contact-GraspNet native performance. After migrating the Lakeshore runtime to TensorFlow 2.12 / CUDA 11.8 / cuDNN 8.6, raw Contact-GraspNet proposal generation works on the H100-probed setup. The May 7 pre-patch rerun was nonzero but still weak: `1/90`, `2/168`, `0/40`, and `0/24`. We then found and patched a shared planner timing bug: the CGN plan ended immediately after lift, before the required hold window. The full patched H100 rerun completed successfully and now gives `25/90`, `20/168`, `8/40`, and `0/24`. This is the current benchmark-owned CGN shared-lane result, not an official Contact-GraspNet native-system result.
