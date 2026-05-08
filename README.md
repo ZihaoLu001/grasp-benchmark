@@ -4,7 +4,7 @@
 
 The repository is organized around one practical question:
 
-> If released grasping systems are placed in the same simulated scenes, with the same cameras, robot, gripper, controller, attempt budget, and lift-and-hold success rule, what happens?
+> If released grasping systems are placed in the same simulated scenes, with the same rendered camera rig, robot, gripper, controller, attempt budget, and lift-and-hold success rule, what happens when each system uses its declared input interface?
 
 ## Start Here
 
@@ -18,20 +18,37 @@ Generated logs, videos, plots, and Slurm manifests live under `artifacts/`.
 
 ## Current Results
 
-As of May 8, 2026, the shared-protocol benchmark uses a fixed Franka simulation setup, fixed camera geometry, blocking control, up to three attempts per trial, and a success rule of lifting the target object by at least 15 cm and holding it for 2 s.
+As of May 8, 2026, the shared-protocol benchmark uses a fixed Franka simulation setup, fixed rendered camera rig, blocking control, up to three attempts per trial, and a success rule of lifting the target object by at least 15 cm and holding it for 2 s.
 
-Each suite is made from paired simulator trials: both methods see the same scene definitions, object layouts, instructions, robot, cameras, controller, and success rule.
+Each suite is made from paired simulator trials: both methods run on the same scene definitions, object layouts, instructions, robot, camera rig, controller, and success rule. The comparison is a complete-system comparison under a shared environment, not a claim that every method consumes identical tensors.
+
+## Shared Experimental Setup
+
+The tables below use the same simulator setup for both methods.
+
+| Component | Setting |
+| --- | --- |
+| Simulator | GraspVLA playground / LIBERO floor-manipulation environment with offscreen rendering |
+| Robot and control | Franka-style arm, shared gripper, `IK_POSE` controller, blocking execution, `5 Hz` control frequency |
+| Workspace | fixed tabletop workspace of `40 cm x 50 cm x 20 cm`, with target and clutter regions defined by the scene catalog |
+| Cameras | two fixed RGB-D cameras: `front_view` and `side_view`, both `256 x 256`, `fovy=43` |
+| Camera poses | `front_view`: position `(0.7555, 0.0000, 0.5388)`, quaternion `(0.5964, 0.3799, 0.3799, 0.5964)`; `side_view`: position `(-0.1000, 0.6928, 0.5000)`, quaternion `(0.0000, 0.0000, -0.5000, -0.8660)` |
+| Method observations | GraspVLA receives the two RGB streams as `front_view_image` and `side_view_image`; Contact-GraspNet uses the front RGB-D stream, front camera intrinsics `K`, and the segmentation map for the `depth + K + segmap + RGB` proposal path |
+| Trial execution | `10` stabilization steps, up to `300` simulator control steps per attempt, and up to `3` attempts per trial |
+| Success rule | lift the specified object by at least `15 cm` and hold it for `2 s` (`10` hold steps at `5 Hz`) |
+
+The environment always renders the same two cameras for every trial. The difference is method input format: GraspVLA is a two-view RGB vision-language-action policy, while the current Contact-GraspNet shared pipeline is a front-view RGB-D modular proposal path followed by the benchmark's shared planner/controller. For that reason, the headline table should be read as a shared-environment system comparison. View-parity and modality-parity ablations are separate diagnostics, because forcing identical tensors would change at least one method away from its normal released interface.
 
 | Suite | Trials | What it tests |
 | --- | ---: | --- |
-| Main Shared Grasping Benchmark | 90 | primary fair-comparison suite: 60 language-conditioned single-target trials over five common opaque objects, plus 30 arbitrary opaque-object grasping trials |
+| Main Shared Grasping Benchmark | 90 | primary shared-environment comparison suite: 60 language-conditioned single-target trials over five common opaque objects, plus 30 arbitrary opaque-object grasping trials |
 | Hard Shared Grasping Stress Test | 168 | hard-case suite: 80 language-target trials with heavy distractors or occlusion, 40 cluttered arbitrary opaque trials, and 48 transparent-object trials |
 | Instruction Robustness Check | 40 | prompt sensitivity: canonical, lexical, compositional, and distractor-aware instruction variants on matched scenes |
 | Task-Oriented Grasping Pilot | 24 | small extension for part/constraint-aware grasping, including cup-handle and power-drill-handle instructions |
 
 | Suite | GraspVLA | Contact-GraspNet modular pipeline | Use |
 | --- | ---: | ---: | --- |
-| Main Shared Grasping Benchmark | `88 / 90` | `25 / 90` | headline fair-comparison suite |
+| Main Shared Grasping Benchmark | `88 / 90` | `25 / 90` | headline shared-environment comparison |
 | Hard Shared Grasping Stress Test | `160 / 168` | `20 / 168` | difficult-scene stress suite |
 | Instruction Robustness Check | `38 / 40` | `8 / 40` | instruction and paraphrase diagnostic |
 | Task-Oriented Grasping Pilot | `23 / 24` | `0 / 24` | small task-oriented extension |
