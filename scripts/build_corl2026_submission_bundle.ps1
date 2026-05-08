@@ -65,7 +65,7 @@ Write-Host "Hard Shared Grasping Stress Test: $TrackAStressParentRunIds" -Foregr
 Write-Host "Instruction Robustness: $InstructionParentRunIds" -ForegroundColor DarkGray
 Write-Host "Sim-to-Real Proxy: $Sim2RealParentRunIds" -ForegroundColor DarkGray
 Write-Host "Task-Oriented Grasping Pilot: $Phase2ParentRunIds" -ForegroundColor DarkGray
-Write-Host "CGN Native-Reference Appendix: $TrackBNativeParentRunIds" -ForegroundColor DarkGray
+Write-Host "CGN Official Depth+Segmap Appendix: $TrackBNativeParentRunIds" -ForegroundColor DarkGray
 if ($ProtocolProbeSummary) { Write-Host "Protocol probe: $ProtocolProbeSummary" -ForegroundColor DarkGray }
 if ($CgnBottleneckSummary) { Write-Host "CGN bottleneck: $CgnBottleneckSummary" -ForegroundColor DarkGray }
 if ($AlignmentSummary) { Write-Host "Alignment summary: $AlignmentSummary" -ForegroundColor DarkGray }

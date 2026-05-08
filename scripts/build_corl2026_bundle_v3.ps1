@@ -127,7 +127,7 @@ $phase2Runs = @(
 ) | Where-Object { $_ }
 
 $nativeRuns = @(
-    Get-LatestRunId -Pattern "*cgn_track_b_cgn_native_v2*" -MinTrials $MinNativeTrials -ExcludePattern "*single_scene*"
+    Get-LatestRunId -Pattern "*cgn_track_b_cgn_official_depth_segmap_v1*" -MinTrials $MinNativeTrials -ExcludePattern "*single_scene*"
 ) | Where-Object { $_ }
 
 $protocolSummary = Get-LatestAuditSummary -Prefix "*_graspvla_protocol_and_transfer_suite_v1"

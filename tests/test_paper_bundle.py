@@ -325,7 +325,10 @@ class PaperBundleTest(unittest.TestCase):
 
             self._write_results(
                 root / "runs" / "native_run",
-                {"task_set": "track_b_cgn_native_v2", "scene_catalog_name": "graspvla_track_b_cgn_native_v2"},
+                {
+                    "task_set": "track_b_cgn_official_depth_segmap_v1",
+                    "scene_catalog_name": "graspvla_track_b_cgn_native_v2",
+                },
                 [
                     self._base_row(
                         method="cgn",

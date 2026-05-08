@@ -62,7 +62,7 @@ SUBMISSION_EXPECTED_TASK_SETS = {
     "track_a_instruction": "instruction_robustness_v2",
     "track_a_transfer": "sim2real_proxy_v2",
     "track_a_phase2": "phase2_pilot_v1",
-    "track_b_native": "track_b_cgn_native_v2",
+    "track_b_native": "track_b_cgn_official_depth_segmap_v1",
 }
 
 SUBMISSION_REQUIRED_PARENT_ARGS = {
@@ -71,7 +71,7 @@ SUBMISSION_REQUIRED_PARENT_ARGS = {
     "Instruction Robustness Check": "instruction_parent_run_id",
     "Sim-to-Real Proxy": "sim2real_parent_run_id",
     "Task-Oriented Grasping Pilot": "phase2_parent_run_id",
-    "CGN Native-Reference Appendix": "track_b_native_parent_run_id",
+    "CGN Official Depth+Segmap Proposal Appendix": "track_b_native_parent_run_id",
 }
 
 
@@ -641,7 +641,7 @@ def _render_report(
     sim2real_label = "Sim-to-Real Proxy Robustness"
     stage_metrics_label = "Stage-Level Diagnostic Metrics"
     phase2_label = "Task-Oriented Grasping Pilot"
-    native_label = "CGN Native-Reference Appendix"
+    native_label = "CGN Official Depth+Segmap Proposal Appendix"
     lines = [
         "# CoRL 2026 Simulator Bundle",
         "",
@@ -1031,9 +1031,9 @@ def _render_collaborator_summary(
     if track_b_reference:
         lines.append("- `Track B` remains a native-reference section and is not mixed into fair-comparison claims.")
     if native_appendix_summary:
-        lines.append("- The CGN native-reference appendix is included to test whether the modular baseline only looks weak because of the shared lane.")
+        lines.append("- The CGN official depth+segmap appendix is included to test the proposal path closest to the public Contact-GraspNet inference contract.")
     if native_appendix_task_sets:
-        lines.append(f"- CGN native-reference appendix task set: {_format_task_set_labels(native_appendix_task_sets)}.")
+        lines.append(f"- CGN Track B appendix task set: {_format_task_set_labels(native_appendix_task_sets)}.")
 
     lines.extend(
         [
@@ -1167,21 +1167,28 @@ def main() -> None:
         _validate_nonempty_rows(instruction_rows, section="Instruction Robustness Check")
         _validate_nonempty_rows(sim2real_rows, section="Sim-to-Real Proxy")
         _validate_nonempty_rows(phase2_rows, section="Task-Oriented Grasping Pilot")
-        _validate_nonempty_rows(native_appendix_rows, section="CGN Native-Reference Appendix")
+        _validate_nonempty_rows(native_appendix_rows, section="CGN Official Depth+Segmap Proposal Appendix")
 
         _validate_expected_task_set(cal_rows, track="track_a_cal", section="Main Shared Grasping Benchmark")
         _validate_expected_task_set(stress_rows, track="track_a_stress", section="Hard Shared Grasping Stress Test")
         _validate_expected_task_set(instruction_rows, track="track_a_instruction", section="Instruction Robustness Check")
         _validate_expected_task_set(sim2real_rows, track="track_a_transfer", section="Sim-to-Real Proxy")
         _validate_expected_task_set(phase2_rows, track="track_a_phase2", section="Task-Oriented Grasping Pilot")
-        _validate_expected_task_set(native_appendix_rows, track="track_b_native", section="CGN Native-Reference Appendix")
+        _validate_expected_task_set(
+            native_appendix_rows,
+            track="track_b_native",
+            section="CGN Official Depth+Segmap Proposal Appendix",
+        )
 
         _validate_stage_metrics_complete(cal_rows, section="Main Shared Grasping Benchmark")
         _validate_stage_metrics_complete(stress_rows, section="Hard Shared Grasping Stress Test")
         _validate_stage_metrics_complete(instruction_rows, section="Instruction Robustness Check")
         _validate_stage_metrics_complete(sim2real_rows, section="Sim-to-Real Proxy")
         _validate_stage_metrics_complete(phase2_rows, section="Task-Oriented Grasping Pilot")
-        _validate_stage_metrics_complete(native_appendix_rows, section="CGN Native-Reference Appendix")
+        _validate_stage_metrics_complete(
+            native_appendix_rows,
+            section="CGN Official Depth+Segmap Proposal Appendix",
+        )
 
     cal_summary = _aggregate(cal_rows, ["track", "method", "method_tier", "task"])
     cal_by_condition = _aggregate(cal_rows, ["track", "method", "method_tier", "task", "condition"])

@@ -1,6 +1,6 @@
 # Current Benchmark Report
 
-Last updated: 2026-05-07.
+Last updated: 2026-05-08.
 
 This is the only detailed report intended to live in the GitHub repository. Generated run artifacts, historical notes, draft reports, slide decks, and intermediate audits should stay outside the tracked documentation surface unless they are folded into this file.
 
@@ -19,7 +19,7 @@ The May 5, 2026 PDF draft is pre-H100-rerun for CGN. Do not share it as-is witho
 - Supporting diagnostics: Hard Shared Grasping Stress Test (`track_a_stress_v4`), Instruction Robustness Check (`instruction_robustness_v2`), Task-Oriented Grasping Pilot (`phase2_pilot_v1`), and GraspVLA protocol sensitivity probes.
 - `AnyGrasp` is excluded from current comparative claims until a fresh node-matched license is available.
 - Real-world pilot experiments are not yet complete.
-- `Track B` remains native-reference only.
+- `Track B` remains native-reference only. The strictest CGN Track B appendix is now the official depth+segmap proposal-path run, but its task-success number still includes benchmark-owned Franka execution and the benchmark success rule.
 
 ## Headline Results
 
@@ -62,6 +62,11 @@ Older `0/N` CGN results were real pre-rerun shared-lane evidence, but they must 
 
 > CGN shared lane is nonzero under the frozen shared protocol, and the previous near-zero table was affected by a benchmark integration issue. The pre-patch May 7 H100 rerun produced `1/90`, `2/168`, `0/40`, and `0/24`. After the post-lift-hold planner patch, the completed H100 rerun is `25/90`, `20/168`, `8/40`, and `0/24`. Remaining failures are split across GroundingDINO misses, zero Contact-GraspNet proposals, pose/control conversion, and strict lift-hold success semantics.
 
+For "official Contact-GraspNet" wording, use the strict boundary below. The [NVLabs Contact-GraspNet release](https://github.com/NVlabs/contact_graspnet) and the [ICRA 2021 paper](https://arxiv.org/abs/2103.14127) define a 6-DoF grasp proposal method. The public inference contract supports depth, camera matrix `K`, optional segmentation map/RGB, and recommends `local_regions` plus `filter_grasps` for object-wise grasps. It does not define this benchmark's Franka controller, binary gripper commands, task-conditioned language policy, or `15 cm / 2 s` lift-and-hold success rule. Therefore:
+
+- "official Contact-GraspNet proposal path" is acceptable when the runner uses depth + `K` + segmap/RGB with `local_regions=True` and `filter_grasps=True`.
+- "official Contact-GraspNet native-system performance" is not supported by this repository's task-success score, because execution after proposal is benchmark-owned.
+
 ## CGN Implementation Audit
 
 May 7 audit conclusion: the low CGN success rate should not be interpreted as official Contact-GraspNet native capability. The H100 runtime can produce proposals, but the benchmark-owned shared lane still has implementation-contract risks between proposal, planning, control, and success accounting.
@@ -96,7 +101,50 @@ Practical claim boundary after this audit:
 - The post-hold diagnostic confirms that at least part of the low CGN score was a shared planner/controller timing bug.
 - The patched CGN results can be used as the current benchmark-owned CGN shared-lane table, with the explicit caveat that this is not official Contact-GraspNet native-system performance.
 
-## CGN Native-Reference Appendix
+## CGN Track B Appendices
+
+### Official Depth+Segmap Proposal Appendix
+
+The strict official-input appendix completed on Lakeshore after commit `212506f3762e280c45b03d3397317fd24605003e`.
+
+Result:
+
+- `track_b_cgn_official_depth_segmap_v1`: `40 / 138` (`28.99%`)
+- language-conditioned single-target pick: `14 / 60`
+- arbitrary opaque grasping: `26 / 30`
+- transparent-object grasping: `0 / 48`
+- wrong-object successes: `0`
+
+Slurm/evidence status:
+
+- GPU shards `365136-365139` all completed with `ExitCode=0:0` on `ghi2-002`.
+- CPU finalizer `365140` completed with `ExitCode=0:0` on `a-001`.
+- Finalizer output:
+
+```text
+/projects/cs_yifan16_chi/zlu31/grasp-benchmark/artifacts/slurm/cgn_official_depthseg_20260508_212506f/final_summary.json
+/projects/cs_yifan16_chi/zlu31/grasp-benchmark/artifacts/slurm/cgn_official_depthseg_20260508_212506f/final_summary.md
+```
+
+Tracked evidence:
+
+```text
+configs/results/cgn_official_depth_segmap_h100_20260508.json
+```
+
+Official proposal-path contract checked by trace evidence:
+
+- depth map in meters, camera matrix `K`, RGB, and segmentation map
+- `input_contract=official_depth_k_segmap`
+- `use_raw_points=False`
+- Contact-GraspNet `pc_segments` from the segmap
+- `local_regions=True`
+- `filter_grasps=True`
+- TensorFlow GPU visibility
+
+The finalizer checked `723` saved debug payloads. The `488` payloads with Contact-GraspNet runner traces all confirmed official depth+segmap input, local-region/filter-grasp usage, and TensorFlow GPU visibility; `raw_point_files=0`. This is the closest repository-supported result to the public Contact-GraspNet inference contract. It is still not an official end-to-end Contact-GraspNet native-system score because the benchmark planner/controller and success rule remain benchmark-owned.
+
+### Fused-Point-Cloud Native-Reference Appendix
 
 The official-filtering native-reference appendix completed on Lakeshore after commit `a92cdf70b883a6686bc3ad71b522060671cfb535`.
 
@@ -133,7 +181,7 @@ Official-filtering contract checked by trace evidence:
 - `filter_grasps=True`
 - TensorFlow GPU visibility
 
-The finalizer checked `939` saved debug payloads; all `939` confirmed local region/filter grasp usage and TensorFlow GPU visibility. This is a stronger engineering reference than the shared-lane result, but it is still not an official Contact-GraspNet native-system score because the benchmark planner/controller and success rule remain benchmark-owned.
+The finalizer checked `939` saved debug payloads; all `939` confirmed local region/filter grasp usage and TensorFlow GPU visibility. This is a useful fused-point-cloud engineering reference, but the depth+segmap appendix above is the stricter match to the official Contact-GraspNet demo input contract.
 
 ## Lakeshore / H100 Status
 
@@ -171,6 +219,7 @@ Tracked local evidence:
 
 ```text
 configs/results/cgn_h100_posthold_20260507.json
+configs/results/cgn_official_depth_segmap_h100_20260508.json
 configs/results/cgn_native_reference_h100_20260507.json
 ```
 
@@ -234,4 +283,6 @@ Use this concise wording in email or meetings:
 
 > We rechecked the CGN lane because the earlier all-zero result looked suspicious. In this repository, CGN is a benchmark-owned shared modular lane: GroundingDINO localization, depth masking, Contact-GraspNet proposals, and the shared planner/controller under a frozen `15 cm / 2 s` success rule. The old `0/N` result was pre-rerun shared-lane evidence and should not be presented as official Contact-GraspNet native performance. After migrating the Lakeshore runtime to TensorFlow 2.12 / CUDA 11.8 / cuDNN 8.6, raw Contact-GraspNet proposal generation works on the H100-probed setup. The May 7 pre-patch rerun was nonzero but still weak: `1/90`, `2/168`, `0/40`, and `0/24`. We then found and patched a shared planner timing bug: the CGN plan ended immediately after lift, before the required hold window. The full patched H100 rerun completed successfully and now gives `25/90`, `20/168`, `8/40`, and `0/24`. This is the current benchmark-owned CGN shared-lane result, not an official Contact-GraspNet native-system result.
 
-For native-reference context only, we also completed the official-filtering CGN appendix on `track_b_cgn_native_v2`: `39/138` with all four GPU shards completed and `939/939` debug traces confirming `pc_segments`, `local_regions=True`, `filter_grasps=True`, and TensorFlow GPU visibility. This appendix should be described as engineering context, not as a fair shared-protocol headline result.
+For native-reference context only, we also completed the official depth+segmap CGN appendix on `track_b_cgn_official_depth_segmap_v1`: `40/138` with all four GPU shards completed and `488/488` Contact-GraspNet runner traces confirming `input_contract=official_depth_k_segmap`, `use_raw_points=False`, `local_regions=True`, `filter_grasps=True`, and TensorFlow GPU visibility. This is the closest repository-supported path to the public Contact-GraspNet inference contract. It should still be described as official proposal-path engineering context, not as a fair shared-protocol headline result or an official end-to-end native-system score.
+
+The older fused-point-cloud native-reference appendix on `track_b_cgn_native_v2` remains tracked as `39/138`; use it only as secondary engineering context.

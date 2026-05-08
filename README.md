@@ -18,7 +18,7 @@ The older `grasp_benchmark.pdf` draft from May 5, 2026 is pre-H100-rerun for CGN
 
 ## Current Status
 
-As of May 7, 2026:
+As of May 8, 2026:
 
 - GraspVLA shared-protocol results are stable for the current simulator suites.
 - CGN means the benchmark-owned `CGN shared lane`, not an official Contact-GraspNet native system.
@@ -27,6 +27,7 @@ As of May 7, 2026:
 - The raw Contact-GraspNet proposal generation works on H100: the saved probe returned 47 grasp proposals, so proposal generation itself is not the reason for the earlier all-zero shared-lane table.
 - A shared planner timing bug was found and patched: CGN plans now hold the object after lift instead of ending the attempt immediately.
 - The full patched CGN rerun on Lakeshore jobs `364545-364563` completed successfully with `ExitCode=0:0` for every job.
+- The strictest Contact-GraspNet appendix now uses the NVLabs-style `depth + K + segmap` input path with `local_regions=True` and `filter_grasps=True`.
 
 Current patched CGN H100 results:
 
@@ -41,14 +42,15 @@ Tracked machine-readable evidence: [configs/results/cgn_h100_posthold_20260507.j
 
 The pre-patch CGN H100 table (`1 / 90`, `2 / 168`, `0 / 40`, `0 / 24`) is now only a diagnostic reference. The patched diagnostic `oracle_gt + real CGN` run on `cgn_bottleneck_v2` improved from `0 / 12` to `3 / 12`, confirming that the old CGN shared-lane score included a benchmark integration problem.
 
-CGN Native-Reference Appendix status:
+CGN Track B appendix status:
 
-- Lakeshore jobs `364696-364699` and finalizer `364723` completed with `ExitCode=0:0`.
-- Result: `39 / 138` (`28.26%`) on `track_b_cgn_native_v2`.
-- This appendix used raw fused point clouds with `segment_ids`, Contact-GraspNet `pc_segments`, `local_regions=True`, and `filter_grasps=True`.
-- All `939 / 939` saved debug traces confirm that official-filtering path and TensorFlow GPU visibility.
-- Tracked evidence: [configs/results/cgn_native_reference_h100_20260507.json](configs/results/cgn_native_reference_h100_20260507.json).
-- This remains native-reference engineering context only, not a fair-comparison headline result and not official Contact-GraspNet native-system performance.
+- Official Depth+Segmap Proposal Appendix: `40 / 138` (`28.99%`) on `track_b_cgn_official_depth_segmap_v1`.
+- It uses the [NVLabs Contact-GraspNet](https://github.com/NVlabs/contact_graspnet) inference contract: depth map in meters, camera matrix `K`, segmentation map, RGB, local-region cropping, and contact filtering. It aligns with the Contact-GraspNet paper's scope as a 6-DoF grasp proposal method, not a full robot task system.
+- Lakeshore jobs `365136-365139` and finalizer `365140` completed with `ExitCode=0:0`.
+- Trace evidence: `488 / 488` Contact-GraspNet calls used `input_contract=official_depth_k_segmap`, `use_raw_points=False`, `local_regions=True`, `filter_grasps=True`, and TensorFlow GPU visibility; `raw_point_files=0`.
+- Tracked evidence: [configs/results/cgn_official_depth_segmap_h100_20260508.json](configs/results/cgn_official_depth_segmap_h100_20260508.json).
+- Native-Reference Appendix: `39 / 138` (`28.26%`) on `track_b_cgn_native_v2`, backed by [configs/results/cgn_native_reference_h100_20260507.json](configs/results/cgn_native_reference_h100_20260507.json). That run used raw fused point clouds with `segment_ids`; it remains useful engineering context but is less directly aligned with the official demo input shape.
+- Both Track B appendices remain native-reference engineering context only, not fair-comparison headline results and not official end-to-end Contact-GraspNet native-system performance, because the Franka controller and lift-and-hold success rule are benchmark-owned.
 
 ## Experiment Name Guide
 
@@ -64,7 +66,8 @@ Internal `task_set` IDs are kept stable for scripts and reproducibility. Collabo
 | Task-Oriented Grasping Pilot | `phase2_pilot_v1` | current diagnostic | small suite for handle/part-oriented grasping |
 | Sim-to-Real Robustness Proxy | `sim2real_proxy_v2` | supporting diagnostic | simulated perturbations used as transfer stressors |
 | CGN Pipeline Diagnostic | `cgn_bottleneck_v2` | debugging suite | isolates GroundingDINO, Contact-GraspNet, planner, and success-rule bottlenecks |
-| CGN Native-Reference Appendix | `track_b_cgn_native_v2` | reference only | native-like engineering context, not a fair-comparison claim |
+| CGN Official Depth+Segmap Proposal Appendix | `track_b_cgn_official_depth_segmap_v1` | current reference | closest repository-supported path to the official Contact-GraspNet inference contract |
+| CGN Native-Reference Appendix | `track_b_cgn_native_v2` | reference only | fused-point-cloud engineering context, not a fair-comparison claim |
 
 Use the friendly names first. Put internal IDs in parentheses only when readers need to reproduce the exact command.
 
@@ -77,7 +80,8 @@ Use the friendly names first. Put internal IDs in parentheses only when readers 
 | CGN debugging | CGN Pipeline Diagnostic (`cgn_bottleneck_v2`) | treating bottleneck probes as headline benchmark results |
 | Wording sensitivity | Instruction Robustness Check (`instruction_robustness_v2`) | mixing instruction robustness rows into the headline table |
 | Task-oriented grasp examples | Task-Oriented Grasping Pilot (`phase2_pilot_v1`) | presenting this small pilot as the full benchmark |
-| Native-like CGN context | CGN Native-Reference Appendix (`track_b_cgn_native_v2`) | using native-reference rows as fair-comparison claims |
+| Most official CGN proposal-path context | CGN Official Depth+Segmap Proposal Appendix (`track_b_cgn_official_depth_segmap_v1`) | calling the benchmark-owned execution score official native-system performance |
+| Fused-point-cloud CGN engineering context | CGN Native-Reference Appendix (`track_b_cgn_native_v2`) | using native-reference rows as fair-comparison claims |
 
 ## Method Lanes
 
@@ -85,6 +89,7 @@ Use the friendly names first. Put internal IDs in parentheses only when readers 
 | --- | --- | --- |
 | GraspVLA | Public GraspVLA release through the aligned shared simulator wrapper | headline Track A method |
 | CGN shared lane | GroundingDINO target localization, depth masking, Contact-GraspNet proposals, and the shared planner/controller | benchmark-owned modular lane, not official native Contact-GraspNet |
+| CGN official depth+segmap appendix | NVLabs Contact-GraspNet proposal path from depth, `K`, `segmap`, and RGB; benchmark-owned Franka execution after proposal | official proposal-path reference, not official end-to-end native-system performance |
 | AnyGrasp | Excluded from current comparative claims | needs a fresh node-matched SDK license before revalidation |
 
 ## Architecture
@@ -160,6 +165,12 @@ python -m grasp_benchmark.run.sim --method graspvla --task-set track_a_cal_v3 --
 python -m grasp_benchmark.run.sim --method cgn --task-set track_a_cal_v3 --matrix
 python -m grasp_benchmark.run.sim --method graspvla --task-set track_a_stress_v4 --node em14
 python -m grasp_benchmark.run.sim --method cgn --task-set track_a_stress_v4 --matrix
+```
+
+Run the strictest Contact-GraspNet proposal-path appendix:
+
+```powershell
+python -m grasp_benchmark.run.sim --cluster-config lakeshore --method cgn --task-set track_b_cgn_official_depth_segmap_v1 --node lakeshore --available-nodes artifacts/preflight/lakeshore_available_nodes.json --execution-mode shared_track_a_sim --matrix --max-shards 4 --trace-steps
 ```
 
 Build a paper bundle from existing artifacts:
