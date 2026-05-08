@@ -38,12 +38,12 @@ Speed is part of the comparison. The GraspVLA paper reports speed in the real-wo
 
 The repository now also includes a direct Lakeshore H100 speed validation on the same 12-trial subset of the Main Shared Grasping Benchmark (`track_a_cal_v3`). The GraspVLA model server was launched inside the same Slurm GPU allocation and validated before trials began; server startup is excluded from per-trial timing.
 
-| Method | Speed-validation subset | Benchmark-recorded inference latency | Full trial cycle time, including retries | Result |
+| Method | Speed-validation subset | Logged latency signal | Full trial cycle time, including retries | Result |
 | --- | --- | ---: | ---: | ---: |
-| GraspVLA | 12 Main Shared trials on Lakeshore H100 | median `136.6 ms` | median `4.83 s` | `12 / 12` |
-| Contact-GraspNet modular pipeline | same 12 trials on Lakeshore H100 | median `25.4 ms` per policy/proposal call | median `52.24 s` | `5 / 12` |
+| GraspVLA | 12 Main Shared trials on Lakeshore H100 | median `136.6 ms` model-server round trip | median `4.83 s` | `12 / 12` |
+| Contact-GraspNet modular pipeline | same 12 trials on Lakeshore H100 | median `25.4 ms` adapter-step average | median `52.24 s` | `5 / 12` |
 
-The full trial cycle is the operational speed metric: it includes simulator stepping, retry budget, controller execution, logging, and success checking. The Contact-GraspNet all-trial median is dominated by failed rows: `7 / 12` trials used all three attempts, with a failed-trial median of `52.39 s`; the successful Contact-GraspNet rows have median full-cycle time `11.45 s`. The benchmark-recorded inference column is still useful, but it is not a complete substitute for full-cycle task time.
+The full trial cycle is the operational speed metric: it includes simulator stepping, retry budget, controller execution, logging, and success checking. The Contact-GraspNet all-trial median is dominated by failed rows: `7 / 12` trials used all three attempts, with a failed-trial median of `52.39 s`; the successful Contact-GraspNet rows have median full-cycle time `11.45 s`. The logged latency column is a diagnostic signal, not a direct neural-network speed comparison: for GraspVLA it is the model-server request round trip, while for Contact-GraspNet it is averaged over adapter control steps and includes many cached-action steps after a grasp plan has already been produced.
 
 Primary speed references:
 

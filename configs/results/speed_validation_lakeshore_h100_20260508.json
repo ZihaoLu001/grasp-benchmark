@@ -6,7 +6,9 @@
   "task_set": "track_a_cal_v3",
   "max_trials": 12,
   "measurement_notes": [
-    "inference_ms is the per-trial policy/proposal latency recorded by the benchmark worker.",
+    "inference_ms is a logged adapter latency signal, not a direct apples-to-apples neural-network runtime comparison.",
+    "For GraspVLA, inference_ms records model-server round-trip latency when the policy requests a new action chunk.",
+    "For Contact-GraspNet, inference_ms records the mean adapter-step latency for the final reported attempt; this includes fast cached-action steps after a grasp plan has already been produced.",
     "cycle_time_s is the full simulated trial wall-clock time, including scene setup, attempts, controller execution, video/log writing, and success checking.",
     "GraspVLA server startup time is excluded from per-trial cycle_time_s; the model server was launched inside the same Slurm GPU allocation and validated before trials began."
   ],

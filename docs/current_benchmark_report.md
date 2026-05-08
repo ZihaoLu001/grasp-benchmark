@@ -36,12 +36,12 @@ Speed is reported next to success rate. The GraspVLA paper includes speed in its
 
 A direct Lakeshore H100 speed validation was run on the same 12-trial subset of the Main Shared Grasping Benchmark (`track_a_cal_v3`). The GraspVLA server was launched inside the same Slurm GPU allocation and validated before trials began; server startup is excluded from per-trial timing.
 
-| Method | Validation subset | Benchmark-recorded inference latency | Full trial cycle time, including retries | Result |
+| Method | Validation subset | Logged latency signal | Full trial cycle time, including retries | Result |
 | --- | --- | ---: | ---: | ---: |
-| GraspVLA | 12 Main Shared trials on Lakeshore H100 | median `136.6 ms` | median `4.83 s` | `12 / 12` |
-| Contact-GraspNet modular pipeline | same 12 trials on Lakeshore H100 | median `25.4 ms` per policy/proposal call | median `52.24 s` | `5 / 12` |
+| GraspVLA | 12 Main Shared trials on Lakeshore H100 | median `136.6 ms` model-server round trip | median `4.83 s` | `12 / 12` |
+| Contact-GraspNet modular pipeline | same 12 trials on Lakeshore H100 | median `25.4 ms` adapter-step average | median `52.24 s` | `5 / 12` |
 
-The full trial cycle is the operational speed metric: it includes simulator stepping, retry budget, controller execution, logging, and success checking. The Contact-GraspNet all-trial median is dominated by failed rows: `7 / 12` trials used all three attempts, with a failed-trial median of `52.39 s`; the successful Contact-GraspNet rows have median full-cycle time `11.45 s`. The inference column is still useful, but it should not be read as a complete substitute for end-to-end task time.
+The full trial cycle is the operational speed metric: it includes simulator stepping, retry budget, controller execution, logging, and success checking. The Contact-GraspNet all-trial median is dominated by failed rows: `7 / 12` trials used all three attempts, with a failed-trial median of `52.39 s`; the successful Contact-GraspNet rows have median full-cycle time `11.45 s`. The logged latency column is a diagnostic signal, not a direct neural-network speed comparison: for GraspVLA it is the model-server request round trip, while for Contact-GraspNet it is averaged over adapter control steps and includes many cached-action steps after a grasp plan has already been produced.
 
 Primary references:
 
@@ -155,4 +155,4 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build_corl2026_bundle_v3.ps1
 
 ## Conclusion
 
-> We evaluate GraspVLA and a Contact-GraspNet-based modular pipeline under one shared simulator protocol: same Franka robot, cameras, gripper, controller, attempt budget, and `15 cm / 2 s` lift-and-hold success rule. Under this protocol, GraspVLA achieves `88/90` on the Main Shared Grasping Benchmark and `160/168` on the Hard Shared Grasping Stress Test; the Contact-GraspNet modular pipeline achieves `25/90` and `20/168`. On a 12-trial Lakeshore H100 speed validation subset, GraspVLA records median `136.6 ms` policy latency and median `4.83 s` full-cycle trial time; the Contact-GraspNet modular pipeline records median `25.4 ms` benchmark policy/proposal-call latency, median `11.45 s` cycle time on successful rows, and median `52.24 s` all-trial cycle time after including failed retries.
+> We evaluate GraspVLA and a Contact-GraspNet-based modular pipeline under one shared simulator protocol: same Franka robot, cameras, gripper, controller, attempt budget, and `15 cm / 2 s` lift-and-hold success rule. Under this protocol, GraspVLA achieves `88/90` on the Main Shared Grasping Benchmark and `160/168` on the Hard Shared Grasping Stress Test; the Contact-GraspNet modular pipeline achieves `25/90` and `20/168`. On a 12-trial Lakeshore H100 speed validation subset, GraspVLA records median `136.6 ms` model-server round-trip latency and median `4.83 s` full-cycle trial time; the Contact-GraspNet modular pipeline records median `25.4 ms` adapter-step latency, median `11.45 s` cycle time on successful rows, and median `52.24 s` all-trial cycle time after including failed retries.
