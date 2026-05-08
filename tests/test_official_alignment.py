@@ -224,6 +224,27 @@ class OfficialAlignmentSelectionTest(unittest.TestCase):
         self.assertIn("GB_FAULTHANDLER_PATH", command)
         self.assertIn("worker_stdout.log", command)
 
+    def test_remote_worker_command_forwards_graspvla_view_mode(self) -> None:
+        command = _build_remote_command(
+            cluster_config={
+                "remote_root": "/projects/cs_yifan16_chi/zlu31/grasp-benchmark",
+                "miniforge_root": "/projects/cs_yifan16_chi/zlu31/miniforge3",
+                "conda_envs_dir": "/projects/cs_yifan16_chi/zlu31/conda_envs",
+                "cuda_home": "/cm/shared/apps/cuda11.8/toolkit/11.8.0",
+            },
+            method_config={"name": "graspvla", "env_name": "gb-graspvla", "server": {"host": "127.0.0.1", "port": 6666}, "model_cache_dir": "/models"},
+            task_set="track_a_cal_v3",
+            sensor_config="track_a_dual_realsense",
+            run_dir="/projects/cs_yifan16_chi/zlu31/grasp-benchmark/artifacts/runs/example",
+            execution_mode="shared_track_a_sim",
+            smoke_only=False,
+            max_trials=1,
+            cluster_config_name="lakeshore",
+            graspvla_view_mode="front_only_duplicate",
+        )
+
+        self.assertIn('--graspvla-view-mode "front_only_duplicate"', command)
+
 
 if __name__ == "__main__":
     unittest.main()

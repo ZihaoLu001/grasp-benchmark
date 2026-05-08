@@ -282,6 +282,7 @@ def _build_remote_command(
     gpu_id: str = "",
     parent_run_id: str = "",
     trace_steps: bool = False,
+    graspvla_view_mode: str = "",
     segmentation_mode: str = "",
     oracle_grasp_mode: str = "",
     native_multiview_fusion: bool = False,
@@ -299,6 +300,7 @@ def _build_remote_command(
     gpu_flag = f'--gpu-id "{gpu_id}"' if gpu_id != "" else ""
     parent_flag = f'--parent-run-id "{parent_run_id}"' if parent_run_id else ""
     trace_steps_flag = "--trace-steps" if trace_steps else ""
+    graspvla_view_mode_flag = f'--graspvla-view-mode "{graspvla_view_mode}"' if graspvla_view_mode else ""
     segmentation_mode_flag = f'--segmentation-mode "{segmentation_mode}"' if segmentation_mode else ""
     oracle_grasp_mode_flag = f'--oracle-grasp-mode "{oracle_grasp_mode}"' if oracle_grasp_mode else ""
     native_multiview_flag = "--native-multiview-fusion" if native_multiview_fusion else ""
@@ -341,6 +343,7 @@ def _build_remote_command(
         f'{gpu_flag} '
         f'{parent_flag} '
         f'{trace_steps_flag} '
+        f'{graspvla_view_mode_flag} '
         f'{segmentation_mode_flag} '
         f'{oracle_grasp_mode_flag} '
         f'{native_multiview_flag} '
@@ -442,6 +445,7 @@ def _build_matrix_shards(
     max_shards: int,
     cluster_config_name: str = "default",
     trace_steps: bool = False,
+    graspvla_view_mode: str = "",
     segmentation_mode: str = "",
     oracle_grasp_mode: str = "",
     native_multiview_fusion: bool = False,
@@ -485,6 +489,7 @@ def _build_matrix_shards(
             gpu_id=gpu_id,
             parent_run_id=parent_run_id,
             trace_steps=trace_steps,
+            graspvla_view_mode=graspvla_view_mode,
             segmentation_mode=segmentation_mode,
             oracle_grasp_mode=oracle_grasp_mode,
             native_multiview_fusion=native_multiview_fusion,
@@ -645,6 +650,7 @@ def main() -> None:
     parser.add_argument("--smoke-only", action="store_true", help="Dispatch the remote worker in smoke-only mode.")
     parser.add_argument("--max-trials", type=int, default=0, help="Optional cap on expanded trial count.")
     parser.add_argument("--trace-steps", action="store_true", help="Ask the remote worker to save per-step diagnostics.")
+    parser.add_argument("--graspvla-view-mode", default="", help="Optional GraspVLA camera-ablation mode.")
     parser.add_argument("--segmentation-mode", default="", help="Optional modular perception mode, e.g. oracle_gt.")
     parser.add_argument("--oracle-grasp-mode", default="", help="Optional proposal override mode, e.g. topdown_centroid.")
     parser.add_argument(
@@ -694,6 +700,7 @@ def main() -> None:
         "smoke_only": args.smoke_only,
         "max_trials": args.max_trials,
         "trace_steps": args.trace_steps,
+        "graspvla_view_mode": args.graspvla_view_mode,
         "segmentation_mode": args.segmentation_mode,
         "oracle_grasp_mode": args.oracle_grasp_mode,
         "native_multiview_fusion": args.native_multiview_fusion,
@@ -720,6 +727,7 @@ def main() -> None:
             max_shards=args.max_shards,
             cluster_config_name=cluster_config_name,
             trace_steps=args.trace_steps,
+            graspvla_view_mode=args.graspvla_view_mode,
             segmentation_mode=args.segmentation_mode,
             oracle_grasp_mode=args.oracle_grasp_mode,
             native_multiview_fusion=args.native_multiview_fusion,
@@ -764,6 +772,7 @@ def main() -> None:
         gpu_id=args.gpu_id,
         parent_run_id=parent_run_id,
         trace_steps=args.trace_steps,
+        graspvla_view_mode=args.graspvla_view_mode,
         segmentation_mode=args.segmentation_mode,
         oracle_grasp_mode=args.oracle_grasp_mode,
         native_multiview_fusion=args.native_multiview_fusion,
