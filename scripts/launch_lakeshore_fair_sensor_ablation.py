@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import shlex
 import statistics
 import subprocess
 from datetime import datetime, timezone
@@ -160,7 +161,11 @@ def _write(path: Path, text: str) -> None:
 
 def _submit(node: str, remote_script: str, dependency: str = "") -> str:
     dependency_flag = f"--dependency={dependency}" if dependency else ""
-    command = f"sbatch --parsable {dependency_flag} {remote_script}".strip()
+    command = (
+        "source /etc/profile.d/modules.sh >/dev/null 2>&1 || true; "
+        "module load slurm/lakeshore/23.02.4 >/dev/null 2>&1 || true; "
+        f"sbatch --parsable {dependency_flag} {shlex.quote(remote_script)}"
+    ).strip()
     result = _run(["ssh", node, command], timeout=60)
     return result.stdout.strip().splitlines()[-1].strip()
 
