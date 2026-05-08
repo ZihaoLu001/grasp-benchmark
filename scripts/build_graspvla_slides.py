@@ -60,8 +60,8 @@ SLIDES = [
         "Current Lab Status",
         [
             "GraspVLA shared-protocol results are stable for the current simulator suites",
-            "Contact-GraspNet shared pipeline completed: 25/90, 20/168, 8/40, and 0/24",
-            "Depth+K+segmap proposal-path appendix completed: 40/138",
+            "Contact-GraspNet modular pipeline completed: 25/90, 20/168, 8/40, and 0/24",
+            "Official-input validation confirms the depth+K+segmap Contact-GraspNet contract",
             "Tracked evidence lives in configs/results/cgn_shared_protocol_h100_20260508.json",
             "AnyGrasp is excluded from current comparative claims until fresh license/runtime revalidation",
         ],
@@ -72,7 +72,7 @@ SLIDES = [
             "Use README.md and docs/current_benchmark_report.md as the project overview",
             "Keep generated slides, plots, and videos under artifacts rather than tracked docs",
             "Report success and speed together because the GraspVLA paper treats speed as a method metric",
-            "Use the depth+K+segmap appendix for Contact-GraspNet proposal-path context",
+            "Use the depth+K+segmap validation suite as Contact-GraspNet implementation evidence",
         ],
     ),
 ]

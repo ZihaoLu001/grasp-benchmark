@@ -11,7 +11,7 @@ pipeline_contract:
   grasp_proposal: Contact-GraspNet
   execution: shared_planner_controller
   success_rule: shared_track_a_lift_15cm_hold_2s
-  reporting_note: Report as the benchmark-owned Contact-GraspNet shared pipeline under the shared protocol; report the depth+K+segmap appendix separately as proposal-path evidence.
+  reporting_note: Report as one Contact-GraspNet modular pipeline under the shared protocol; use the depth+K+segmap validation suite only as implementation evidence.
 preferred_nodes:
   - em14
   - rll_6000_1

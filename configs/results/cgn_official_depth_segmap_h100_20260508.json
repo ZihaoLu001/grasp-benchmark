@@ -1,7 +1,7 @@
 {
   "generated_at": "2026-05-08T10:58:00+00:00",
   "task_set": "track_b_cgn_official_depth_segmap_v1",
-  "display_name": "CGN Official Depth+Segmap Proposal Appendix",
+  "display_name": "Contact-GraspNet Official-Input Validation Suite",
   "claim_boundary": "official Contact-GraspNet depth+K+segmap proposal path followed by benchmark-owned Franka execution and lift-and-hold success evaluation",
   "repository_commit": "212506f3762e280c45b03d3397317fd24605003e",
   "batch_dir": "/projects/cs_yifan16_chi/zlu31/grasp-benchmark/artifacts/slurm/cgn_official_depthseg_20260508_212506f",
@@ -177,6 +177,6 @@
     "All four GPU shards completed on Lakeshore H100 node ghi2-002 with ExitCode=0:0.",
     "The CPU finalizer completed on a-001 and generated final_summary.json/final_summary.md.",
     "This run uses the official depth/K/segmap input shape recommended by the NVLabs Contact-GraspNet inference documentation, with local region cropping and contact filtering enabled.",
-    "Report this result as a Contact-GraspNet proposal-path appendix because episode execution uses the benchmark-owned Franka controller and lift-and-hold success rule."
+    "Use this result as implementation-check evidence for the Contact-GraspNet modular pipeline because episode execution uses the benchmark-owned Franka controller and lift-and-hold success rule."
   ]
 }

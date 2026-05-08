@@ -1,6 +1,6 @@
 name: track_b_cgn_official_depth_segmap_v1
-display_name: CGN Official Depth+Segmap Proposal Appendix
-public_name: CGN Official Depth+Segmap Proposal Appendix
+display_name: Contact-GraspNet Official-Input Validation Suite
+public_name: Contact-GraspNet Official-Input Validation Suite
 track: track_b_native
 claim_boundary: official_contact_graspnet_proposal_path_with_benchmark_owned_execution
 scene_catalog: graspvla_track_b_cgn_native_v2

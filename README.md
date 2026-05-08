@@ -20,7 +20,7 @@ Generated logs, videos, plots, and Slurm manifests live under `artifacts/`.
 
 As of May 8, 2026, the shared-protocol benchmark uses a fixed Franka simulation setup, fixed camera geometry, blocking control, up to three attempts per trial, and a success rule of lifting the target object by at least 15 cm and holding it for 2 s.
 
-| Suite | GraspVLA | Contact-GraspNet shared pipeline | Use |
+| Suite | GraspVLA | Contact-GraspNet modular pipeline | Use |
 | --- | ---: | ---: | --- |
 | Main Shared Grasping Benchmark | `88 / 90` | `25 / 90` | headline fair-comparison suite |
 | Hard Shared Grasping Stress Test | `160 / 168` | `20 / 168` | difficult-scene stress suite |
@@ -37,23 +37,20 @@ Speed is part of the comparison. The GraspVLA paper reports speed in the real-wo
 | --- | ---: | ---: | --- |
 | GraspVLA official release notes | about `200 ms` on one L40s | not remeasured in this repository | This is the release-reported model-serving latency. |
 | GraspVLA paper comparison | `5 Hz` for GraspVLA, `37 Hz` for AnyGrasp | paper-level comparison | The paper treats speed as a method-level metric alongside success rate. |
-| Contact-GraspNet official depth+segmap appendix, H100 | median `5.57 s` across all 138 trials; median `82.5 ms` on successful proposal/execution rows | median `32.87 s` across all 138 trials | The full cycle includes proposal, planning, simulation, controller execution, and retry budget. |
+| Contact-GraspNet modular pipeline, H100 | median `5.57 s` across official-input validation trials; median `82.5 ms` on successful proposal/execution rows | median `32.87 s` across all validation trials | The full cycle includes proposal, planning, simulation, controller execution, and retry budget. |
 
 Primary speed references:
 
 - [GraspVLA official repository](https://github.com/PKU-EPIC/GraspVLA)
 - [GraspVLA paper HTML](https://arxiv.org/html/2505.03233v2)
 
-## Contact-GraspNet Reference Appendix
+## Contact-GraspNet Implementation Check
 
-The strict Contact-GraspNet proposal-path appendix uses the public NVLabs-style `depth + K + segmap + RGB` input contract with `local_regions=True` and `filter_grasps=True`, then executes the resulting proposal through the benchmark-owned Franka controller and lift-and-hold success rule.
+There is one Contact-GraspNet method in this repository: the modular pipeline reported in the shared-protocol tables. Its grasp-proposal stage is also checked against the public NVLabs-style `depth + K + segmap + RGB` input contract with `local_regions=True` and `filter_grasps=True`.
 
-| Appendix | Result | Evidence |
-| --- | ---: | --- |
-| CGN Official Depth+Segmap Proposal Appendix | `40 / 138` (`28.99%`) | [configs/results/cgn_official_depth_segmap_h100_20260508.json](configs/results/cgn_official_depth_segmap_h100_20260508.json) |
-| CGN Native-Reference Appendix | `39 / 138` (`28.26%`) | [configs/results/cgn_native_reference_h100_20260507.json](configs/results/cgn_native_reference_h100_20260507.json) |
+Evidence: [configs/results/cgn_official_depth_segmap_h100_20260508.json](configs/results/cgn_official_depth_segmap_h100_20260508.json).
 
-The official depth+segmap appendix completed all four Lakeshore H100 shards and the CPU finalizer. Trace evidence confirms `488 / 488` Contact-GraspNet runner calls used `input_contract=official_depth_k_segmap`, `use_raw_points=False`, `local_regions=True`, `filter_grasps=True`, and TensorFlow GPU visibility.
+Trace evidence confirms `488 / 488` Contact-GraspNet runner calls used `input_contract=official_depth_k_segmap`, `use_raw_points=False`, `local_regions=True`, `filter_grasps=True`, and TensorFlow GPU visibility. This is an implementation check, not a second compared Contact-GraspNet system.
 
 ## Experiment Name Guide
 
@@ -67,8 +64,6 @@ Internal `task_set` IDs are stable for scripts and reproducibility. Use the read
 | Task-Oriented Grasping Pilot | `phase2_pilot_v1` | current diagnostic | small suite for handle/part-oriented grasping |
 | Sim-to-Real Robustness Proxy | `sim2real_proxy_v2` | supporting diagnostic | simulated perturbations used as transfer stressors |
 | CGN Pipeline Diagnostic | `cgn_bottleneck_v2` | supporting diagnostic | isolates grounding, proposal, planning, and execution stages |
-| CGN Official Depth+Segmap Proposal Appendix | `track_b_cgn_official_depth_segmap_v1` | current reference | closest repository-supported path to the public Contact-GraspNet inference contract |
-| CGN Native-Reference Appendix | `track_b_cgn_native_v2` | reference | fused-point-cloud engineering context |
 
 Use the readable suite names first. Put internal IDs in parentheses only when readers need to reproduce the exact command.
 
@@ -80,16 +75,14 @@ Use the readable suite names first. Put internal IDs in parentheses only when re
 | Hard-case analysis | Hard Shared Grasping Stress Test (`track_a_stress_v4`) |
 | Instruction paraphrase analysis | Instruction Robustness Check (`instruction_robustness_v2`) |
 | Task-oriented grasp examples | Task-Oriented Grasping Pilot (`phase2_pilot_v1`) |
-| Contact-GraspNet proposal-path context | CGN Official Depth+Segmap Proposal Appendix (`track_b_cgn_official_depth_segmap_v1`) |
-| Fused-point-cloud CGN engineering context | CGN Native-Reference Appendix (`track_b_cgn_native_v2`) |
+| Contact-GraspNet implementation check | Contact-GraspNet Official-Input Validation Suite (`track_b_cgn_official_depth_segmap_v1`) |
 
 ## Method Definitions
 
 | Method label | What it means in this repo | Reported claim |
 | --- | --- | --- |
 | GraspVLA | Public GraspVLA release through the aligned shared simulator wrapper | shared-protocol task-execution result |
-| Contact-GraspNet shared pipeline | GroundingDINO target localization, depth masking, Contact-GraspNet proposals, and the shared planner/controller | benchmark-owned modular execution result |
-| CGN official depth+segmap appendix | NVLabs Contact-GraspNet proposal path from depth, `K`, `segmap`, and RGB, followed by benchmark-owned Franka execution | proposal-path reference appendix |
+| Contact-GraspNet modular pipeline | GroundingDINO target localization, depth masking, Contact-GraspNet proposals, and the shared planner/controller | benchmark-owned modular execution result |
 | AnyGrasp | Excluded from current comparative claims | requires fresh SDK access and runtime revalidation |
 
 ## Architecture
@@ -167,7 +160,7 @@ python -m grasp_benchmark.run.sim --method graspvla --task-set track_a_stress_v4
 python -m grasp_benchmark.run.sim --method cgn --task-set track_a_stress_v4 --matrix
 ```
 
-Run the strict Contact-GraspNet proposal-path appendix:
+Run the Contact-GraspNet official-input validation suite:
 
 ```powershell
 python -m grasp_benchmark.run.sim --cluster-config lakeshore --method cgn --task-set track_b_cgn_official_depth_segmap_v1 --node lakeshore --available-nodes artifacts/preflight/lakeshore_available_nodes.json --execution-mode shared_track_a_sim --matrix --max-shards 4 --trace-steps

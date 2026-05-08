@@ -19,7 +19,7 @@ class PublicDocumentationDefaultsTest(unittest.TestCase):
         self.assertIn("Hard Shared Grasping Stress Test", text)
         self.assertIn("Instruction Robustness Check", text)
         self.assertIn("Task-Oriented Grasping Pilot", text)
-        self.assertIn("Contact-GraspNet shared pipeline", text)
+        self.assertIn("Contact-GraspNet modular pipeline", text)
         self.assertIn("Speed and Latency", text)
         self.assertIn("about `200 ms`", text)
         self.assertIn("`5 Hz` for GraspVLA, `37 Hz` for AnyGrasp", text)
@@ -27,11 +27,9 @@ class PublicDocumentationDefaultsTest(unittest.TestCase):
         self.assertIn("median `82.5 ms`", text)
         self.assertIn("configs/results/cgn_shared_protocol_h100_20260508.json", text)
         self.assertIn("configs/results/cgn_official_depth_segmap_h100_20260508.json", text)
-        self.assertIn("configs/results/cgn_native_reference_h100_20260507.json", text)
-        self.assertIn("40 / 138", text)
-        self.assertIn("28.99%", text)
-        self.assertIn("39 / 138", text)
-        self.assertIn("28.26%", text)
+        self.assertIn("official-input validation", text)
+        self.assertNotIn("40 / 138", text)
+        self.assertNotIn("39 / 138", text)
         self.assertIn("docs/current_benchmark_report.md", text)
         self.assertNotIn("docs/reports/", text)
         self.assertNotIn("_zh.md", text)
@@ -41,7 +39,7 @@ class PublicDocumentationDefaultsTest(unittest.TestCase):
     def test_single_current_report_is_the_documentation_entrypoint(self) -> None:
         text = self._read("docs/current_benchmark_report.md")
         self.assertIn("Main Shared Grasping Benchmark", text)
-        self.assertIn("Contact-GraspNet shared pipeline", text)
+        self.assertIn("Contact-GraspNet modular pipeline", text)
         self.assertIn("Speed and Latency", text)
         self.assertIn("gb-cgn-tf212", text)
         self.assertIn("25 / 90", text)
@@ -49,13 +47,12 @@ class PublicDocumentationDefaultsTest(unittest.TestCase):
         self.assertIn("8 / 40", text)
         self.assertIn("configs/results/cgn_shared_protocol_h100_20260508.json", text)
         self.assertIn("configs/results/cgn_official_depth_segmap_h100_20260508.json", text)
-        self.assertIn("configs/results/cgn_native_reference_h100_20260507.json", text)
-        self.assertIn("40 / 138", text)
-        self.assertIn("28.99%", text)
+        self.assertNotIn("configs/results/cgn_native_reference_h100_20260507.json", text)
+        self.assertNotIn("40 / 138", text)
         self.assertIn("488 / 488", text)
-        self.assertIn("39 / 138", text)
-        self.assertIn("28.26%", text)
-        self.assertIn("939", text)
+        self.assertNotIn("39 / 138", text)
+        self.assertNotIn("28.26%", text)
+        self.assertNotIn("939", text)
         self.assertIn("GroundingDINO", text)
         self.assertNotIn("D:/codex", text)
         self.assertNotIn("D:\\codex", text)
@@ -119,9 +116,6 @@ class PublicDocumentationDefaultsTest(unittest.TestCase):
 
     def test_cgn_native_reference_appendix_is_backed_by_tracked_evidence(self) -> None:
         evidence = json.loads(self._read("configs/results/cgn_native_reference_h100_20260507.json"))
-        readme = self._read("README.md")
-        report = self._read("docs/current_benchmark_report.md")
-
         self.assertTrue(evidence["completed"])
         self.assertEqual(evidence["task_set"], "track_b_cgn_native_v2")
         self.assertEqual(evidence["successes"], 39)
@@ -138,13 +132,9 @@ class PublicDocumentationDefaultsTest(unittest.TestCase):
         for job in evidence["slurm_jobs"]:
             self.assertEqual(job["state"], "COMPLETED")
             self.assertEqual(job["exit_code"], "0:0")
-        self.assertIn("39 / 138", readme)
-        self.assertIn("39 / 138", report)
-        self.assertIn("939", report)
 
     def test_cgn_official_depth_segmap_appendix_is_backed_by_tracked_evidence(self) -> None:
         evidence = json.loads(self._read("configs/results/cgn_official_depth_segmap_h100_20260508.json"))
-        readme = self._read("README.md")
         report = self._read("docs/current_benchmark_report.md")
 
         self.assertTrue(evidence["completed"])
@@ -167,8 +157,7 @@ class PublicDocumentationDefaultsTest(unittest.TestCase):
         for job in evidence["slurm_jobs"]:
             self.assertEqual(job["state"], "COMPLETED")
             self.assertEqual(job["exit_code"], "0:0")
-        self.assertIn("40 / 138", readme)
-        self.assertIn("40 / 138", report)
+        self.assertNotIn("40 / 138", report)
         self.assertIn("official_depth_k_segmap", report)
 
     def test_tracked_docs_are_kept_small(self) -> None:
@@ -190,7 +179,7 @@ class PublicDocumentationDefaultsTest(unittest.TestCase):
         self.assertIn('"artifacts" / "slides"', text)
         self.assertIn("AnyGrasp is excluded from current comparative claims", text)
         self.assertIn("25/90, 20/168, 8/40, and 0/24", text)
-        self.assertIn("40/138", text)
+        self.assertIn("Official-input validation confirms", text)
         self.assertIn("cgn_shared_protocol_h100_20260508.json", text)
         self.assertNotIn('"docs" / "slides"', text)
         self.assertNotIn("Fetch the AnyGrasp license", text)

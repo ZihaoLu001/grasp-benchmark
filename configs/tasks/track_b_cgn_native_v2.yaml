@@ -1,6 +1,6 @@
 name: track_b_cgn_native_v2
-display_name: CGN Native-Reference Appendix
-public_name: CGN Native-Reference Appendix
+display_name: Contact-GraspNet Fused-Point-Cloud Validation Suite
+public_name: Contact-GraspNet Fused-Point-Cloud Validation Suite
 track: track_b_native
 claim_boundary: native_reference_engineering_appendix
 scene_catalog: graspvla_track_b_cgn_native_v2
