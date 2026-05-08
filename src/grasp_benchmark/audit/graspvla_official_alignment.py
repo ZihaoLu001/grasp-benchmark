@@ -476,7 +476,7 @@ def classify_parity_status(
 
 
 def _latest_track_b_summary_path() -> Path | None:
-    candidates = sorted((ARTIFACTS_DIR / "official_sim").glob("*_em14_full/summary.json"))
+    candidates = sorted((ARTIFACTS_DIR / "official_sim").glob("*_lakeshore_full/summary.json"))
     if not candidates:
         return None
     return candidates[-1]
@@ -968,8 +968,8 @@ def _write_report(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Audit GraspVLA official-release parity on em14.")
-    parser.add_argument("--node", default="em14")
+    parser = argparse.ArgumentParser(description="Audit GraspVLA official-release parity on lakeshore.")
+    parser.add_argument("--node", default="lakeshore")
     parser.add_argument("--sensor-config", default="track_a_dual_realsense")
     parser.add_argument("--benchmarks", default="libero_object,libero_10,libero_goal")
     parser.add_argument("--tasks-per-benchmark", type=int, default=2)

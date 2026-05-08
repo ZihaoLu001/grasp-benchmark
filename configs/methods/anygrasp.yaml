@@ -3,9 +3,7 @@ display_name: AnyGrasp + Grounding DINO + Motion Planner
 benchmark_method_tier: anygrasp_full_modular
 env_name: gb-anygrasp
 preferred_nodes:
-  - em14
-  - rll_6000_1
-  - rll_6000_2
+  - lakeshore
 upstreams:
   - anygrasp_sdk
   - GroundingDINO

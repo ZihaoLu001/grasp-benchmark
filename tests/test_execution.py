@@ -69,7 +69,7 @@ class ExecutionTest(unittest.TestCase):
                 sensor_config=sensor_config,
                 task_specs=trial,
                 artifact_dir=artifact_dir,
-                node="em14",
+                node="lakeshore",
                 commit="deadbeef",
             )
 
@@ -96,7 +96,7 @@ class ExecutionTest(unittest.TestCase):
                 sensor_config=sensor_config,
                 task_specs=trial,
                 artifact_dir=artifact_dir,
-                node="em14",
+                node="lakeshore",
                 commit="deadbeef",
             )
 
@@ -120,7 +120,7 @@ class ExecutionTest(unittest.TestCase):
                 sensor_config=sensor_config,
                 task_specs=trial,
                 artifact_dir=artifact_dir,
-                node="em14",
+                node="lakeshore",
                 commit="deadbeef",
             )
 
@@ -134,7 +134,7 @@ class ExecutionTest(unittest.TestCase):
             adapter_name="anygrasp",
             sensor_stack="dual_fixed_realsense_rgbd",
             task_specs=trial,
-            node="em14",
+            node="lakeshore",
             commit="deadbeef",
             execution_mode="integration_fixture",
             exc=AdapterExecutionError("missing checkpoint", failure_stage="model_assets"),

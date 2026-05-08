@@ -1,7 +1,7 @@
 param(
     [string]$Input = "artifacts\\runs",
     [string]$OutputDir = "artifacts\\reports\\latest",
-    [string]$TrackBReference = "artifacts\\official_sim\\20260402_231726_em14_full\\summary.json",
+    [string]$TrackBReference = "artifacts\\official_sim\\20260402_231726_lakeshore_full\\summary.json",
     [string]$TrackAStressReference = "artifacts\\reports\\track_a_compare_graspvla_cgn_v2_latest\\report.json",
     [string]$DiagnosticReport = "artifacts\\diagnostics\\20260403_175506_graspvla_track_a_diagnostics\\report.md"
 )

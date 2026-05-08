@@ -392,8 +392,8 @@ def _render_report(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run GraspVLA boundary probes on em14.")
-    parser.add_argument("--node", default="em14")
+    parser = argparse.ArgumentParser(description="Run GraspVLA boundary probes on lakeshore.")
+    parser.add_argument("--node", default="lakeshore")
     parser.add_argument("--sensor-config", default="track_a_dual_realsense")
     parser.add_argument("--scene-ids", default="", help="Optional comma-separated scene ids for smoke runs.")
     parser.add_argument("--skip-ensure-server", action="store_true")

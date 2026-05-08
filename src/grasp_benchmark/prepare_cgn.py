@@ -254,7 +254,7 @@ def _decode_b64(value: str) -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Prepare and probe the Contact-GraspNet legacy runtime.")
-    parser.add_argument("--node", default="em14")
+    parser.add_argument("--node", default="lakeshore")
     parser.add_argument(
         "--cluster-config",
         default="",

@@ -1,5 +1,5 @@
 param(
-    [string]$Node = "em14",
+    [string]$Node = "lakeshore",
     [ValidateSet("playground", "libero", "full")][string]$Mode = "full",
     [int]$Port = 6666,
     [int]$PlaygroundTrials = 1,

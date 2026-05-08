@@ -8,7 +8,7 @@ SLIDES = [
         "GraspVLA Inner Workings",
         [
             "Goal: explain how GraspVLA works to the benchmark team",
-            "Scope: public release plus what we have already run on em14",
+            "Scope: public release plus what we have already run on lakeshore",
         ],
     ),
     (

@@ -80,7 +80,7 @@ def _extract_feature_id(output: str) -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Prepare the AnyGrasp SDK binaries and inspect license state.")
-    parser.add_argument("--node", default="em14", help="Remote node to inspect.")
+    parser.add_argument("--node", default="lakeshore", help="Remote node to inspect.")
     args = parser.parse_args()
 
     cluster_config = load_named_config("cluster", "default")

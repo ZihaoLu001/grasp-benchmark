@@ -27,17 +27,23 @@ As of May 8, 2026, the shared-protocol benchmark uses a fixed Franka simulation 
 | Instruction Robustness Check | `38 / 40` | `8 / 40` | instruction and paraphrase diagnostic |
 | Task-Oriented Grasping Pilot | `23 / 24` | `0 / 24` | small task-oriented extension |
 
-Tracked machine-readable evidence: [configs/results/cgn_shared_protocol_h100_20260508.json](configs/results/cgn_shared_protocol_h100_20260508.json).
+Tracked machine-readable evidence:
+
+- [configs/results/cgn_shared_protocol_h100_20260508.json](configs/results/cgn_shared_protocol_h100_20260508.json)
+- [configs/results/speed_validation_lakeshore_h100_20260508.json](configs/results/speed_validation_lakeshore_h100_20260508.json)
 
 ## Speed and Latency
 
-Speed is part of the comparison. The GraspVLA paper reports speed in the real-world comparison table, and the official GraspVLA repository lists an approximate single-GPU inference latency of 200 ms on an NVIDIA L40s.
+Speed is part of the comparison. The GraspVLA paper reports speed in the real-world comparison table (`5 Hz` for GraspVLA, `37 Hz` for AnyGrasp), and the official GraspVLA repository lists an approximate single-GPU inference latency of about `200 ms` on an NVIDIA L40s.
 
-| Evidence source | Inference latency | End-to-end cycle time | Interpretation |
-| --- | ---: | ---: | --- |
-| GraspVLA official release notes | about `200 ms` on one L40s | not remeasured in this repository | This is the release-reported model-serving latency. |
-| GraspVLA paper comparison | `5 Hz` for GraspVLA, `37 Hz` for AnyGrasp | paper-level comparison | The paper treats speed as a method-level metric alongside success rate. |
-| Contact-GraspNet modular pipeline, H100 | median `5.57 s` across official-input validation trials; median `82.5 ms` on successful proposal/execution rows | median `32.87 s` across all validation trials | The full cycle includes proposal, planning, simulation, controller execution, and retry budget. |
+The repository now also includes a direct Lakeshore H100 speed validation on the same 12-trial subset of the Main Shared Grasping Benchmark (`track_a_cal_v3`). The GraspVLA model server was launched inside the same Slurm GPU allocation and validated before trials began; server startup is excluded from per-trial timing.
+
+| Method | Speed-validation subset | Benchmark-recorded inference latency | Full trial cycle time | Result |
+| --- | --- | ---: | ---: | ---: |
+| GraspVLA | 12 Main Shared trials on Lakeshore H100 | median `136.6 ms` | median `4.83 s` | `12 / 12` |
+| Contact-GraspNet modular pipeline | same 12 trials on Lakeshore H100 | median `25.4 ms` per policy/proposal call | median `52.24 s` | `5 / 12` |
+
+The full trial cycle is the operational speed metric: it includes simulator stepping, retry budget, controller execution, logging, and success checking. The benchmark-recorded inference column is still useful, but it is not a complete substitute for full-cycle task time.
 
 Primary speed references:
 
@@ -154,10 +160,10 @@ python -m grasp_benchmark.run.sim --cluster-config lakeshore --method cgn --task
 Launch current canonical simulator suites:
 
 ```powershell
-python -m grasp_benchmark.run.sim --method graspvla --task-set track_a_cal_v3 --node em14
-python -m grasp_benchmark.run.sim --method cgn --task-set track_a_cal_v3 --matrix
-python -m grasp_benchmark.run.sim --method graspvla --task-set track_a_stress_v4 --node em14
-python -m grasp_benchmark.run.sim --method cgn --task-set track_a_stress_v4 --matrix
+python -m grasp_benchmark.run.sim --cluster-config lakeshore --method graspvla --task-set track_a_cal_v3 --node lakeshore --available-nodes artifacts/preflight/lakeshore_available_nodes.json
+python -m grasp_benchmark.run.sim --cluster-config lakeshore --method cgn --task-set track_a_cal_v3 --node lakeshore --available-nodes artifacts/preflight/lakeshore_available_nodes.json --matrix --max-shards 4
+python -m grasp_benchmark.run.sim --cluster-config lakeshore --method graspvla --task-set track_a_stress_v4 --node lakeshore --available-nodes artifacts/preflight/lakeshore_available_nodes.json
+python -m grasp_benchmark.run.sim --cluster-config lakeshore --method cgn --task-set track_a_stress_v4 --node lakeshore --available-nodes artifacts/preflight/lakeshore_available_nodes.json --matrix --max-shards 4
 ```
 
 Run the Contact-GraspNet official-input validation suite:

@@ -4,7 +4,7 @@ import argparse
 import json
 from typing import Any
 
-from grasp_benchmark.config import load_named_config
+from grasp_benchmark.config import load_cluster_config, load_named_config
 from grasp_benchmark.paths import ARTIFACTS_DIR, PROJECT_ROOT, ensure_dir
 from grasp_benchmark.provenance import resolve_commit
 from grasp_benchmark.remote_setup import build_method_install_script
@@ -183,6 +183,7 @@ def _validate_remote_server(
 def main() -> None:
     parser = argparse.ArgumentParser(description="Launch or validate the remote GraspVLA model server.")
     parser.add_argument("--node", default="", help="Cluster node alias. Defaults to the cluster config default.")
+    parser.add_argument("--cluster-config", default="", help="Cluster config name under configs/cluster.")
     parser.add_argument("--port", type=int, default=0, help="Server port override.")
     parser.add_argument("--model-path", default="", help="Remote model path override.")
     parser.add_argument("--cuda-visible-devices", default="", help="Optional GPU binding for the remote model server.")
@@ -200,7 +201,7 @@ def main() -> None:
     if args.foreground:
         raise SystemExit("Foreground mode is not implemented yet.")
 
-    cluster_config = load_named_config("cluster", "default")
+    cluster_config = load_cluster_config(args.cluster_config)
     method_config = load_named_config("methods", "graspvla")
     node = args.node or cluster_config["default_graspvla_node"]
     port = args.port or method_config["server"]["port"]

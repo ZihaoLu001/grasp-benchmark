@@ -1,0 +1,73 @@
+{
+  "schema_version": "speed_validation_v1",
+  "generated_on": "2026-05-08",
+  "cluster": "Lakeshore",
+  "gpu_allocation": "Slurm batch_gpu2, gres=gpu:1",
+  "task_set": "track_a_cal_v3",
+  "max_trials": 12,
+  "measurement_notes": [
+    "inference_ms is the per-trial policy/proposal latency recorded by the benchmark worker.",
+    "cycle_time_s is the full simulated trial wall-clock time, including scene setup, attempts, controller execution, video/log writing, and success checking.",
+    "GraspVLA server startup time is excluded from per-trial cycle_time_s; the model server was launched inside the same Slurm GPU allocation and validated before trials began."
+  ],
+  "runs": {
+    "graspvla_shared_protocol_lakeshore_h100": {
+      "local_run_dir": "artifacts/runs/20260508_181110_graspvla_track_a_cal_v3_shared_sim",
+      "remote_results_path": "/projects/cs_yifan16_chi/zlu31/grasp-benchmark/artifacts/runs/20260508_181110_graspvla_track_a_cal_v3_shared_sim/results.csv",
+      "method": "graspvla",
+      "execution_mode": "shared_track_a_sim",
+      "node": "ghi2-002",
+      "commit": "212506f3762e280c45b03d3397317fd24605003e",
+      "trials": 12,
+      "successes": 12,
+      "success_rate": 1.0,
+      "inference_ms": {
+        "n": 12,
+        "median": 136.6321,
+        "mean": 136.7607,
+        "p25": 136.3032,
+        "p75": 136.9377,
+        "min": 135.9497,
+        "max": 138.7326
+      },
+      "cycle_time_s": {
+        "n": 12,
+        "median": 4.8274,
+        "mean": 6.3139,
+        "p25": 4.6785,
+        "p75": 7.7306,
+        "min": 4.2101,
+        "max": 12.1428
+      }
+    },
+    "cgn_shared_protocol_lakeshore_h100": {
+      "local_run_dir": "artifacts/runs/20260508_174652_cgn_track_a_cal_v3_shared_sim",
+      "remote_results_path": "/projects/cs_yifan16_chi/zlu31/grasp-benchmark/artifacts/runs/20260508_174652_cgn_track_a_cal_v3_shared_sim/results.csv",
+      "method": "cgn",
+      "execution_mode": "shared_track_a_sim",
+      "node": "ghi2-002",
+      "commit": "212506f3762e280c45b03d3397317fd24605003e",
+      "trials": 12,
+      "successes": 5,
+      "success_rate": 0.4167,
+      "inference_ms": {
+        "n": 12,
+        "median": 25.4491,
+        "mean": 60.6149,
+        "p25": 25.1423,
+        "p75": 110.0755,
+        "min": 24.8235,
+        "max": 111.7789
+      },
+      "cycle_time_s": {
+        "n": 12,
+        "median": 52.2409,
+        "mean": 38.1017,
+        "p25": 11.734,
+        "p75": 52.4218,
+        "min": 11.3903,
+        "max": 68.1131
+      }
+    }
+  }
+}

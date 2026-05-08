@@ -208,7 +208,7 @@ def _parse_status(raw_value: str | None, *, data_present: bool) -> int:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run the official GraspVLA simulation entrypoints on a remote node.")
-    parser.add_argument("--node", default="em14")
+    parser.add_argument("--node", default="lakeshore")
     parser.add_argument("--mode", choices=["playground", "libero", "full"], default="full")
     parser.add_argument("--port", type=int, default=6666)
     parser.add_argument("--playground-trials", type=int, default=1)

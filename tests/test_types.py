@@ -37,7 +37,7 @@ class TypesTest(unittest.TestCase):
             failure_reason="",
             collision=False,
             video_path="",
-            node="em14",
+            node="lakeshore",
             commit="deadbeef",
             replicate_index=2,
             seed=12345,

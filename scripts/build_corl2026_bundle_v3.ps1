@@ -21,7 +21,7 @@ if (-not $OutputDir) {
     $OutputDir = Join-Path $repoRoot "artifacts\reports\corl_paper_bundle_v3_latest"
 }
 if (-not $OfficialTrackBReference) {
-    $OfficialTrackBReference = Join-Path $repoRoot "artifacts\official_sim\20260402_231726_em14_full\summary.json"
+    $OfficialTrackBReference = Join-Path $repoRoot "artifacts\official_sim\20260402_231726_lakeshore_full\summary.json"
 }
 
 function Get-LatestRunId {

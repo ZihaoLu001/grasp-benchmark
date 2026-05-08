@@ -258,8 +258,8 @@ def _write_report(root_dir: Path, scene_rows: list[dict[str, object]], overall_r
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run the GraspVLA Track A diagnostic ablations on em14.")
-    parser.add_argument("--node", default="em14")
+    parser = argparse.ArgumentParser(description="Run the GraspVLA Track A diagnostic ablations on lakeshore.")
+    parser.add_argument("--node", default="lakeshore")
     parser.add_argument("--task-set", default="track_a_v1")
     parser.add_argument("--sensor-config", default="track_a_dual_realsense")
     args = parser.parse_args()

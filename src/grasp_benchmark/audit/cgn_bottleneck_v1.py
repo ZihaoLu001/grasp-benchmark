@@ -361,7 +361,7 @@ def _render_report(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run the CGN bottleneck audit on a fixed diagnostic suite.")
-    parser.add_argument("--node", default="em14")
+    parser.add_argument("--node", default="lakeshore")
     parser.add_argument("--sensor-config", default="track_a_dual_realsense")
     parser.add_argument("--scene-ids", default="", help="Optional comma-separated scene ids for smoke runs.")
     parser.add_argument("--task-set", default="cgn_bottleneck_v1")

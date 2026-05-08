@@ -8,9 +8,9 @@ from grasp_benchmark.official_graspvla_sim import _build_remote_script
 class OfficialGraspvlaSimTest(unittest.TestCase):
     def setUp(self) -> None:
         self.cluster_config = {
-            "miniforge_root": "/datasets/ss/current/zihao/miniforge3",
-            "remote_root": "/datasets/ss/current/zihao/grasp-benchmark",
-            "conda_envs_dir": "/datasets/ss/current/zihao/conda/envs",
+            "miniforge_root": "/projects/cs_yifan16_chi/zlu31/miniforge3",
+            "remote_root": "/projects/cs_yifan16_chi/zlu31/grasp-benchmark",
+            "conda_envs_dir": "/projects/cs_yifan16_chi/zlu31/conda_envs",
         }
         self.method_config = {
             "official_sim_env_name": "gb-graspvla-sim",

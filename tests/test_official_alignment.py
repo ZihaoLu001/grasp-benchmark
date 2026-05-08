@@ -67,6 +67,10 @@ class OfficialAlignmentSelectionTest(unittest.TestCase):
         method_config = load_named_config("methods", "graspvla")
         self.assertEqual(_remote_env_name(method_config, "official_aligned_sim"), method_config["official_sim_env_name"])
 
+    def test_shared_track_a_uses_shared_sim_env_when_configured(self) -> None:
+        method_config = load_named_config("methods", "graspvla")
+        self.assertEqual(_remote_env_name(method_config, "shared_track_a_sim"), method_config["shared_sim_env_name"])
+
     def test_classify_parity_status_can_be_reproducibility_limited(self) -> None:
         status = classify_parity_status(
             expected_episodes=65,
@@ -125,10 +129,10 @@ class OfficialAlignmentSelectionTest(unittest.TestCase):
 
     def test_matrix_mode_honors_explicit_single_node_override(self) -> None:
         available_nodes = {
-            "dispatch_hosts": ["em14", "rll_6000_1"],
+            "dispatch_hosts": ["lakeshore", "lakeshore_batch_gpu2"],
             "nodes": [
-                {"host": "em14", "status": "available", "gpu_names": ["A100"]},
-                {"host": "rll_6000_1", "status": "available", "gpu_names": ["RTX6000"]},
+                {"host": "lakeshore", "status": "available", "gpu_names": ["A100"]},
+                {"host": "lakeshore_batch_gpu2", "status": "available", "gpu_names": ["L40"]},
             ],
         }
         method_config = load_named_config("methods", "cgn")
@@ -137,9 +141,9 @@ class OfficialAlignmentSelectionTest(unittest.TestCase):
             method_config=method_config,
             available_nodes=available_nodes,
             explicit_nodes="",
-            explicit_node="em14",
+            explicit_node="lakeshore",
         )
-        self.assertEqual(selected, ["em14"])
+        self.assertEqual(selected, ["lakeshore"])
 
     def test_matrix_mode_falls_back_to_lakeshore_dispatch_host(self) -> None:
         available_nodes = {

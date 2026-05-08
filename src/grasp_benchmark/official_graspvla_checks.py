@@ -58,7 +58,7 @@ echo "__GB_OFFLINE_STATUS__=$OFFLINE_STATUS"
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run official GraspVLA validation entrypoints on a remote node.")
-    parser.add_argument("--node", default="em14")
+    parser.add_argument("--node", default="lakeshore")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=6666)
     parser.add_argument("--timeout", type=int, default=5)

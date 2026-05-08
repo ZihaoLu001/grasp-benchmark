@@ -1,5 +1,5 @@
 param(
-    [string]$Node = "em14",
+    [string]$Node = "lakeshore",
     [string]$ServerHost = "127.0.0.1",
     [int]$Port = 6666,
     [int]$Timeout = 5,

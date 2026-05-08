@@ -4,7 +4,7 @@ import argparse
 import json
 from datetime import datetime, timezone
 
-from grasp_benchmark.config import load_named_config
+from grasp_benchmark.config import load_cluster_config, load_named_config
 from grasp_benchmark.paths import ARTIFACTS_DIR, ensure_dir
 from grasp_benchmark.remote_setup import build_method_install_script
 from grasp_benchmark.shell import ssh_run
@@ -14,6 +14,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Install method-specific dependencies on a remote cluster node.")
     parser.add_argument("--method", required=True, choices=["graspvla", "anygrasp", "cgn"])
     parser.add_argument("--node", default="", help="Remote node override.")
+    parser.add_argument("--cluster-config", default="", help="Cluster config name under configs/cluster.")
     parser.add_argument(
         "--include-playground",
         action="store_true",
@@ -22,7 +23,7 @@ def main() -> None:
     parser.add_argument("--dry-run", action="store_true", help="Print the remote install script without executing it.")
     args = parser.parse_args()
 
-    cluster_config = load_named_config("cluster", "default")
+    cluster_config = load_cluster_config(args.cluster_config)
     method_config = load_named_config("methods", args.method)
     node = args.node or method_config.get("preferred_nodes", [cluster_config["default_graspvla_node"]])[0]
     script, notes = build_method_install_script(

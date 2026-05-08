@@ -25,6 +25,7 @@ Tracked evidence for the Contact-GraspNet modular pipeline:
 
 ```text
 configs/results/cgn_shared_protocol_h100_20260508.json
+configs/results/speed_validation_lakeshore_h100_20260508.json
 ```
 
 The tracked evidence records all expected shards for the four suites, duplicate scene IDs equal to `0`, and target-selection violations equal to `0`.
@@ -33,13 +34,14 @@ The tracked evidence records all expected shards for the four suites, duplicate 
 
 Speed is reported next to success rate. The GraspVLA paper includes speed in its real-world method comparison, and the official GraspVLA repository reports approximate model-serving latency.
 
-| Evidence source | Inference latency | End-to-end cycle time | Notes |
-| --- | ---: | ---: | --- |
-| GraspVLA official release notes | about `200 ms` on one NVIDIA L40s | not remeasured in this repository | release-reported serving latency |
-| GraspVLA paper comparison | `5 Hz` for GraspVLA, `37 Hz` for AnyGrasp | paper-level metric | speed is treated as a method-level comparison dimension |
-| Contact-GraspNet modular pipeline, H100 | median `5.57 s` across official-input validation trials; median `82.5 ms` on successful proposal/execution rows | median `32.87 s` across all validation trials | full cycle includes proposal, planning, simulation, controller execution, and retry budget |
+A direct Lakeshore H100 speed validation was run on the same 12-trial subset of the Main Shared Grasping Benchmark (`track_a_cal_v3`). The GraspVLA server was launched inside the same Slurm GPU allocation and validated before trials began; server startup is excluded from per-trial timing.
 
-Current Contact-GraspNet latency is bimodal: successful proposal/execution rows are fast, while rows without an executable proposal spend about 5.6 s in the proposal-search path. For this reason, model-serving latency and full episode cycle time are both reported.
+| Method | Validation subset | Benchmark-recorded inference latency | Full trial cycle time | Result |
+| --- | --- | ---: | ---: | ---: |
+| GraspVLA | 12 Main Shared trials on Lakeshore H100 | median `136.6 ms` | median `4.83 s` | `12 / 12` |
+| Contact-GraspNet modular pipeline | same 12 trials on Lakeshore H100 | median `25.4 ms` per policy/proposal call | median `52.24 s` | `5 / 12` |
+
+The full trial cycle is the operational speed metric: it includes simulator stepping, retry budget, controller execution, logging, and success checking. The inference column is still useful, but it should not be read as a complete substitute for end-to-end task time.
 
 Primary references:
 
@@ -132,6 +134,13 @@ Prepare or revalidate H100-compatible Contact-GraspNet:
 python -m grasp_benchmark.prepare_cgn --node lakeshore --cluster-config lakeshore --bootstrap-legacy-env --compile-tf-ops
 ```
 
+Run the current shared-protocol suites on Lakeshore:
+
+```powershell
+python -m grasp_benchmark.run.sim --cluster-config lakeshore --method graspvla --task-set track_a_cal_v3 --node lakeshore --available-nodes artifacts/preflight/lakeshore_available_nodes.json
+python -m grasp_benchmark.run.sim --cluster-config lakeshore --method cgn --task-set track_a_cal_v3 --node lakeshore --available-nodes artifacts/preflight/lakeshore_available_nodes.json --matrix --max-shards 4
+```
+
 Run the Contact-GraspNet official-input validation suite:
 
 ```powershell
@@ -146,4 +155,4 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build_corl2026_bundle_v3.ps1
 
 ## Conclusion
 
-> We evaluate GraspVLA and a Contact-GraspNet-based modular pipeline under one shared simulator protocol: same Franka robot, cameras, gripper, controller, attempt budget, and `15 cm / 2 s` lift-and-hold success rule. Under this protocol, GraspVLA achieves `88/90` on the Main Shared Grasping Benchmark and `160/168` on the Hard Shared Grasping Stress Test; the Contact-GraspNet modular pipeline achieves `25/90` and `20/168`. We report speed alongside success because the GraspVLA paper treats speed as a method-level metric; the official GraspVLA release reports about 200 ms serving latency on L40s, while the Contact-GraspNet implementation check records median 5.57 s inference across validation trials and median 82.5 ms on successful proposal/execution rows.
+> We evaluate GraspVLA and a Contact-GraspNet-based modular pipeline under one shared simulator protocol: same Franka robot, cameras, gripper, controller, attempt budget, and `15 cm / 2 s` lift-and-hold success rule. Under this protocol, GraspVLA achieves `88/90` on the Main Shared Grasping Benchmark and `160/168` on the Hard Shared Grasping Stress Test; the Contact-GraspNet modular pipeline achieves `25/90` and `20/168`. On a 12-trial Lakeshore H100 speed validation subset, GraspVLA records median `136.6 ms` policy latency and median `4.83 s` full-cycle trial time; the Contact-GraspNet modular pipeline records median `25.4 ms` benchmark policy/proposal-call latency and median `52.24 s` full-cycle trial time.

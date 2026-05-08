@@ -3,19 +3,20 @@ display_name: GraspVLA
 benchmark_method_tier: graspvla_official
 env_name: gb-core
 preferred_nodes:
-  - em14
+  - lakeshore
 upstreams:
   - GraspVLA
   - GraspVLA-playground
   - GraspVLA-real-world-controller
 hf_repo: shengliangd/GraspVLA
-model_cache_dir: /datasets/ss/current/zihao/hf_cache/graspvla
+model_cache_dir: /projects/cs_yifan16_chi/zlu31/hf_cache/graspvla
 model_glob: "*.safetensors"
 server:
   host: 127.0.0.1
   port: 6666
   compile: true
 official_sim_env_name: gb-graspvla-sim
+shared_sim_env_name: gb-cgn
 track_a_input_policy:
   observation_contract: shared_observation
   consumes:

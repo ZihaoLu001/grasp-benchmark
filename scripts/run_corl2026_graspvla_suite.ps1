@@ -1,5 +1,5 @@
 param(
-    [string]$Node = "em14",
+    [string]$Node = "lakeshore",
     [string]$SensorConfig = "track_a_dual_realsense",
     [string]$ClusterConfig = "default",
     [switch]$SkipBootstrap,

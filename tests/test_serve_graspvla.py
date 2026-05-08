@@ -18,7 +18,7 @@ class ServeGraspVLATest(unittest.TestCase):
             compile_model=True,
             cuda_visible_devices="3",
         )
-        self.assertIn('/datasets/ss/current/zihao/conda/envs/gb-core/bin/python', script)
+        self.assertIn('/projects/cs_yifan16_chi/zlu31/conda_envs/gb-core/bin/python', script)
         self.assertNotIn('conda activate', script)
         self.assertNotIn('profile.d/conda.sh', script)
         self.assertIn('export CUDA_VISIBLE_DEVICES="3"', script)
@@ -34,7 +34,7 @@ class ServeGraspVLATest(unittest.TestCase):
             retries=3,
             retry_sleep_s=2,
         )
-        self.assertIn('/datasets/ss/current/zihao/conda/envs/gb-core/bin/python', script)
+        self.assertIn('/projects/cs_yifan16_chi/zlu31/conda_envs/gb-core/bin/python', script)
         self.assertNotIn('conda activate', script)
         self.assertNotIn('profile.d/conda.sh', script)
 

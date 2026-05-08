@@ -5,7 +5,7 @@ import base64
 import json
 from datetime import datetime, timezone
 
-from grasp_benchmark.config import load_named_config
+from grasp_benchmark.config import load_cluster_config, load_named_config
 from grasp_benchmark.paths import ARTIFACTS_DIR, ensure_dir
 from grasp_benchmark.shell import ssh_run
 
@@ -72,8 +72,23 @@ find "{curobo_root}/src/curobo/curobolib" -name "*.so" -delete
 python -m pip install -e "{curobo_root}" --no-build-isolation
 """
 
+    source_block = "\n".join(
+        [
+            f'if [ -f "{source_file}" ]; then . "{source_file}" >/dev/null 2>&1 || true; fi'
+            for source_file in cluster_config.get("source_files", [])
+        ]
+    )
+    module_block = "\n".join(
+        [
+            f'if command -v module >/dev/null 2>&1; then module load "{module_name}" >/dev/null 2>&1 || true; fi'
+            for module_name in cluster_config.get("module_loads", [])
+        ]
+    )
+
     return f"""
 set -eo pipefail
+{source_block}
+{module_block}
 source "{miniforge_root}/etc/profile.d/conda.sh"
 {bootstrap_block}
 conda activate "{sim_env_prefix}"
@@ -178,14 +193,16 @@ echo "__GB_LIBERO_CONFIG__={libero_config_root}/config.yaml"
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Prepare and probe the dedicated official GraspVLA playground environment.")
-    parser.add_argument("--node", default="em14")
+    parser.add_argument("--node", default="")
+    parser.add_argument("--cluster-config", default="", help="Cluster config name under configs/cluster.")
     parser.add_argument("--bootstrap-env", action="store_true")
     args = parser.parse_args()
 
-    cluster_config = load_named_config("cluster", "default")
+    cluster_config = load_cluster_config(args.cluster_config)
     method_config = load_named_config("methods", "graspvla")
+    node = args.node or cluster_config["default_graspvla_node"]
     result = ssh_run(
-        args.node,
+        node,
         _build_remote_script(cluster_config, method_config, bootstrap_env=args.bootstrap_env),
         timeout=7200,
     )
@@ -199,7 +216,7 @@ def main() -> None:
 
     artifact = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
-        "node": args.node,
+        "node": node,
         "ok": result.ok,
         "bootstrap_env": args.bootstrap_env,
         "sim_env_prefix": f'{cluster_config["conda_envs_dir"]}/{method_config.get("official_sim_env_name", "gb-graspvla-sim")}',
@@ -218,7 +235,7 @@ def main() -> None:
     )
 
     output_dir = ensure_dir(ARTIFACTS_DIR / "graspvla_playground")
-    artifact_path = output_dir / f'{datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")}_{args.node}.json'
+    artifact_path = output_dir / f'{datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")}_{node}.json'
     artifact_path.write_text(json.dumps(artifact, indent=2), encoding="utf-8")
     print(json.dumps(artifact, indent=2))
     print(f"Wrote GraspVLA playground preparation artifact to {artifact_path}")

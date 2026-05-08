@@ -60,7 +60,14 @@ def _resolve_execution_mode(method_config: dict, explicit_mode: str) -> str:
 
 
 def _remote_env_name(method_config: dict, execution_mode: str) -> str:
-    if execution_mode in {"shared_track_a_sim", "official_aligned_sim"}:
+    if execution_mode == "shared_track_a_sim":
+        return str(
+            method_config.get(
+                "shared_sim_env_name",
+                method_config.get("official_sim_env_name", method_config["env_name"]),
+            )
+        )
+    if execution_mode == "official_aligned_sim":
         return str(method_config.get("official_sim_env_name", method_config["env_name"]))
     return str(method_config["env_name"])
 
@@ -79,6 +86,115 @@ def _libero_config_command(remote_root: str, libero_config_root: str) -> str:
         f'"init_states: {benchmark_root}/init_files" '
         f'> "{config_path}"'
     )
+
+
+def _graspvla_server_bootstrap_command(cluster_config: dict, method_config: dict, run_dir: str) -> str:
+    if str(method_config.get("name", "")).strip() != "graspvla":
+        return ""
+
+    server_config = method_config.get("server", {})
+    if not isinstance(server_config, dict):
+        return ""
+
+    remote_root = cluster_config["remote_root"]
+    server_env_prefix = f'{cluster_config["conda_envs_dir"]}/{method_config["env_name"]}'
+    server_python = f"{server_env_prefix}/bin/python"
+    upstream_dir = f"{remote_root}/third_party/upstreams/GraspVLA"
+    model_cache_dir = str(method_config.get("model_cache_dir", "")).strip()
+    model_glob = str(method_config.get("model_glob", "*.safetensors")).strip() or "*.safetensors"
+    port = int(server_config.get("port", cluster_config.get("default_server_port", 6666)))
+    compile_flag = "--compile" if bool(server_config.get("compile", False)) else ""
+    log_dir = f"{run_dir}/graspvla_server"
+    validate_timeout_s = int(server_config.get("validate_timeout_s", 5) or 5)
+    validate_attempts = int(server_config.get("validate_attempts", 120) or 120)
+    validate_sleep_s = int(server_config.get("validate_sleep_s", 5) or 5)
+
+    if not model_cache_dir:
+        raise ValueError("GraspVLA method config must set model_cache_dir.")
+
+    return f"""
+{{
+  mkdir -p "{log_dir}";
+  GB_GRASPVLA_MODEL="$(find "{model_cache_dir}" -type f -name "{model_glob}" | sort | head -n 1)";
+  if [ -z "${{GB_GRASPVLA_MODEL}}" ]; then
+    echo "No GraspVLA model file matching {model_glob} under {model_cache_dir}" >&2;
+    exit 42;
+  fi;
+  if [ ! -x "{server_python}" ]; then
+    echo "Missing GraspVLA server Python: {server_python}" >&2;
+    exit 43;
+  fi;
+  if [ ! -d "{upstream_dir}" ]; then
+    echo "Missing GraspVLA upstream repository: {upstream_dir}" >&2;
+    exit 44;
+  fi;
+  cleanup_graspvla_server() {{
+    if [ -n "${{GB_GRASPVLA_SERVER_PID:-}}" ] && kill -0 "${{GB_GRASPVLA_SERVER_PID}}" >/dev/null 2>&1; then
+      kill "${{GB_GRASPVLA_SERVER_PID}}" >/dev/null 2>&1 || true;
+      wait "${{GB_GRASPVLA_SERVER_PID}}" >/dev/null 2>&1 || true;
+    fi;
+  }};
+  trap cleanup_graspvla_server EXIT;
+  (
+    cd "{upstream_dir}" &&
+    "{server_python}" -u -m vla_network.scripts.serve --path "${{GB_GRASPVLA_MODEL}}" --port "{port}" {compile_flag}
+  ) > "{log_dir}/server_stdout.log" 2> "{log_dir}/server_stderr.log" &
+  GB_GRASPVLA_SERVER_PID="$!";
+  export GB_GRASPVLA_SERVER_PORT="{port}";
+  export GB_GRASPVLA_VALIDATE_TIMEOUT_S="{validate_timeout_s}";
+  for GB_GRASPVLA_VALIDATE_ATTEMPT in $(seq 1 "{validate_attempts}"); do
+    if "{server_python}" - <<'PY'
+import os
+import sys
+import numpy as np
+import zmq
+
+port = int(os.environ["GB_GRASPVLA_SERVER_PORT"])
+timeout_s = int(os.environ["GB_GRASPVLA_VALIDATE_TIMEOUT_S"])
+context = zmq.Context()
+socket = context.socket(zmq.REQ)
+socket.setsockopt(zmq.RCVTIMEO, timeout_s * 1000)
+socket.setsockopt(zmq.SNDTIMEO, timeout_s * 1000)
+socket.setsockopt(zmq.LINGER, 0)
+try:
+    socket.connect(f"tcp://127.0.0.1:{port}")
+    image = np.zeros((256, 256, 3), dtype=np.uint8)
+    proprio = [np.concatenate([np.zeros(6, dtype=np.float32), np.ones(1, dtype=np.float32)]) for _ in range(4)]
+    socket.send_pyobj({{
+        "front_view_image": [image],
+        "side_view_image": [image],
+        "proprio_array": proprio,
+        "text": "Validation test instruction",
+    }})
+    response = socket.recv_pyobj()
+    if not isinstance(response, dict) or not response.get("result"):
+        raise RuntimeError(f"Unexpected GraspVLA response: {{response!r}}")
+except Exception as exc:
+    print(str(exc), file=sys.stderr)
+    sys.exit(1)
+finally:
+    socket.close()
+    context.term()
+PY
+    then
+      echo "GRASPVLA_SERVER_READY attempt=${{GB_GRASPVLA_VALIDATE_ATTEMPT}}";
+      break;
+    fi;
+    if ! kill -0 "${{GB_GRASPVLA_SERVER_PID}}" >/dev/null 2>&1; then
+      echo "GraspVLA server exited before validation." >&2;
+      cat "{log_dir}/server_stderr.log" >&2 || true;
+      exit 45;
+    fi;
+    if [ "${{GB_GRASPVLA_VALIDATE_ATTEMPT}}" -eq "{validate_attempts}" ]; then
+      echo "GraspVLA server did not validate after {validate_attempts} attempts." >&2;
+      tail -n 80 "{log_dir}/server_stdout.log" >&2 || true;
+      tail -n 80 "{log_dir}/server_stderr.log" >&2 || true;
+      exit 46;
+    fi;
+    sleep "{validate_sleep_s}";
+  done;
+}}
+""".strip()
 
 
 def _run_dir_name(timestamp: str, method: str, task_set: str, execution_mode: str) -> str:
@@ -105,8 +221,6 @@ def _allocate_run_dir(base_root: Path, base_name: str) -> Path:
 
 
 def _preferred_matrix_hosts(method_name: str, method_config: dict) -> list[str]:
-    if method_name == "cgn":
-        return ["rll_6000_1", "rll_6000_2"]
     return [str(item) for item in method_config.get("preferred_nodes", [])]
 
 
@@ -195,6 +309,8 @@ def _build_remote_command(
         if cuda_home
         else ""
     )
+    graspvla_server_bootstrap = _graspvla_server_bootstrap_command(cluster_config, method_config, run_dir)
+    graspvla_server_bootstrap = f"{graspvla_server_bootstrap} && " if graspvla_server_bootstrap else ""
     return (
         f'mkdir -p "{run_dir}" && '
         f'source "{miniforge_root}/etc/profile.d/conda.sh" && '
@@ -212,6 +328,7 @@ def _build_remote_command(
         f'export GB_FAULTHANDLER_PATH="{run_dir}/faulthandler.log" && '
         f'export PYTHONUNBUFFERED=1 && '
         f'export PYTHONPATH="{remote_root}/src${{PYTHONPATH:+:${{PYTHONPATH}}}}" && '
+        f'{graspvla_server_bootstrap}'
         f'python -u -m grasp_benchmark.run.worker '
         f'--cluster-config "{cluster_config_name}" '
         f'--method "{method_config["name"]}" '

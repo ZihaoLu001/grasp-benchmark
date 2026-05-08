@@ -26,8 +26,18 @@ def build_method_install_script(
         f'export PATH="{cuda_home}/bin:$PATH"; '
         f'export LD_LIBRARY_PATH="{cuda_home}/lib64:${{LD_LIBRARY_PATH:-}}"'
     )
+    source_block = [
+        f'if [ -f "{source_file}" ]; then . "{source_file}" >/dev/null 2>&1 || true; fi'
+        for source_file in cluster_config.get("source_files", [])
+    ]
+    module_block = [
+        f'if command -v module >/dev/null 2>&1; then module load "{module_name}" >/dev/null 2>&1 || true; fi'
+        for module_name in cluster_config.get("module_loads", [])
+    ]
     lines = [
         "set -eo pipefail",
+        *source_block,
+        *module_block,
         f'source "{miniforge_root}/etc/profile.d/conda.sh"',
         f'conda activate "{env_prefix}"',
         f'cd "{remote_root}"',

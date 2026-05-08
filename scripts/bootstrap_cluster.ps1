@@ -1,10 +1,10 @@
 param(
-    [string]$Node = "em14",
+    [string]$Node = "lakeshore",
     [string]$ClusterConfig = "default",
-    [string]$RemoteRoot = "/datasets/ss/current/zihao/grasp-benchmark",
-    [string]$MiniforgeRoot = "/datasets/ss/current/zihao/miniforge3",
-    [string]$CondaEnvsDir = "/datasets/ss/current/zihao/conda/envs",
-    [string]$CondaPkgsDir = "/datasets/ss/current/zihao/conda/pkgs",
+    [string]$RemoteRoot = "/projects/cs_yifan16_chi/zlu31/grasp-benchmark",
+    [string]$MiniforgeRoot = "/projects/cs_yifan16_chi/zlu31/miniforge3",
+    [string]$CondaEnvsDir = "/projects/cs_yifan16_chi/zlu31/conda_envs",
+    [string]$CondaPkgsDir = "/projects/cs_yifan16_chi/zlu31/conda/pkgs",
     [switch]$SkipEnvRefresh
 )
 

@@ -1,5 +1,5 @@
 param(
-    [string]$Node = "em14",
+    [string]$Node = "lakeshore",
     [switch]$BootstrapLegacyEnv,
     [switch]$CompileTfOps
 )

@@ -265,7 +265,7 @@ def _render_report(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Isolate the official GraspVLA scene-edit effect on the compatible overlap subset.")
-    parser.add_argument("--node", default="em14")
+    parser.add_argument("--node", default="lakeshore")
     parser.add_argument("--probe-summary", default="")
     parser.add_argument("--seeds", default="0,1,2,3,4,5,6,7,8,9")
     parser.add_argument("--playground-seeds", default="")

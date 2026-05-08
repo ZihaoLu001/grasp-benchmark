@@ -63,7 +63,7 @@ class PaperBundleTest(unittest.TestCase):
                 "failure_reason": "",
                 "collision": 0,
                 "video_path": "",
-                "node": "em14",
+                "node": "lakeshore",
                 "commit": "deadbeef",
                 "replicate_index": 1,
                 "seed": 1001,
