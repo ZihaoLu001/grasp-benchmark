@@ -839,11 +839,17 @@ class SharedModularPerception:
             task_config = load_named_config("tasks", task_set)
             for group_name in task_config.get("catalog", {}).keys():
                 self._catalog_labels_by_group[group_name] = _candidate_labels(task_set, group_name)
-        self._detector = GroundingDinoDetector(
-            project_root=_project_root(runtime_config),
-            config=dict(method_config.get("groundingdino", {})),
-        )
+        self._detector: GroundingDinoDetector | None = None
+        self._project_root = _project_root(runtime_config)
         self._segmentation_config = dict(method_config.get("segmentation", {}))
+
+    def _detector_instance(self) -> GroundingDinoDetector:
+        if self._detector is None:
+            self._detector = GroundingDinoDetector(
+                project_root=self._project_root,
+                config=dict(self._method_config.get("groundingdino", {})),
+            )
+        return self._detector
 
     def _side_detection_mask(
         self,
@@ -862,7 +868,7 @@ class SharedModularPerception:
 
         if task_name == "language_conditioned_single_target_pick":
             target_label = str(task_spec.get("object_label", "")).strip() or instruction
-            detections = self._detector.detect_with_classes(rgb_side, [target_label])
+            detections = self._detector_instance().detect_with_classes(rgb_side, [target_label])
             if not detections:
                 return None, {"side_detection": {"status": "not_found", "target_label": target_label}}
             detection = detections[0]
@@ -935,7 +941,7 @@ class SharedModularPerception:
             }
         elif task_name == "language_conditioned_single_target_pick":
             target_label = str(task_spec.get("object_label", "")).strip() or instruction
-            detections = self._detector.detect_with_classes(rgb, [target_label])
+            detections = self._detector_instance().detect_with_classes(rgb, [target_label])
             if not detections:
                 raise AdapterExecutionError(
                     f"GroundingDINO failed to localize the requested target: {target_label}",
@@ -953,7 +959,7 @@ class SharedModularPerception:
             )
         else:
             labels = list(self._catalog_labels_by_group.get(str(task_spec.get("object_group", "")), []))
-            detections = self._detector.detect_with_classes(rgb, labels)
+            detections = self._detector_instance().detect_with_classes(rgb, labels)
             if detections:
                 detection = detections[0]
                 mask, seg_debug = build_depth_mask_from_bbox(

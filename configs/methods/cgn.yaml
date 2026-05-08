@@ -43,6 +43,7 @@ sim:
     cgn_bottleneck_v2: graspvla_cgn_bottleneck_v2
     track_b_cgn_native_v1: graspvla_track_b_cgn_native_v1
     track_b_cgn_native_v2: graspvla_track_b_cgn_native_v2
+    track_b_cgn_official_depth_segmap_v1: graspvla_track_b_cgn_native_v2
     phase2_pilot_v1: graspvla_phase2_pilot_v1
 groundingdino:
   config_relpath: third_party/upstreams/GroundingDINO/groundingdino/config/GroundingDINO_SwinT_OGC.py
@@ -144,6 +145,16 @@ task_runtime_overrides:
       use_grasp_pose: true
       candidate_top_k: 20
       grasp_frame_to_tcp_status: contact_graspnet_panda_frame_to_franka_eef_identity_reference
+  track_b_cgn_official_depth_segmap_v1:
+    official_input_contract: official_depth_k_segmap
+    segmentation_mode: oracle_gt
+    native_multiview_fusion: false
+    native_top_k: 20
+    planner_overrides:
+      single_plan_per_attempt: false
+      use_grasp_pose: true
+      candidate_top_k: 20
+      grasp_frame_to_tcp_status: official_contact_graspnet_pose_with_benchmark_franka_execution
   cgn_bottleneck_v2:
     native_top_k: 10
     planner_overrides:

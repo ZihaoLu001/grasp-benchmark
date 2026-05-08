@@ -414,10 +414,14 @@ def main() -> None:
         runtime_config["smoke_only"] = args.smoke_only
         runtime_config["debug_dump_dir"] = str(output_dir / "debug")
         runtime_config["task_set"] = args.task_set
-        runtime_config["graspvla_view_mode"] = args.graspvla_view_mode
-        runtime_config["camera_jitter_mode"] = args.camera_jitter_mode
-        runtime_config["segmentation_mode"] = args.segmentation_mode
-        runtime_config["oracle_grasp_mode"] = args.oracle_grasp_mode
+        if args.graspvla_view_mode:
+            runtime_config["graspvla_view_mode"] = args.graspvla_view_mode
+        if args.camera_jitter_mode:
+            runtime_config["camera_jitter_mode"] = args.camera_jitter_mode
+        if args.segmentation_mode:
+            runtime_config["segmentation_mode"] = args.segmentation_mode
+        if args.oracle_grasp_mode:
+            runtime_config["oracle_grasp_mode"] = args.oracle_grasp_mode
         if args.native_multiview_fusion is not None:
             runtime_config["native_multiview_fusion"] = args.native_multiview_fusion
         if _is_official_aligned_execution_mode(args.execution_mode):

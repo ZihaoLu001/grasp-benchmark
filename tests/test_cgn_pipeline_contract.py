@@ -49,6 +49,11 @@ class FakeDetector:
         return list(self.detections)
 
 
+class FailingDetector:
+    def __init__(self, **_: object) -> None:
+        raise AssertionError("GroundingDINO should not be initialized for oracle official-depth+segmap CGN.")
+
+
 def _observation() -> Observation:
     rgb = np.zeros((16, 16, 3), dtype=np.uint8)
     rgb[:, :, 0] = 128
@@ -167,6 +172,50 @@ class CgnPipelineContractTest(unittest.TestCase):
         self.assertEqual(override["native_top_k"], 20)
         self.assertEqual(override["planner_overrides"]["candidate_top_k"], 20)
 
+    def test_cgn_official_depth_segmap_override_uses_oracle_segmap_not_multiview(self) -> None:
+        method_config = load_named_config("methods", "cgn")
+        override = method_config["task_runtime_overrides"]["track_b_cgn_official_depth_segmap_v1"]
+
+        self.assertEqual(override["official_input_contract"], "official_depth_k_segmap")
+        self.assertEqual(override["segmentation_mode"], "oracle_gt")
+        self.assertFalse(override["native_multiview_fusion"])
+        self.assertEqual(override["native_top_k"], 20)
+        self.assertEqual(
+            override["planner_overrides"]["grasp_frame_to_tcp_status"],
+            "official_contact_graspnet_pose_with_benchmark_franka_execution",
+        )
+
+    def test_oracle_official_depth_segmap_mode_does_not_require_grounding_dino(self) -> None:
+        obs = _observation()
+        mask = np.zeros((16, 16), dtype=bool)
+        mask[4:12, 4:12] = True
+        obs.proprio["sim_gt_target_mask_front"] = mask
+
+        with patch("grasp_benchmark.adapters.modular_components.GroundingDinoDetector", FailingDetector):
+            perception = SharedModularPerception(
+                method_config=load_named_config("methods", "cgn"),
+                runtime_config={
+                    "task_set": "track_b_cgn_official_depth_segmap_v1",
+                    "project_root": str(REPO_ROOT),
+                    "segmentation_mode": "oracle_gt",
+                    "native_multiview_fusion": False,
+                },
+                np_module=np,
+                cv2_module=FakeCV2,
+            )
+            result = perception.observe(
+                task_spec={
+                    "task": "language_conditioned_single_target_pick",
+                    "object_label": "banana",
+                    "object_group": "native_opaque_cal",
+                },
+                instruction="pick up the banana",
+                obs=obs,
+            )
+
+        self.assertEqual(result.debug["segmentation_source"], "oracle_gt")
+        self.assertEqual(int(result.segmap.sum()), 64)
+
     def test_native_multiview_fusion_preserves_target_segment_for_official_cgn_filtering(self) -> None:
         with patch("grasp_benchmark.adapters.modular_components.GroundingDinoDetector", FakeDetector):
             perception = SharedModularPerception(
@@ -215,9 +264,14 @@ class CgnPipelineContractTest(unittest.TestCase):
                 {"stage": "tensorflow_imported", "gpu_count": 1},
                 {
                     "stage": "input_loaded",
+                    "input_contract": "official_depth_k_segmap",
                     "use_raw_points": True,
                     "points_shape": [128, 3],
                     "segment_ids_shape": [128],
+                    "depth_shape": [256, 256],
+                    "K_shape": [3, 3],
+                    "segmap_shape": [256, 256],
+                    "has_rgb": True,
                 },
                 {
                     "stage": "point_cloud_ready",
@@ -239,8 +293,13 @@ class CgnPipelineContractTest(unittest.TestCase):
         )
 
         self.assertEqual(summary["tensorflow_gpu_count"], 1)
+        self.assertEqual(summary["input_contract"], "official_depth_k_segmap")
         self.assertTrue(summary["use_raw_points"])
         self.assertEqual(summary["segment_ids_shape"], [128])
+        self.assertEqual(summary["depth_shape"], [256, 256])
+        self.assertEqual(summary["K_shape"], [3, 3])
+        self.assertEqual(summary["segmap_shape"], [256, 256])
+        self.assertTrue(summary["has_rgb"])
         self.assertEqual(summary["segment_shapes"], {"1": [128, 3]})
         self.assertTrue(summary["local_regions"])
         self.assertTrue(summary["filter_grasps"])

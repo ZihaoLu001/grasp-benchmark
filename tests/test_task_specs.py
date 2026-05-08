@@ -258,6 +258,17 @@ class TaskSpecTest(unittest.TestCase):
         self.assertEqual(sum(1 for trial in trials if trial.condition == "transparent_pose_bank"), 48)
         self.assertEqual(trials[0].track, "track_b_native")
 
+    def test_track_b_cgn_official_depth_segmap_v1_matches_native_reference_scope(self) -> None:
+        task_config = load_named_config("tasks", "track_b_cgn_official_depth_segmap_v1")
+        trials = expand_task_set(task_config)
+
+        self.assertEqual(task_config["collaborator_name"], "CGN Official Depth+Segmap Proposal Appendix")
+        self.assertEqual(len(trials), 138)
+        self.assertEqual(sum(1 for trial in trials if trial.task == "language_conditioned_single_target_pick"), 60)
+        self.assertEqual(sum(1 for trial in trials if trial.task == "arbitrary_grasping_common_opaque"), 30)
+        self.assertEqual(sum(1 for trial in trials if trial.task == "arbitrary_grasping_transparent"), 48)
+        self.assertEqual(trials[0].track, "track_b_native")
+
 
 if __name__ == "__main__":
     unittest.main()

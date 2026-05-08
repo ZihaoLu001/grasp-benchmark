@@ -62,9 +62,14 @@ def _cgn_runner_trace_summary(trace_events: list[Any]) -> dict[str, Any]:
         if stage == "tensorflow_imported":
             summary["tensorflow_gpu_count"] = int(event.get("gpu_count", 0) or 0)
         elif stage == "input_loaded":
+            summary["input_contract"] = event.get("input_contract")
             summary["use_raw_points"] = bool(event.get("use_raw_points", False))
             summary["points_shape"] = event.get("points_shape")
             summary["segment_ids_shape"] = event.get("segment_ids_shape")
+            summary["depth_shape"] = event.get("depth_shape")
+            summary["K_shape"] = event.get("K_shape")
+            summary["segmap_shape"] = event.get("segmap_shape")
+            summary["has_rgb"] = bool(event.get("has_rgb", False))
         elif stage == "point_cloud_ready":
             summary["pc_full_shape"] = event.get("pc_full_shape")
             summary["segment_shapes"] = event.get("segment_shapes")

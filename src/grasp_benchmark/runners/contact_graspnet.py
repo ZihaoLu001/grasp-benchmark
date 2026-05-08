@@ -96,11 +96,14 @@ def main() -> None:
     trace(
         "input_loaded",
         files=list(payload.files),
+        input_contract="raw_points_segment_ids" if use_raw_points else "official_depth_k_segmap",
         use_raw_points=use_raw_points,
         points_shape=list(points.shape) if points is not None else None,
         segment_ids_shape=list(segment_ids.shape) if segment_ids is not None else None,
         depth_shape=list(depth.shape) if depth is not None else None,
+        K_shape=list(K.shape) if K is not None else None,
         segmap_shape=list(segmap.shape) if segmap is not None else None,
+        has_rgb=rgb is not None,
     )
 
     global_config = config_utils.load_config(str(checkpoint_dir), batch_size=args.forward_passes, arg_configs=[])
