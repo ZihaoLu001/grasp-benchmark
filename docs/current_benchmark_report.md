@@ -96,6 +96,45 @@ Practical claim boundary after this audit:
 - The post-hold diagnostic confirms that at least part of the low CGN score was a shared planner/controller timing bug.
 - The patched CGN results can be used as the current benchmark-owned CGN shared-lane table, with the explicit caveat that this is not official Contact-GraspNet native-system performance.
 
+## CGN Native-Reference Appendix
+
+The official-filtering native-reference appendix completed on Lakeshore after commit `a92cdf70b883a6686bc3ad71b522060671cfb535`.
+
+Result:
+
+- `track_b_cgn_native_v2`: `39 / 138` (`28.26%`)
+- language-conditioned single-target pick: `20 / 60`
+- arbitrary opaque grasping: `19 / 30`
+- transparent-object grasping: `0 / 48`
+- wrong-object successes: `0`
+
+Slurm/evidence status:
+
+- GPU shards `364696-364699` all completed with `ExitCode=0:0` on `ghi2-002`.
+- CPU finalizer `364723` completed with `ExitCode=0:0` on `a-001`.
+- Finalizer output:
+
+```text
+/projects/cs_yifan16_chi/zlu31/grasp-benchmark/artifacts/slurm/cgn_native_official_20260507_a92cdf7/final_summary.json
+/projects/cs_yifan16_chi/zlu31/grasp-benchmark/artifacts/slurm/cgn_native_official_20260507_a92cdf7/final_summary.md
+```
+
+Tracked evidence:
+
+```text
+configs/results/cgn_native_reference_h100_20260507.json
+```
+
+Official-filtering contract checked by trace evidence:
+
+- raw fused point cloud input with `segment_ids`
+- Contact-GraspNet `pc_segments`
+- `local_regions=True`
+- `filter_grasps=True`
+- TensorFlow GPU visibility
+
+The finalizer checked `939` saved debug payloads; all `939` confirmed local region/filter grasp usage and TensorFlow GPU visibility. This is a stronger engineering reference than the shared-lane result, but it is still not an official Contact-GraspNet native-system score because the benchmark planner/controller and success rule remain benchmark-owned.
+
 ## Lakeshore / H100 Status
 
 Lakeshore is a Slurm cluster. The login node is for file management, editing, and job submission; GPU experiments must run through `srun`, `sbatch`, or `salloc`.
@@ -132,6 +171,7 @@ Tracked local evidence:
 
 ```text
 configs/results/cgn_h100_posthold_20260507.json
+configs/results/cgn_native_reference_h100_20260507.json
 ```
 
 ## Failure Breakdown
@@ -193,3 +233,5 @@ python -m grasp_benchmark.run.sim --cluster-config lakeshore --method cgn --task
 Use this concise wording in email or meetings:
 
 > We rechecked the CGN lane because the earlier all-zero result looked suspicious. In this repository, CGN is a benchmark-owned shared modular lane: GroundingDINO localization, depth masking, Contact-GraspNet proposals, and the shared planner/controller under a frozen `15 cm / 2 s` success rule. The old `0/N` result was pre-rerun shared-lane evidence and should not be presented as official Contact-GraspNet native performance. After migrating the Lakeshore runtime to TensorFlow 2.12 / CUDA 11.8 / cuDNN 8.6, raw Contact-GraspNet proposal generation works on the H100-probed setup. The May 7 pre-patch rerun was nonzero but still weak: `1/90`, `2/168`, `0/40`, and `0/24`. We then found and patched a shared planner timing bug: the CGN plan ended immediately after lift, before the required hold window. The full patched H100 rerun completed successfully and now gives `25/90`, `20/168`, `8/40`, and `0/24`. This is the current benchmark-owned CGN shared-lane result, not an official Contact-GraspNet native-system result.
+
+For native-reference context only, we also completed the official-filtering CGN appendix on `track_b_cgn_native_v2`: `39/138` with all four GPU shards completed and `939/939` debug traces confirming `pc_segments`, `local_regions=True`, `filter_grasps=True`, and TensorFlow GPU visibility. This appendix should be described as engineering context, not as a fair shared-protocol headline result.

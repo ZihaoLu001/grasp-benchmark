@@ -1,0 +1,118 @@
+{
+  "generated_at": "2026-05-07T19:05:21.279276+00:00",
+  "task_set": "track_b_cgn_native_v2",
+  "collaborator_facing_name": "CGN Native-Reference Appendix",
+  "claim_boundary": "native-reference engineering appendix only; not a fair-comparison headline claim and not official Contact-GraspNet native performance",
+  "repository_commit": "a92cdf70b883a6686bc3ad71b522060671cfb535",
+  "batch_dir": "/projects/cs_yifan16_chi/zlu31/grasp-benchmark/artifacts/slurm/cgn_native_official_20260507_a92cdf7",
+  "manifest_path": "/projects/cs_yifan16_chi/zlu31/grasp-benchmark/artifacts/slurm/cgn_native_official_20260507_a92cdf7/manifest.tsv",
+  "final_summary_path": "/projects/cs_yifan16_chi/zlu31/grasp-benchmark/artifacts/slurm/cgn_native_official_20260507_a92cdf7/final_summary.json",
+  "official_filtering_contract": "raw fused point cloud with segment_ids, Contact-GraspNet pc_segments, local_regions=True, filter_grasps=True",
+  "completed": true,
+  "expected_trials": 138,
+  "trial_count": 138,
+  "expected_shards": 4,
+  "observed_shard_count": 4,
+  "successes": 39,
+  "failures": 99,
+  "success_rate": "28.26%",
+  "wrong_object_successes": 0,
+  "duplicate_trial_keys": 0,
+  "trace_evidence": {
+    "files_checked": 939,
+    "official_filtering_confirmed_files": 939,
+    "tensorflow_gpu_files": 939
+  },
+  "failure_stages": {
+    "grasp_proposal": 35,
+    "grounding_error": 24,
+    "task_failure": 40
+  },
+  "by_task": {
+    "language_conditioned_single_target_pick": {
+      "successes": 20,
+      "trials": 60
+    },
+    "arbitrary_grasping_common_opaque": {
+      "successes": 19,
+      "trials": 30
+    },
+    "arbitrary_grasping_transparent": {
+      "successes": 0,
+      "trials": 48
+    }
+  },
+  "by_condition": {
+    "basic": {
+      "successes": 8,
+      "trials": 30
+    },
+    "distractors_light": {
+      "successes": 12,
+      "trials": 30
+    },
+    "opaque_basic": {
+      "successes": 19,
+      "trials": 30
+    },
+    "transparent_pose_bank": {
+      "successes": 0,
+      "trials": 48
+    }
+  },
+  "slurm_jobs": [
+    {
+      "job_id": "364696",
+      "case": "gb-cgn-native-s0",
+      "state": "COMPLETED",
+      "exit_code": "0:0",
+      "successes": 9,
+      "trials": 35,
+      "elapsed": "00:30:55",
+      "node": "ghi2-002"
+    },
+    {
+      "job_id": "364697",
+      "case": "gb-cgn-native-s1",
+      "state": "COMPLETED",
+      "exit_code": "0:0",
+      "successes": 9,
+      "trials": 35,
+      "elapsed": "00:30:30",
+      "node": "ghi2-002"
+    },
+    {
+      "job_id": "364698",
+      "case": "gb-cgn-native-s2",
+      "state": "COMPLETED",
+      "exit_code": "0:0",
+      "successes": 11,
+      "trials": 34,
+      "elapsed": "00:28:23",
+      "node": "ghi2-002"
+    },
+    {
+      "job_id": "364699",
+      "case": "gb-cgn-native-s3",
+      "state": "COMPLETED",
+      "exit_code": "0:0",
+      "successes": 10,
+      "trials": 34,
+      "elapsed": "00:28:52",
+      "node": "ghi2-002"
+    },
+    {
+      "job_id": "364723",
+      "case": "gb-cgn-native-finalize",
+      "state": "COMPLETED",
+      "exit_code": "0:0",
+      "elapsed": "00:00:09",
+      "node": "a-001"
+    }
+  ],
+  "notes": [
+    "All four GPU shards completed on Lakeshore H100 node ghi2-002 with ExitCode=0:0.",
+    "The CPU finalizer completed on a-001 and generated final_summary.json/final_summary.md.",
+    "This appendix run verifies the official Contact-GraspNet object-segment filtering path for the benchmark-owned integration, but it remains an engineering reference rather than an official native-system score."
+  ]
+}

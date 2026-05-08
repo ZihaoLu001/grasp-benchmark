@@ -41,6 +41,15 @@ Tracked machine-readable evidence: [configs/results/cgn_h100_posthold_20260507.j
 
 The pre-patch CGN H100 table (`1 / 90`, `2 / 168`, `0 / 40`, `0 / 24`) is now only a diagnostic reference. The patched diagnostic `oracle_gt + real CGN` run on `cgn_bottleneck_v2` improved from `0 / 12` to `3 / 12`, confirming that the old CGN shared-lane score included a benchmark integration problem.
 
+CGN Native-Reference Appendix status:
+
+- Lakeshore jobs `364696-364699` and finalizer `364723` completed with `ExitCode=0:0`.
+- Result: `39 / 138` (`28.26%`) on `track_b_cgn_native_v2`.
+- This appendix used raw fused point clouds with `segment_ids`, Contact-GraspNet `pc_segments`, `local_regions=True`, and `filter_grasps=True`.
+- All `939 / 939` saved debug traces confirm that official-filtering path and TensorFlow GPU visibility.
+- Tracked evidence: [configs/results/cgn_native_reference_h100_20260507.json](configs/results/cgn_native_reference_h100_20260507.json).
+- This remains native-reference engineering context only, not a fair-comparison headline result and not official Contact-GraspNet native-system performance.
+
 ## Experiment Name Guide
 
 Internal `task_set` IDs are kept stable for scripts and reproducibility. Collaborator-facing names are what should appear in email, slides, and discussion.
