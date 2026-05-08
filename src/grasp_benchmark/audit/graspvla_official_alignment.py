@@ -627,7 +627,7 @@ def _build_boundary_ledger(
             "item": "Main Shared Grasping Benchmark",
             "status_code": "unsupported_or_not_claimable_from_public_release",
             "status_label": BOUNDARY_STATUS_LABELS["unsupported_or_not_claimable_from_public_release"],
-            "claim_scope": "Keep provisional only; do not use as the final fair benchmark claim until the current shared-protocol bottleneck is explained.",
+            "claim_scope": "Provisional shared-protocol diagnostic for release-alignment analysis.",
             "evidence_path": str(track_a_cal["evidence_path"]),
             "details": str(track_a_cal["details"]),
         },
@@ -758,7 +758,7 @@ def _markdown_table(headers: list[str], rows: list[list[object]]) -> list[str]:
 
 def _write_docs_snapshots(*, date_token: str, report_text: str, teacher_text: str) -> None:
     _write_text(DOCS_REPORTS_DIR / f"graspvla_release_boundary_{date_token}.md", report_text)
-    _write_text(DOCS_REPORTS_DIR / f"graspvla_release_boundary_{date_token}_collaborator.md", teacher_text)
+    _write_text(DOCS_REPORTS_DIR / f"graspvla_release_boundary_{date_token}_benchmark_summary.md", teacher_text)
 
 
 def _write_report(
@@ -911,7 +911,7 @@ def _write_report(
         "",
         "## 1. What The Public Release Currently Supports Reliably",
         "",
-        "- `Track B` official native LIBERO/playground results can remain the native upper-bound reference for the public release, but they should not be used directly as the shared benchmark conclusion.",
+        "- `Track B` official native LIBERO/playground results can remain the native upper-bound reference for the public release, but they are separate from the shared benchmark conclusion.",
         "- The official-aligned subset now runs reliably, with no remaining setup-level blocker.",
         "",
         "## 2. Which Results Remain Reproducibility-Limited",
@@ -933,7 +933,7 @@ def _write_report(
             "",
             "## 3. Which Benchmark Claims Are Not Ready Yet",
             "",
-            "- The Main Shared Grasping Benchmark should remain provisional for this purpose and should not be presented as the final public-release fairness conclusion under the shared benchmark.",
+            "- The Main Shared Grasping Benchmark remains a release-alignment diagnostic for this purpose.",
             "- Until the boundary is clarified, avoid expanding the Main Shared Grasping Benchmark, making CGN / AnyGrasp headline comparisons, or redesigning the success rule based on these provisional results.",
             "",
             "## 4. First Area To Audit Before Turning Track A Into A Discriminative Leaderboard",
@@ -943,11 +943,11 @@ def _write_report(
     if primary_bottleneck == "shared protocol / distribution gap":
         teacher_lines.append("- The current evidence supports auditing shared protocol and released-distribution alignment first, rather than assuming a broad wrapper implementation failure.")
     elif primary_bottleneck == "wrapper implementation gap":
-        teacher_lines.append("- The first item to repair is the wrapper implementation gap; until it is ruled out, shared benchmark results should not be over-interpreted.")
+        teacher_lines.append("- The first item to audit is the wrapper implementation gap, followed by shared-runner and released-distribution alignment.")
     else:
-        teacher_lines.append(f"- The first item to audit is `{primary_bottleneck}`, because it is more likely than further benchmark expansion to explain an all-zero Main Shared Grasping Benchmark outcome.")
+        teacher_lines.append(f"- The first item to audit is `{primary_bottleneck}`, because it is more informative than expanding the benchmark before alignment is complete.")
     teacher_text = "\n".join(teacher_lines) + "\n"
-    _write_text(audit_root / "collaborator_summary.md", teacher_text)
+    _write_text(audit_root / "benchmark_summary.md", teacher_text)
     _write_docs_snapshots(date_token=date_token, report_text=report_text, teacher_text=teacher_text)
     _write_json(
         audit_root / "report.json",

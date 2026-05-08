@@ -355,7 +355,7 @@ def _render_report(
     report_lines.extend(["", f"_Generated under `{root_dir.name}`._"])
 
     teacher_lines = [
-        "# GraspVLA Protocol Probe v2 Collaborator Summary",
+        "# GraspVLA Protocol Probe v2 Benchmark Summary",
         "",
         f"- The formal Main Shared Grasping Benchmark reference remains `{track_a_cal_reference['graspvla_successes']}/{track_a_cal_reference['graspvla_trials']}`.",
         f"- On the fixed `protocol_probe_v2` suite, the shared baseline `P0_shared_baseline` scored `{baseline_row['successes']}/{baseline_row['trials']}`.",
@@ -373,7 +373,7 @@ def _render_report(
             "",
             "- This is not a new primary benchmark leaderboard; it is a protocol-sensitivity audit.",
             "- It answers whether protocol changes can move GraspVLA's observed performance boundary without changing method weights.",
-            "- In paper-facing material, this belongs in the audit section and should not replace the primary Main Shared Grasping Benchmark fairness table.",
+            "- In paper material, this belongs in the audit section and is separate from the primary Main Shared Grasping Benchmark fairness table.",
         ]
     )
     return "\n".join(report_lines) + "\n", "\n".join(teacher_lines) + "\n"
@@ -472,7 +472,7 @@ def main() -> None:
     _write_csv(local_root / "condition_delta_vs_baseline.csv", condition_delta_rows)
     _write_csv(local_root / "factor_delta_vs_baseline.csv", factor_delta_rows)
     _write_text(local_root / "report.md", report_text)
-    _write_text(local_root / "collaborator_summary.md", teacher_text)
+    _write_text(local_root / "benchmark_summary.md", teacher_text)
     _write_json(
         local_root / "summary.json",
         {
@@ -489,7 +489,7 @@ def main() -> None:
     )
     docs_dir = _docs_reports_dir()
     _write_text(docs_dir / f"graspvla_protocol_probe_v2_{date_token}.md", report_text)
-    _write_text(docs_dir / f"graspvla_protocol_probe_v2_{date_token}_collaborator.md", teacher_text)
+    _write_text(docs_dir / f"graspvla_protocol_probe_v2_{date_token}_benchmark_summary.md", teacher_text)
     print(json.dumps({"audit_root": str(local_root), "parent_run_id": parent_run_id}, indent=2))
 
 

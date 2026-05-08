@@ -1,6 +1,6 @@
 name: instruction_robustness_v2
 display_name: Instruction Robustness Check
-collaborator_name: Instruction Robustness Check
+public_name: Instruction Robustness Check
 track: track_a_instruction
 scene_catalog: graspvla_track_a_playground_cal_v3
 catalog:

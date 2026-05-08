@@ -83,12 +83,12 @@ def _task_set_display_label(task_set: str) -> str:
         task_config = load_named_config("tasks", task_set)
     except FileNotFoundError:
         return f"`{task_set}`"
-    collaborator_name = str(task_config.get("collaborator_name", "")).strip()
+    public_name = str(task_config.get("public_name", "")).strip()
     display_name = str(task_config.get("display_name", "")).strip()
-    if collaborator_name and display_name and collaborator_name != display_name:
-        return f"{collaborator_name} / {display_name} (`{task_set}`)"
-    if collaborator_name or display_name:
-        return f"{collaborator_name or display_name} (`{task_set}`)"
+    if public_name and display_name and public_name != display_name:
+        return f"{public_name} / {display_name} (`{task_set}`)"
+    if public_name or display_name:
+        return f"{public_name or display_name} (`{task_set}`)"
     return f"`{task_set}`"
 
 
@@ -948,7 +948,7 @@ def _render_report(
     return "\n".join(lines) + "\n"
 
 
-def _render_collaborator_summary(
+def _render_benchmark_summary(
     *,
     cal_summary: list[dict[str, object]],
     stress_summary: list[dict[str, object]],
@@ -1040,7 +1040,7 @@ def _render_collaborator_summary(
             "",
             "## Intended Use",
             "",
-            "- `paper_ready_report.md` is the prose source for paper drafting and collaborator review.",
+            "- `paper_ready_report.md` is the prose report for benchmark review.",
             "- `paper_summary.csv` and `paper_stats.json` provide structured data for tables, statistics, and appendices.",
             "- CSV files under `figures/` are ready for plotting scripts.",
             "",
@@ -1320,7 +1320,7 @@ def main() -> None:
         ),
         encoding="utf-8",
     )
-    collaborator_summary = _render_collaborator_summary(
+    benchmark_summary = _render_benchmark_summary(
         cal_summary=cal_summary,
         stress_summary=stress_summary,
         instruction_summary=instruction_summary,
@@ -1338,7 +1338,7 @@ def main() -> None:
         phase2_task_sets=phase2_task_sets,
         native_appendix_task_sets=native_appendix_task_sets,
     )
-    (output_dir / "collaborator_summary.md").write_text(collaborator_summary, encoding="utf-8")
+    (output_dir / "benchmark_summary.md").write_text(benchmark_summary, encoding="utf-8")
 
     _write_csv(figures_dir / "track_a_cal_summary.csv", cal_summary)
     _write_csv(figures_dir / "track_a_cal_by_condition.csv", cal_by_condition)

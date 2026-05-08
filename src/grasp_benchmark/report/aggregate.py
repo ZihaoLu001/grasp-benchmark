@@ -395,7 +395,7 @@ def _write_markdown(
         lines.extend(
             [
                 "",
-                "_Health check triggered: the Main Shared Grasping Benchmark is still all-zero across headline methods, so the next action is to audit shared-runner / released-distribution alignment before expanding the benchmark further._",
+                "_Health check triggered: the Main Shared Grasping Benchmark has no headline successes, so the next action is to audit shared-runner / released-distribution alignment before expanding the benchmark further._",
             ]
         )
 
@@ -472,7 +472,7 @@ def _write_markdown(
     output.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def _render_collaborator_summary(
+def _render_benchmark_summary(
     output: Path,
     summary: list[dict[str, object]],
     by_condition: list[dict[str, object]],
@@ -585,10 +585,10 @@ def _render_collaborator_summary(
             "## Claim Boundary",
             "",
             "- The Main Shared Grasping Benchmark is the main fair-comparison table under the benchmark setting.",
-            "- Raw modular results such as `cgn_raw_interim` stay in historical or appendix material and do not enter the headline table.",
+            "- Raw modular results such as `cgn_raw_interim` stay in historical or appendix material and are excluded from the headline table.",
             "- The Hard Shared Grasping Stress Test remains a shared-protocol stress test, not a first-page headline table.",
             "- Native-reference results describe method behavior under native or official protocols and are not used for fair-comparison claims.",
-            "- If the Main Shared Grasping Benchmark returns all-zero headline results again, audit shared-runner and released-distribution alignment before expanding the benchmark scope.",
+            "- If the Main Shared Grasping Benchmark returns no headline successes, audit shared-runner and released-distribution alignment before expanding the benchmark scope.",
             "",
         ]
     )
@@ -681,8 +681,8 @@ def main() -> None:
         stress_reference=stress_reference,
         stress_reference_path=stress_reference_path,
     )
-    collaborator_summary_text = _render_collaborator_summary(
-        output_dir / "collaborator_summary.md",
+    benchmark_summary_text = _render_benchmark_summary(
+        output_dir / "benchmark_summary.md",
         summary,
         by_condition,
         by_object_group,

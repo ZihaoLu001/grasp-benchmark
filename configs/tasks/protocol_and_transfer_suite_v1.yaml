@@ -1,6 +1,6 @@
 name: protocol_and_transfer_suite_v1
 display_name: Protocol and Transfer Diagnostic Suite
-collaborator_name: Protocol and Transfer Diagnostic Suite
+public_name: Protocol and Transfer Diagnostic Suite
 track: track_a_probe
 scene_catalog: graspvla_protocol_and_transfer_suite_v1
 catalog:

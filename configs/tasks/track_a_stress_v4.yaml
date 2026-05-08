@@ -1,6 +1,6 @@
 name: track_a_stress_v4
 display_name: Hard Shared Grasping Stress Test
-collaborator_name: Hard Shared Grasping Stress Test
+public_name: Hard Shared Grasping Stress Test
 track: track_a_stress
 scene_catalog: graspvla_track_a_playground_stress_v4
 catalog:

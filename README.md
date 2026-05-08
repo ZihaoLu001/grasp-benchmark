@@ -8,13 +8,13 @@ The repository is organized around one practical question:
 
 ## Start Here
 
-For collaborators, read these first:
+Recommended reading order:
 
 1. [Current Benchmark Report](docs/current_benchmark_report.md): the single consolidated project report.
 2. This README: experiment names, current results, and run commands.
 3. `configs/results/`: small tracked evidence summaries for the tables below.
 
-Generated logs, videos, plots, and Slurm manifests live under `artifacts/` and are not the GitHub documentation source of truth.
+Generated logs, videos, plots, and Slurm manifests live under `artifacts/`.
 
 ## Current Results
 
@@ -24,7 +24,7 @@ As of May 8, 2026, the shared-protocol benchmark uses a fixed Franka simulation 
 | --- | ---: | ---: | --- |
 | Main Shared Grasping Benchmark | `88 / 90` | `25 / 90` | headline fair-comparison suite |
 | Hard Shared Grasping Stress Test | `160 / 168` | `20 / 168` | difficult-scene stress suite |
-| Instruction Robustness Check | `38 / 40` | `8 / 40` | wording and paraphrase diagnostic |
+| Instruction Robustness Check | `38 / 40` | `8 / 40` | instruction and paraphrase diagnostic |
 | Task-Oriented Grasping Pilot | `23 / 24` | `0 / 24` | small task-oriented extension |
 
 Tracked machine-readable evidence: [configs/results/cgn_shared_protocol_h100_20260508.json](configs/results/cgn_shared_protocol_h100_20260508.json).
@@ -57,9 +57,9 @@ The official depth+segmap appendix completed all four Lakeshore H100 shards and 
 
 ## Experiment Name Guide
 
-Internal `task_set` IDs are stable for scripts and reproducibility. Collaborator-facing names should appear first in email, slides, and discussion.
+Internal `task_set` IDs are stable for scripts and reproducibility. Use the readable suite names in reports and discussions.
 
-| Collaborator-facing name | Internal ID | Status | Plain-English meaning |
+| Suite name | Internal ID | Status | Plain-English meaning |
 | --- | --- | --- | --- |
 | Main Shared Grasping Benchmark | `track_a_cal_v3` | current headline | 90 paired trials under the frozen shared protocol |
 | Hard Shared Grasping Stress Test | `track_a_stress_v4` | current diagnostic | 168 difficult paired trials with clutter, occlusion, and transparent objects |
@@ -70,15 +70,15 @@ Internal `task_set` IDs are stable for scripts and reproducibility. Collaborator
 | CGN Official Depth+Segmap Proposal Appendix | `track_b_cgn_official_depth_segmap_v1` | current reference | closest repository-supported path to the public Contact-GraspNet inference contract |
 | CGN Native-Reference Appendix | `track_b_cgn_native_v2` | reference | fused-point-cloud engineering context |
 
-Use the friendly names first. Put internal IDs in parentheses only when readers need to reproduce the exact command.
+Use the readable suite names first. Put internal IDs in parentheses only when readers need to reproduce the exact command.
 
 ## Which Task Set Should I Use?
 
 | Goal | Use |
 | --- | --- |
-| Main collaborator comparison | Main Shared Grasping Benchmark (`track_a_cal_v3`) |
+| Main comparison | Main Shared Grasping Benchmark (`track_a_cal_v3`) |
 | Hard-case analysis | Hard Shared Grasping Stress Test (`track_a_stress_v4`) |
-| Wording sensitivity | Instruction Robustness Check (`instruction_robustness_v2`) |
+| Instruction paraphrase analysis | Instruction Robustness Check (`instruction_robustness_v2`) |
 | Task-oriented grasp examples | Task-Oriented Grasping Pilot (`phase2_pilot_v1`) |
 | Contact-GraspNet proposal-path context | CGN Official Depth+Segmap Proposal Appendix (`track_b_cgn_official_depth_segmap_v1`) |
 | Fused-point-cloud CGN engineering context | CGN Native-Reference Appendix (`track_b_cgn_native_v2`) |
@@ -98,10 +98,10 @@ Use the friendly names first. Put internal IDs in parentheses only when readers 
 configs/
   cluster/      Lakeshore and other execution environments
   methods/      method definitions, runtime overrides, checkpoints
-  results/      small tracked evidence summaries for collaborator-facing tables
+  results/      small tracked evidence summaries for public tables
   scenes/       simulator scene catalogs
   sensors/      shared camera/gripper/success-rule contracts
-  tasks/        stable task-set IDs and collaborator-facing names
+  tasks/        stable task-set IDs and readable suite names
 
 src/grasp_benchmark/
   adapters/     method adapters and modular perception/planning components
@@ -210,4 +210,4 @@ Keep GitHub documentation small and current:
 - Keep one detailed tracked report: [docs/current_benchmark_report.md](docs/current_benchmark_report.md).
 - Keep generated artifacts under `artifacts/`.
 - Keep small machine-readable evidence summaries under `configs/results/`.
-- Keep collaborator-facing names readable; use internal IDs only for reproduction.
+- Keep public names readable; use internal IDs only for reproduction.

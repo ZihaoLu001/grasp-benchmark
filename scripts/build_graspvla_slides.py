@@ -69,7 +69,7 @@ SLIDES = [
     (
         "Next Step For The Team",
         [
-            "Use README.md and docs/current_benchmark_report.md as the collaborator-facing source of truth",
+            "Use README.md and docs/current_benchmark_report.md as the project overview",
             "Keep generated slides, plots, and videos under artifacts rather than tracked docs",
             "Report success and speed together because the GraspVLA paper treats speed as a method metric",
             "Use the depth+K+segmap appendix for Contact-GraspNet proposal-path context",

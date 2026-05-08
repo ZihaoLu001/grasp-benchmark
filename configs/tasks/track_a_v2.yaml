@@ -1,6 +1,6 @@
 name: track_a_v2
-display_name: Deprecated Shared-Benchmark Draft
-collaborator_name: Deprecated Shared-Benchmark Draft
+display_name: Shared Benchmark v2
+public_name: Shared Benchmark v2
 track: track_a
 scene_catalog: graspvla_track_a_playground_v2
 catalog:

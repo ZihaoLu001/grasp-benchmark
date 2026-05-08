@@ -1,7 +1,7 @@
 {
   "generated_at": "2026-05-08T10:58:00+00:00",
   "task_set": "track_b_cgn_official_depth_segmap_v1",
-  "collaborator_facing_name": "CGN Official Depth+Segmap Proposal Appendix",
+  "display_name": "CGN Official Depth+Segmap Proposal Appendix",
   "claim_boundary": "official Contact-GraspNet depth+K+segmap proposal path followed by benchmark-owned Franka execution and lift-and-hold success evaluation",
   "repository_commit": "212506f3762e280c45b03d3397317fd24605003e",
   "batch_dir": "/projects/cs_yifan16_chi/zlu31/grasp-benchmark/artifacts/slurm/cgn_official_depthseg_20260508_212506f",

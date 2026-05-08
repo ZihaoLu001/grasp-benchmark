@@ -318,7 +318,7 @@ def main() -> None:
     _write_csv(audit_root / "success_delta.csv", delta_rows)
     _write_csv(audit_root / "compatible_subset.csv", compatible_rows)
     _write_text(audit_root / "report.md", report_text)
-    _write_text(audit_root / "collaborator_summary.md", teacher_text)
+    _write_text(audit_root / "benchmark_summary.md", teacher_text)
     _write_json(
         audit_root / "report.json",
         {
@@ -333,7 +333,7 @@ def main() -> None:
     )
     docs_dir = _docs_reports_dir()
     _write_text(docs_dir / f"graspvla_success_rule_isolation_{date_token}.md", report_text)
-    _write_text(docs_dir / f"graspvla_success_rule_isolation_{date_token}_collaborator.md", teacher_text)
+    _write_text(docs_dir / f"graspvla_success_rule_isolation_{date_token}_benchmark_summary.md", teacher_text)
     print(json.dumps({"audit_root": str(audit_root), "delta_rows": delta_rows}, indent=2))
 
 

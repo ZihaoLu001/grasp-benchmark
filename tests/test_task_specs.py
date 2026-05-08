@@ -262,7 +262,7 @@ class TaskSpecTest(unittest.TestCase):
         task_config = load_named_config("tasks", "track_b_cgn_official_depth_segmap_v1")
         trials = expand_task_set(task_config)
 
-        self.assertEqual(task_config["collaborator_name"], "CGN Official Depth+Segmap Proposal Appendix")
+        self.assertEqual(task_config["public_name"], "CGN Official Depth+Segmap Proposal Appendix")
         self.assertEqual(len(trials), 138)
         self.assertEqual(sum(1 for trial in trials if trial.task == "language_conditioned_single_target_pick"), 60)
         self.assertEqual(sum(1 for trial in trials if trial.task == "arbitrary_grasping_common_opaque"), 30)

@@ -326,7 +326,7 @@ def _render_report(
         )
 
     teacher_lines = [
-        "# GraspVLA Boundary Probe Collaborator Summary",
+        "# GraspVLA Boundary Probe Benchmark Summary",
         "",
         "## Main Takeaways",
         "",
@@ -359,7 +359,7 @@ def _render_report(
     if transparent_row is not None:
         if float(transparent_row["success_rate"]) >= 1.0:
             teacher_lines.append(
-                "- Transparent objects do not surface as an obvious boundary in this probe version; the current public release succeeds on all 4 transparent scenes."
+                "- Transparent objects are not a visible boundary in this probe version; the current public release succeeds on all 4 transparent scenes."
             )
         else:
             teacher_lines.append(
@@ -387,7 +387,7 @@ def _render_report(
     report_text = "\n".join(english_lines) + "\n"
     teacher_text = "\n".join(teacher_lines) + "\n"
     _write_text(root_dir / "report.md", report_text)
-    _write_text(root_dir / "collaborator_summary.md", teacher_text)
+    _write_text(root_dir / "benchmark_summary.md", teacher_text)
     return report_text, teacher_text
 
 
@@ -480,7 +480,7 @@ def main() -> None:
     date_token = datetime.now(timezone.utc).strftime("%Y%m%d")
     docs_dir = _docs_reports_dir()
     _write_text(docs_dir / f"graspvla_boundary_probes_{date_token}.md", report_text)
-    _write_text(docs_dir / f"graspvla_boundary_probes_{date_token}_collaborator.md", teacher_text)
+    _write_text(docs_dir / f"graspvla_boundary_probes_{date_token}_benchmark_summary.md", teacher_text)
     _write_json(
         local_root / "summary.json",
         {

@@ -2,7 +2,7 @@
 
 Last updated: 2026-05-08.
 
-This is the single detailed report intended to live in the GitHub repository. Generated logs, plots, videos, Slurm manifests, and draft materials stay under `artifacts/`.
+This is the single detailed report intended to live in the GitHub repository. Generated logs, plots, videos, Slurm manifests, and intermediate materials stay under `artifacts/`.
 
 ## Executive Summary
 
@@ -21,7 +21,7 @@ AnyGrasp is excluded from current comparative claims until fresh SDK access and 
 | --- | ---: | ---: | --- |
 | Main Shared Grasping Benchmark (`track_a_cal_v3`) | `88 / 90` | `25 / 90` (`27.78%`) | headline fair table |
 | Hard Shared Grasping Stress Test (`track_a_stress_v4`) | `160 / 168` | `20 / 168` (`11.90%`) | difficult-scene stress suite |
-| Instruction Robustness Check (`instruction_robustness_v2`) | `38 / 40` | `8 / 40` (`20.00%`) | wording and paraphrase diagnostic |
+| Instruction Robustness Check (`instruction_robustness_v2`) | `38 / 40` | `8 / 40` (`20.00%`) | instruction and paraphrase diagnostic |
 | Task-Oriented Grasping Pilot (`phase2_pilot_v1`) | `23 / 24` | `0 / 24` (`0.00%`) | small task-oriented extension |
 
 Tracked evidence for the shared Contact-GraspNet pipeline:
@@ -34,7 +34,7 @@ The tracked evidence records all expected shards for the four suites, duplicate 
 
 ## Speed and Latency
 
-Speed should be reported next to success rate. The GraspVLA paper includes speed in its real-world method comparison, and the official GraspVLA repository reports approximate model-serving latency.
+Speed is reported next to success rate. The GraspVLA paper includes speed in its real-world method comparison, and the official GraspVLA repository reports approximate model-serving latency.
 
 | Evidence source | Inference latency | End-to-end cycle time | Notes |
 | --- | ---: | ---: | --- |
@@ -179,8 +179,6 @@ Build a paper bundle from existing artifacts:
 powershell -ExecutionPolicy Bypass -File .\scripts\build_corl2026_bundle_v3.ps1
 ```
 
-## Collaborator-Facing Wording
-
-Use this concise description in email or meetings:
+## Conclusion
 
 > We evaluate GraspVLA and a Contact-GraspNet-based modular pipeline under one shared simulator protocol: same Franka robot, cameras, gripper, controller, attempt budget, and `15 cm / 2 s` lift-and-hold success rule. Under this protocol, GraspVLA achieves `88/90` on the Main Shared Grasping Benchmark and `160/168` on the Hard Shared Grasping Stress Test; the Contact-GraspNet shared pipeline achieves `25/90` and `20/168`. We also include a Contact-GraspNet proposal-path appendix using the public depth+`K`+segmentation-map inference contract, which obtains `40/138`. We report speed alongside success because the GraspVLA paper treats speed as a method-level metric; the official GraspVLA release reports about 200 ms serving latency on L40s, while our Contact-GraspNet appendix records median 5.57 s inference across all trials and median 82.5 ms on successful proposal/execution rows.

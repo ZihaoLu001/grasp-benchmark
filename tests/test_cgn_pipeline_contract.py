@@ -51,7 +51,7 @@ class FakeDetector:
 
 class FailingDetector:
     def __init__(self, **_: object) -> None:
-        raise AssertionError("GroundingDINO should not be initialized for oracle official-depth+segmap CGN.")
+        raise AssertionError("GroundingDINO is skipped for oracle official-depth+segmap CGN.")
 
 
 def _observation() -> Observation:

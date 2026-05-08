@@ -1,6 +1,6 @@
 name: track_a_v1
-display_name: Deprecated Shared-Benchmark Draft
-collaborator_name: Deprecated Shared-Benchmark Draft
+display_name: Shared Benchmark v1
+public_name: Shared Benchmark v1
 track: track_a
 catalog:
   ycb_core:

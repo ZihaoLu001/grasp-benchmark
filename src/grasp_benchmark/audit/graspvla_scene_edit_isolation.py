@@ -234,23 +234,23 @@ def _render_report(
         "- The public release boundary should be stated in two layers:",
         "  - basket-linked official tasks: scene edits are a compatibility requirement",
         f"  - scene-edit-compatible official tasks: scene edits have {scene_edit_summary}",
-        "- This means the earlier large result gap should not be explained as a pure scene-edit effect.",
+        "- This means the measured result gap is not explained as a pure scene-edit effect.",
         "- The current best explanation remains:",
         "  - gripper change is small",
         "  - shared success rule matters a lot",
         "  - basket-linked scene edits are a release-boundary constraint",
-        "  - latest Main Shared Grasping Benchmark is runnable and should no longer be described as all-zero",
+        "  - latest Main Shared Grasping Benchmark is runnable under the shared protocol",
         "",
         f"_Generated from probe and child audit under `{parent_root.name}`._",
     ]
 
     teacher_lines = [
-        "# GraspVLA Scene-Edit Isolation Collaborator Summary",
+        "# GraspVLA Scene-Edit Isolation Benchmark Summary",
         "",
         "- This audit separates `scene edit` into two distinct issues: a compatibility gate for basket-linked tasks and a measurable performance factor on compatible tasks.",
         f"- On the compatible subset, `V3 -> V4` changes success rate by `{scene_edit_delta['success_rate_delta']:+.4f}`, indicating {scene_edit_summary}.",
         "- For basket-linked official tasks, scene editing is not only a score factor; it is a public-release compatibility boundary.",
-        f"- The latest formal Main Shared Grasping Benchmark reference is `{track_a_cal['graspvla_successes']}/{track_a_cal['graspvla_trials']}`, so shared calibration should no longer be described using the older all-zero framing.",
+        f"- The latest formal Main Shared Grasping Benchmark reference is `{track_a_cal['graspvla_successes']}/{track_a_cal['graspvla_trials']}`.",
         "",
         "## External Framing",
         "",
@@ -308,7 +308,7 @@ def main() -> None:
         parent_root=parent_root,
     )
     _write_text(parent_root / "report.md", report_text)
-    _write_text(parent_root / "collaborator_summary.md", teacher_text)
+    _write_text(parent_root / "benchmark_summary.md", teacher_text)
     _write_json(
         parent_root / "report.json",
         {
@@ -350,7 +350,7 @@ def main() -> None:
     )
     docs_dir = _docs_reports_dir()
     _write_text(docs_dir / f"graspvla_scene_edit_isolation_{date_token}.md", report_text)
-    _write_text(docs_dir / f"graspvla_scene_edit_isolation_{date_token}_collaborator.md", teacher_text)
+    _write_text(docs_dir / f"graspvla_scene_edit_isolation_{date_token}_benchmark_summary.md", teacher_text)
     print(
         json.dumps(
             {

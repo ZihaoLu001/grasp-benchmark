@@ -1,7 +1,7 @@
 {
   "generated_at": "2026-05-07T19:05:21.279276+00:00",
   "task_set": "track_b_cgn_native_v2",
-  "collaborator_facing_name": "CGN Native-Reference Appendix",
+  "display_name": "CGN Native-Reference Appendix",
   "claim_boundary": "fused-point-cloud native-reference engineering appendix reported separately from the shared-protocol headline comparison",
   "repository_commit": "a92cdf70b883a6686bc3ad71b522060671cfb535",
   "batch_dir": "/projects/cs_yifan16_chi/zlu31/grasp-benchmark/artifacts/slurm/cgn_native_official_20260507_a92cdf7",

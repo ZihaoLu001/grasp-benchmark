@@ -9,11 +9,11 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
-class CollaboratorFacingDefaultsTest(unittest.TestCase):
+class PublicDocumentationDefaultsTest(unittest.TestCase):
     def _read(self, relpath: str) -> str:
         return (REPO_ROOT / relpath).read_text(encoding="utf-8")
 
-    def test_readme_uses_current_professor_facing_wording(self) -> None:
+    def test_readme_uses_current_public_language(self) -> None:
         text = self._read("README.md")
         self.assertIn("Main Shared Grasping Benchmark", text)
         self.assertIn("Hard Shared Grasping Stress Test", text)

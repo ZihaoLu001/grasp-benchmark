@@ -522,7 +522,7 @@ def main() -> None:
     _write_csv(local_root / "success_delta.csv", delta_rows)
     _write_csv(local_root / "d3_relaxed_success_rows.csv", d3_rows)
     _write_text(local_root / "report.md", report_text)
-    _write_text(local_root / "collaborator_summary.md", teacher_text)
+    _write_text(local_root / "benchmark_summary.md", teacher_text)
     _write_json(
         local_root / "summary.json",
         {
@@ -535,7 +535,7 @@ def main() -> None:
     )
     docs_dir = _docs_reports_dir()
     _write_text(docs_dir / f"{args.task_set}_{date_token}.md", report_text)
-    _write_text(docs_dir / f"{args.task_set}_{date_token}_collaborator.md", teacher_text)
+    _write_text(docs_dir / f"{args.task_set}_{date_token}_benchmark_summary.md", teacher_text)
     print(json.dumps({"audit_root": str(local_root), "parent_run_id": parent_run_id}, indent=2))
 
 
