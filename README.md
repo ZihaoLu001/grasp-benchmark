@@ -20,6 +20,15 @@ Generated logs, videos, plots, and Slurm manifests live under `artifacts/`.
 
 As of May 8, 2026, the shared-protocol benchmark uses a fixed Franka simulation setup, fixed camera geometry, blocking control, up to three attempts per trial, and a success rule of lifting the target object by at least 15 cm and holding it for 2 s.
 
+Each suite is made from paired simulator trials: both methods see the same scene definitions, object layouts, instructions, robot, cameras, controller, and success rule.
+
+| Suite | Trials | What it tests |
+| --- | ---: | --- |
+| Main Shared Grasping Benchmark | 90 | primary fair-comparison suite: 60 language-conditioned single-target trials over five common opaque objects, plus 30 arbitrary opaque-object grasping trials |
+| Hard Shared Grasping Stress Test | 168 | hard-case suite: 80 language-target trials with heavy distractors or occlusion, 40 cluttered arbitrary opaque trials, and 48 transparent-object trials |
+| Instruction Robustness Check | 40 | prompt sensitivity: canonical, lexical, compositional, and distractor-aware instruction variants on matched scenes |
+| Task-Oriented Grasping Pilot | 24 | small extension for part/constraint-aware grasping, including cup-handle and power-drill-handle instructions |
+
 | Suite | GraspVLA | Contact-GraspNet modular pipeline | Use |
 | --- | ---: | ---: | --- |
 | Main Shared Grasping Benchmark | `88 / 90` | `25 / 90` | headline fair-comparison suite |

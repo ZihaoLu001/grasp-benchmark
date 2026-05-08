@@ -14,6 +14,15 @@ AnyGrasp is excluded from current comparative claims until fresh SDK access and 
 
 ## Current Headline Results
 
+Each suite is a set of paired simulator trials. A trial specifies the scene, object layout, instruction, and success target. Both methods use the same robot, gripper, camera geometry, object poses, blocking controller, attempt budget, and lift-and-hold success rule. For language-conditioned trials, success requires lifting the named object; for arbitrary-grasping trials, success requires lifting a valid object from the scene; for task-oriented trials, success additionally checks the requested part or constraint.
+
+| Suite | Trials | What it tests |
+| --- | ---: | --- |
+| Main Shared Grasping Benchmark (`track_a_cal_v3`) | 90 | primary fair-comparison suite: 60 language-conditioned single-target trials over five common opaque objects, plus 30 arbitrary opaque-object grasping trials |
+| Hard Shared Grasping Stress Test (`track_a_stress_v4`) | 168 | hard-case suite: 80 language-target trials with heavy distractors or occlusion, 40 cluttered arbitrary opaque trials, and 48 transparent-object trials |
+| Instruction Robustness Check (`instruction_robustness_v2`) | 40 | prompt sensitivity suite: the same basic and light-distractor scenes with canonical, lexical, compositional, and distractor-aware instruction variants |
+| Task-Oriented Grasping Pilot (`phase2_pilot_v1`) | 24 | small extension for grasp constraints, including cup-handle grasping, avoiding the inside of the cup, and power-drill handle grasping |
+
 | Suite | GraspVLA | Contact-GraspNet modular pipeline | Interpretation |
 | --- | ---: | ---: | --- |
 | Main Shared Grasping Benchmark (`track_a_cal_v3`) | `88 / 90` | `25 / 90` (`27.78%`) | headline fair table |
@@ -57,8 +66,9 @@ The shared-protocol suites freeze the following factors:
 - simulator scenes and object sets;
 - blocking controller semantics;
 - up to three attempts per trial;
+- 300 simulator control steps per attempt;
 - success defined as lifting the target object at least 15 cm and holding it for 2 s;
-- standardized logs with success, attempts, lift height, hold duration, inference latency, cycle time, and stage labels.
+- standardized logs with success, attempts, lift height, hold duration, logged latency signal, cycle time, and stage labels.
 
 The headline comparison uses the shared protocol only. Implementation-check suites verify runtime contracts and are not separate compared systems.
 
