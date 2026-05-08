@@ -2,7 +2,7 @@
   "generated_at": "2026-05-07T19:05:21.279276+00:00",
   "task_set": "track_b_cgn_native_v2",
   "collaborator_facing_name": "CGN Native-Reference Appendix",
-  "claim_boundary": "native-reference engineering appendix only; not a fair-comparison headline claim and not official Contact-GraspNet native performance",
+  "claim_boundary": "fused-point-cloud native-reference engineering appendix reported separately from the shared-protocol headline comparison",
   "repository_commit": "a92cdf70b883a6686bc3ad71b522060671cfb535",
   "batch_dir": "/projects/cs_yifan16_chi/zlu31/grasp-benchmark/artifacts/slurm/cgn_native_official_20260507_a92cdf7",
   "manifest_path": "/projects/cs_yifan16_chi/zlu31/grasp-benchmark/artifacts/slurm/cgn_native_official_20260507_a92cdf7/manifest.tsv",
@@ -113,6 +113,6 @@
   "notes": [
     "All four GPU shards completed on Lakeshore H100 node ghi2-002 with ExitCode=0:0.",
     "The CPU finalizer completed on a-001 and generated final_summary.json/final_summary.md.",
-    "This appendix run verifies the official Contact-GraspNet object-segment filtering path for the benchmark-owned integration, but it remains an engineering reference rather than an official native-system score."
+    "This appendix run verifies the Contact-GraspNet object-segment filtering path for the benchmark-owned integration and is reported as engineering reference context."
   ]
 }

@@ -60,9 +60,9 @@ SLIDES = [
         "Current Lab Status",
         [
             "GraspVLA shared-protocol results are stable for the current simulator suites",
-            "CGN now means the benchmark-owned shared lane, not official native Contact-GraspNet",
-            "Patched CGN H100 rerun completed: 25/90, 20/168, 8/40, and 0/24",
-            "Tracked evidence lives in configs/results/cgn_h100_posthold_20260507.json",
+            "Contact-GraspNet shared pipeline completed: 25/90, 20/168, 8/40, and 0/24",
+            "Depth+K+segmap proposal-path appendix completed: 40/138",
+            "Tracked evidence lives in configs/results/cgn_shared_protocol_h100_20260508.json",
             "AnyGrasp is excluded from current comparative claims until fresh license/runtime revalidation",
         ],
     ),
@@ -71,8 +71,8 @@ SLIDES = [
         [
             "Use README.md and docs/current_benchmark_report.md as the collaborator-facing source of truth",
             "Keep generated slides, plots, and videos under artifacts rather than tracked docs",
-            "Describe CGN only as the shared lane unless native TCP calibration is completed",
-            "Prioritize CGN frame/TCP calibration and camera-geometry smoke tests before further claims",
+            "Report success and speed together because the GraspVLA paper treats speed as a method metric",
+            "Use the depth+K+segmap appendix for Contact-GraspNet proposal-path context",
         ],
     ),
 ]

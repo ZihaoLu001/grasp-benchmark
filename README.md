@@ -1,96 +1,96 @@
 # grasp-benchmark
 
-`grasp-benchmark` is a release-centric simulation benchmark for comparing end-to-end and modular robot grasping systems under a shared, frozen protocol.
+`grasp-benchmark` is a release-centric simulator benchmark for comparing end-to-end and modular robot grasping systems under one shared execution protocol.
 
 The repository is organized around one practical question:
 
-> If two released grasping systems are placed in the same simulated scenes, with the same cameras, robot, gripper, controller, attempt budget, and lift-and-hold success rule, what happens?
+> If released grasping systems are placed in the same simulated scenes, with the same cameras, robot, gripper, controller, attempt budget, and lift-and-hold success rule, what happens?
 
 ## Start Here
 
 For collaborators, read these first:
 
 1. [Current Benchmark Report](docs/current_benchmark_report.md): the single consolidated project report.
-2. This README: how to interpret the repository, experiment names, and run commands.
-3. `artifacts/`: generated results and run logs. This directory is intentionally not the source of truth for GitHub documentation.
+2. This README: experiment names, current results, and run commands.
+3. `configs/results/`: small tracked evidence summaries for the tables below.
 
-The older `grasp_benchmark.pdf` draft from May 5, 2026 is pre-H100-rerun for CGN and should not be shared without revising the CGN tables and wording.
+Generated logs, videos, plots, and Slurm manifests live under `artifacts/` and are not the GitHub documentation source of truth.
 
-## Current Status
+## Current Results
 
-As of May 8, 2026:
+As of May 8, 2026, the shared-protocol benchmark uses a fixed Franka simulation setup, fixed camera geometry, blocking control, up to three attempts per trial, and a success rule of lifting the target object by at least 15 cm and holding it for 2 s.
 
-- GraspVLA shared-protocol results are stable for the current simulator suites.
-- CGN means the benchmark-owned `CGN shared lane`, not an official Contact-GraspNet native system.
-- The old CGN all-zero result should be treated as pre-rerun shared-lane evidence, not as a claim that Contact-GraspNet itself has zero capability.
-- CGN has been migrated on Lakeshore to `gb-cgn-tf212` with TensorFlow 2.12.0 / CUDA 11.8 / cuDNN 8.6 and H100-compatible custom ops.
-- The raw Contact-GraspNet proposal generation works on H100: the saved probe returned 47 grasp proposals, so proposal generation itself is not the reason for the earlier all-zero shared-lane table.
-- A shared planner timing bug was found and patched: CGN plans now hold the object after lift instead of ending the attempt immediately.
-- The full patched CGN rerun on Lakeshore jobs `364545-364563` completed successfully with `ExitCode=0:0` for every job.
-- The strictest Contact-GraspNet appendix now uses the NVLabs-style `depth + K + segmap` input path with `local_regions=True` and `filter_grasps=True`.
-
-Current patched CGN H100 results:
-
-| Suite | GraspVLA | CGN shared lane after post-lift-hold patch | Use |
+| Suite | GraspVLA | Contact-GraspNet shared pipeline | Use |
 | --- | ---: | ---: | --- |
 | Main Shared Grasping Benchmark | `88 / 90` | `25 / 90` | headline fair-comparison suite |
 | Hard Shared Grasping Stress Test | `160 / 168` | `20 / 168` | difficult-scene stress suite |
-| Instruction Robustness Check | `38 / 40` | `8 / 40` | wording/paraphrase diagnostic |
+| Instruction Robustness Check | `38 / 40` | `8 / 40` | wording and paraphrase diagnostic |
 | Task-Oriented Grasping Pilot | `23 / 24` | `0 / 24` | small task-oriented extension |
 
-Tracked machine-readable evidence: [configs/results/cgn_h100_posthold_20260507.json](configs/results/cgn_h100_posthold_20260507.json). The canonical patched CGN suites recorded zero wrong-object successes; the separate `cgn_bottleneck_v2` diagnostic with one wrong-object flag is not part of the headline table.
+Tracked machine-readable evidence: [configs/results/cgn_shared_protocol_h100_20260508.json](configs/results/cgn_shared_protocol_h100_20260508.json).
 
-The pre-patch CGN H100 table (`1 / 90`, `2 / 168`, `0 / 40`, `0 / 24`) is now only a diagnostic reference. The patched diagnostic `oracle_gt + real CGN` run on `cgn_bottleneck_v2` improved from `0 / 12` to `3 / 12`, confirming that the old CGN shared-lane score included a benchmark integration problem.
+## Speed and Latency
 
-CGN Track B appendix status:
+Speed is part of the comparison. The GraspVLA paper reports speed in the real-world comparison table, and the official GraspVLA repository lists an approximate single-GPU inference latency of 200 ms on an NVIDIA L40s.
 
-- Official Depth+Segmap Proposal Appendix: `40 / 138` (`28.99%`) on `track_b_cgn_official_depth_segmap_v1`.
-- It uses the [NVLabs Contact-GraspNet](https://github.com/NVlabs/contact_graspnet) inference contract: depth map in meters, camera matrix `K`, segmentation map, RGB, local-region cropping, and contact filtering. It aligns with the Contact-GraspNet paper's scope as a 6-DoF grasp proposal method, not a full robot task system.
-- Lakeshore jobs `365136-365139` and finalizer `365140` completed with `ExitCode=0:0`.
-- Trace evidence: `488 / 488` Contact-GraspNet calls used `input_contract=official_depth_k_segmap`, `use_raw_points=False`, `local_regions=True`, `filter_grasps=True`, and TensorFlow GPU visibility; `raw_point_files=0`.
-- Tracked evidence: [configs/results/cgn_official_depth_segmap_h100_20260508.json](configs/results/cgn_official_depth_segmap_h100_20260508.json).
-- Native-Reference Appendix: `39 / 138` (`28.26%`) on `track_b_cgn_native_v2`, backed by [configs/results/cgn_native_reference_h100_20260507.json](configs/results/cgn_native_reference_h100_20260507.json). That run used raw fused point clouds with `segment_ids`; it remains useful engineering context but is less directly aligned with the official demo input shape.
-- Both Track B appendices remain native-reference engineering context only, not fair-comparison headline results and not official end-to-end Contact-GraspNet native-system performance, because the Franka controller and lift-and-hold success rule are benchmark-owned.
+| Evidence source | Inference latency | End-to-end cycle time | Interpretation |
+| --- | ---: | ---: | --- |
+| GraspVLA official release notes | about `200 ms` on one L40s | not remeasured in this repository | This is the release-reported model-serving latency. |
+| GraspVLA paper comparison | `5 Hz` for GraspVLA, `37 Hz` for AnyGrasp | paper-level comparison | The paper treats speed as a method-level metric alongside success rate. |
+| Contact-GraspNet official depth+segmap appendix, H100 | median `5.57 s` across all 138 trials; median `82.5 ms` on successful proposal/execution rows | median `32.87 s` across all 138 trials | The full cycle includes proposal, planning, simulation, controller execution, and retry budget. |
+
+Primary speed references:
+
+- [GraspVLA official repository](https://github.com/PKU-EPIC/GraspVLA)
+- [GraspVLA paper HTML](https://arxiv.org/html/2505.03233v2)
+
+## Contact-GraspNet Reference Appendix
+
+The strict Contact-GraspNet proposal-path appendix uses the public NVLabs-style `depth + K + segmap + RGB` input contract with `local_regions=True` and `filter_grasps=True`, then executes the resulting proposal through the benchmark-owned Franka controller and lift-and-hold success rule.
+
+| Appendix | Result | Evidence |
+| --- | ---: | --- |
+| CGN Official Depth+Segmap Proposal Appendix | `40 / 138` (`28.99%`) | [configs/results/cgn_official_depth_segmap_h100_20260508.json](configs/results/cgn_official_depth_segmap_h100_20260508.json) |
+| CGN Native-Reference Appendix | `39 / 138` (`28.26%`) | [configs/results/cgn_native_reference_h100_20260507.json](configs/results/cgn_native_reference_h100_20260507.json) |
+
+The official depth+segmap appendix completed all four Lakeshore H100 shards and the CPU finalizer. Trace evidence confirms `488 / 488` Contact-GraspNet runner calls used `input_contract=official_depth_k_segmap`, `use_raw_points=False`, `local_regions=True`, `filter_grasps=True`, and TensorFlow GPU visibility.
 
 ## Experiment Name Guide
 
-Internal `task_set` IDs are kept stable for scripts and reproducibility. Collaborator-facing names are what should appear in email, slides, and discussion.
+Internal `task_set` IDs are stable for scripts and reproducibility. Collaborator-facing names should appear first in email, slides, and discussion.
 
 | Collaborator-facing name | Internal ID | Status | Plain-English meaning |
 | --- | --- | --- | --- |
 | Main Shared Grasping Benchmark | `track_a_cal_v3` | current headline | 90 paired trials under the frozen shared protocol |
-| Main Shared Grasping Benchmark, 60-trial draft | `track_a_cal_v2` | historical | earlier calibration subset, not the current headline table |
 | Hard Shared Grasping Stress Test | `track_a_stress_v4` | current diagnostic | 168 difficult paired trials with clutter, occlusion, and transparent objects |
-| Hard Shared Stress Test, early drafts | `track_a_stress_v2`, `track_a_stress_v3` | historical | older stress-suite drafts, retained for reproducibility |
 | Instruction Robustness Check | `instruction_robustness_v2` | current diagnostic | same scenes with different instruction phrasings |
 | Task-Oriented Grasping Pilot | `phase2_pilot_v1` | current diagnostic | small suite for handle/part-oriented grasping |
 | Sim-to-Real Robustness Proxy | `sim2real_proxy_v2` | supporting diagnostic | simulated perturbations used as transfer stressors |
-| CGN Pipeline Diagnostic | `cgn_bottleneck_v2` | debugging suite | isolates GroundingDINO, Contact-GraspNet, planner, and success-rule bottlenecks |
-| CGN Official Depth+Segmap Proposal Appendix | `track_b_cgn_official_depth_segmap_v1` | current reference | closest repository-supported path to the official Contact-GraspNet inference contract |
-| CGN Native-Reference Appendix | `track_b_cgn_native_v2` | reference only | fused-point-cloud engineering context, not a fair-comparison claim |
+| CGN Pipeline Diagnostic | `cgn_bottleneck_v2` | supporting diagnostic | isolates grounding, proposal, planning, and execution stages |
+| CGN Official Depth+Segmap Proposal Appendix | `track_b_cgn_official_depth_segmap_v1` | current reference | closest repository-supported path to the public Contact-GraspNet inference contract |
+| CGN Native-Reference Appendix | `track_b_cgn_native_v2` | reference | fused-point-cloud engineering context |
 
 Use the friendly names first. Put internal IDs in parentheses only when readers need to reproduce the exact command.
 
 ## Which Task Set Should I Use?
 
-| Goal | Use | Avoid |
-| --- | --- | --- |
-| Main collaborator comparison | Main Shared Grasping Benchmark (`track_a_cal_v3`) | older `track_a_cal_v1` / `track_a_cal_v2` drafts |
-| Hard-case analysis | Hard Shared Grasping Stress Test (`track_a_stress_v4`) | older `track_a_stress_v2` / `track_a_stress_v3` drafts |
-| CGN debugging | CGN Pipeline Diagnostic (`cgn_bottleneck_v2`) | treating bottleneck probes as headline benchmark results |
-| Wording sensitivity | Instruction Robustness Check (`instruction_robustness_v2`) | mixing instruction robustness rows into the headline table |
-| Task-oriented grasp examples | Task-Oriented Grasping Pilot (`phase2_pilot_v1`) | presenting this small pilot as the full benchmark |
-| Most official CGN proposal-path context | CGN Official Depth+Segmap Proposal Appendix (`track_b_cgn_official_depth_segmap_v1`) | calling the benchmark-owned execution score official native-system performance |
-| Fused-point-cloud CGN engineering context | CGN Native-Reference Appendix (`track_b_cgn_native_v2`) | using native-reference rows as fair-comparison claims |
+| Goal | Use |
+| --- | --- |
+| Main collaborator comparison | Main Shared Grasping Benchmark (`track_a_cal_v3`) |
+| Hard-case analysis | Hard Shared Grasping Stress Test (`track_a_stress_v4`) |
+| Wording sensitivity | Instruction Robustness Check (`instruction_robustness_v2`) |
+| Task-oriented grasp examples | Task-Oriented Grasping Pilot (`phase2_pilot_v1`) |
+| Contact-GraspNet proposal-path context | CGN Official Depth+Segmap Proposal Appendix (`track_b_cgn_official_depth_segmap_v1`) |
+| Fused-point-cloud CGN engineering context | CGN Native-Reference Appendix (`track_b_cgn_native_v2`) |
 
-## Method Lanes
+## Method Definitions
 
-| Method label | What it means in this repo | Claim boundary |
+| Method label | What it means in this repo | Reported claim |
 | --- | --- | --- |
-| GraspVLA | Public GraspVLA release through the aligned shared simulator wrapper | headline Track A method |
-| CGN shared lane | GroundingDINO target localization, depth masking, Contact-GraspNet proposals, and the shared planner/controller | benchmark-owned modular lane, not official native Contact-GraspNet |
-| CGN official depth+segmap appendix | NVLabs Contact-GraspNet proposal path from depth, `K`, `segmap`, and RGB; benchmark-owned Franka execution after proposal | official proposal-path reference, not official end-to-end native-system performance |
-| AnyGrasp | Excluded from current comparative claims | needs a fresh node-matched SDK license before revalidation |
+| GraspVLA | Public GraspVLA release through the aligned shared simulator wrapper | shared-protocol task-execution result |
+| Contact-GraspNet shared pipeline | GroundingDINO target localization, depth masking, Contact-GraspNet proposals, and the shared planner/controller | benchmark-owned modular execution result |
+| CGN official depth+segmap appendix | NVLabs Contact-GraspNet proposal path from depth, `K`, `segmap`, and RGB, followed by benchmark-owned Franka execution | proposal-path reference appendix |
+| AnyGrasp | Excluded from current comparative claims | requires fresh SDK access and runtime revalidation |
 
 ## Architecture
 
@@ -105,7 +105,7 @@ configs/
 
 src/grasp_benchmark/
   adapters/     method adapters and modular perception/planning components
-  runners/      simulator and legacy Contact-GraspNet runtime runners
+  runners/      simulator and Contact-GraspNet runtime runners
   run/          local/cluster dispatch entrypoints
   report/       result aggregation and paper-bundle generation
   audit/        diagnostic experiments
@@ -117,13 +117,13 @@ artifacts/
   generated runs, logs, reports, videos, and Slurm manifests
 ```
 
-CGN language-target tasks use:
+Contact-GraspNet language-target tasks use:
 
 ```text
 GroundingDINO -> depth mask -> Contact-GraspNet -> shared planner/controller -> 15 cm / 2 s success check
 ```
 
-The shared protocol intentionally evaluates complete task execution, not only whether a grasp proposal exists.
+The shared protocol evaluates complete task execution, not only whether a grasp proposal exists.
 
 ## Quick Start
 
@@ -167,7 +167,7 @@ python -m grasp_benchmark.run.sim --method graspvla --task-set track_a_stress_v4
 python -m grasp_benchmark.run.sim --method cgn --task-set track_a_stress_v4 --matrix
 ```
 
-Run the strictest Contact-GraspNet proposal-path appendix:
+Run the strict Contact-GraspNet proposal-path appendix:
 
 ```powershell
 python -m grasp_benchmark.run.sim --cluster-config lakeshore --method cgn --task-set track_b_cgn_official_depth_segmap_v1 --node lakeshore --available-nodes artifacts/preflight/lakeshore_available_nodes.json --execution-mode shared_track_a_sim --matrix --max-shards 4 --trace-steps
@@ -181,7 +181,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build_corl2026_bundle_v3.ps1
 
 ## Lakeshore Notes
 
-Lakeshore is a Slurm cluster. The login node is for editing, file management, and job submission; GPU work must run through `srun`, `sbatch`, or `salloc`.
+Lakeshore is a Slurm cluster. The login node is for editing, file management, and job submission; GPU work runs through `srun`, `sbatch`, or `salloc`.
 
 Project-owned files should stay under:
 
@@ -189,7 +189,7 @@ Project-owned files should stay under:
 /projects/cs_yifan16_chi/zlu31
 ```
 
-The verified CGN runtime is:
+The verified Contact-GraspNet runtime is:
 
 ```text
 /projects/cs_yifan16_chi/zlu31/conda_envs/gb-cgn-tf212
@@ -203,13 +203,11 @@ module load slurm/lakeshore/23.02.4
 srun -A cs_yifan16_chi -p batch_gpu2 --gres=gpu:1 nvidia-smi -L
 ```
 
-Login-node `nvidia-smi` failures are expected and do not mean Lakeshore lacks GPUs.
-
 ## Documentation Policy
 
 Keep GitHub documentation small and current:
 
 - Keep one detailed tracked report: [docs/current_benchmark_report.md](docs/current_benchmark_report.md).
 - Keep generated artifacts under `artifacts/`.
-- Do not add scattered historical reports back under `docs/`.
-- Do not promote CGN numbers from a partial or pre-patch run into the headline table.
+- Keep small machine-readable evidence summaries under `configs/results/`.
+- Keep collaborator-facing names readable; use internal IDs only for reproduction.

@@ -2,7 +2,7 @@ name: track_b_cgn_native_v2
 display_name: CGN Native-Reference Appendix
 collaborator_name: CGN Native-Reference Appendix
 track: track_b_native
-claim_boundary: native_reference_only_not_headline_fair_comparison
+claim_boundary: native_reference_engineering_appendix
 scene_catalog: graspvla_track_b_cgn_native_v2
 catalog:
   native_opaque_cal:

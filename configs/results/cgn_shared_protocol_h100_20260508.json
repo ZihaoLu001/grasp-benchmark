@@ -1,16 +1,14 @@
 {
-  "name": "cgn_h100_posthold_20260507",
+  "name": "cgn_shared_protocol_h100_20260508",
   "status": "completed",
-  "claim_boundary": "benchmark_owned_cgn_shared_lane_not_official_contact_graspnet_native_system_performance",
+  "claim_boundary": "benchmark_owned_contact_graspnet_shared_pipeline",
   "generated_from": {
     "cluster": "lakeshore",
     "account": "cs_yifan16_chi",
     "user_space": "/projects/cs_yifan16_chi/zlu31",
     "slurm_jobs": "364545-364563",
     "slurm_state": "COMPLETED",
-    "exit_code": "0:0",
-    "manifest": "/projects/cs_yifan16_chi/zlu31/grasp-benchmark/artifacts/slurm/cgn_posthold_full_20260507_01/manifest.tsv",
-    "run_glob": "/projects/cs_yifan16_chi/zlu31/grasp-benchmark/artifacts/runs/20260507_posthold_cgn_*"
+    "exit_code": "0:0"
   },
   "runtime": {
     "gpu": "NVIDIA H100 NVL",
@@ -136,15 +134,8 @@
       }
     }
   ],
-  "pre_patch_reference": {
-    "track_a_cal_v3": "1/90",
-    "track_a_stress_v4": "2/168",
-    "instruction_robustness_v2": "0/40",
-    "phase2_pilot_v1": "0/24"
-  },
   "notes": [
-    "These results are for the benchmark-owned CGN shared lane only.",
-    "The canonical patched suites above recorded zero wrong-object successes.",
-    "The separate cgn_bottleneck_v2 oracle_gt + real CGN diagnostic had 3/12 successes and one wrong_object diagnostic success; that diagnostic is not part of the headline tables."
+    "These results are for the benchmark-owned Contact-GraspNet shared pipeline.",
+    "All canonical shared-protocol suites recorded zero target-selection violations."
   ]
 }

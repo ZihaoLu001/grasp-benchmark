@@ -4,14 +4,14 @@ benchmark_method_tier: cgn_full_modular
 env_name: gb-cgn
 shared_sim_env_name: gb-cgn
 proposal_env_name: gb-cgn-tf212
-claim_boundary: benchmark_owned_shared_lane_not_official_contact_graspnet_native
+claim_boundary: benchmark_owned_contact_graspnet_shared_pipeline
 pipeline_contract:
   task_localization: GroundingDINO
   mask_source: depth_band_segmentation_or_oracle_gt_diagnostics
   grasp_proposal: Contact-GraspNet
   execution: shared_planner_controller
   success_rule: shared_track_a_lift_15cm_hold_2s
-  collaborator_note: CGN shared lane is a benchmark-owned integration; do not report it as official Contact-GraspNet native-system performance.
+  collaborator_note: Report as the benchmark-owned Contact-GraspNet shared pipeline under the shared protocol; report the depth+K+segmap appendix separately as proposal-path evidence.
 preferred_nodes:
   - em14
   - rll_6000_1
