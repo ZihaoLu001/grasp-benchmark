@@ -21,6 +21,10 @@
       "trials": 12,
       "successes": 12,
       "success_rate": 1.0,
+      "attempts": {
+        "median": 1.0,
+        "mean": 1.0
+      },
       "inference_ms": {
         "n": 12,
         "median": 136.6321,
@@ -38,6 +42,16 @@
         "p75": 7.7306,
         "min": 4.2101,
         "max": 12.1428
+      },
+      "cycle_time_s_by_outcome": {
+        "successful_rows": {
+          "n": 12,
+          "median": 4.8274,
+          "mean": 6.3139
+        },
+        "failed_rows": {
+          "n": 0
+        }
       }
     },
     "cgn_shared_protocol_lakeshore_h100": {
@@ -50,6 +64,10 @@
       "trials": 12,
       "successes": 5,
       "success_rate": 0.4167,
+      "attempts": {
+        "median": 2.5,
+        "mean": 2.3333
+      },
       "inference_ms": {
         "n": 12,
         "median": 25.4491,
@@ -67,6 +85,18 @@
         "p75": 52.4218,
         "min": 11.3903,
         "max": 68.1131
+      },
+      "cycle_time_s_by_outcome": {
+        "successful_rows": {
+          "n": 5,
+          "median": 11.4492,
+          "mean": 14.9667
+        },
+        "failed_rows": {
+          "n": 7,
+          "median": 52.3918,
+          "mean": 54.6267
+        }
       }
     }
   }
