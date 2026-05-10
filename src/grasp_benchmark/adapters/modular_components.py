@@ -75,6 +75,58 @@ def _candidate_labels(task_set: str, object_group: str) -> list[str]:
     return labels
 
 
+_ARBITRARY_GRASPING_TASKS = {
+    "arbitrary_grasping_common_opaque",
+    "arbitrary_grasping_transparent",
+}
+
+
+def is_target_specific_task(task_name: str) -> bool:
+    return str(task_name).strip() not in _ARBITRARY_GRASPING_TASKS
+
+
+def _instruction_object_phrase(instruction: str) -> str:
+    text = _normalize_label(instruction)
+    for prefix in ("pick up the ", "pick up a ", "pick up an ", "pick up "):
+        if text.startswith(prefix):
+            text = text[len(prefix) :]
+            break
+    for marker in (" by ", " without ", " with ", " from ", " into ", " onto ", " on "):
+        if marker in text:
+            text = text.split(marker, 1)[0]
+            break
+    return text.strip()
+
+
+def target_specific_labels(task_spec: dict[str, Any], instruction: str) -> list[str]:
+    labels: list[str] = []
+
+    def add(label: str) -> None:
+        cleaned = _normalize_label(label)
+        if cleaned and cleaned not in {_normalize_label(item) for item in labels}:
+            labels.append(cleaned)
+
+    add(str(task_spec.get("object_label", "")).strip())
+    add(_instruction_object_phrase(instruction))
+
+    object_id = _normalize_label(str(task_spec.get("object_id", "")).replace("_", " "))
+    add(object_id)
+
+    joined = " ".join(labels)
+    if "mug" in joined:
+        add("mug")
+        add("cup")
+    if "cup" in joined:
+        add("cup")
+    if "power drill" in joined:
+        add("power drill")
+        add("drill")
+    elif "drill" in joined:
+        add("drill")
+        add("power drill")
+    return labels
+
+
 def current_pose_from_obs(obs: Observation, np_module: Any) -> Any:
     state = obs.proprio.get("state")
     if state is None:
@@ -866,11 +918,11 @@ class SharedModularPerception:
         if depth_side.size == 0 or rgb_side.size == 0:
             return None, {}
 
-        if task_name == "language_conditioned_single_target_pick":
-            target_label = str(task_spec.get("object_label", "")).strip() or instruction
-            detections = self._detector_instance().detect_with_classes(rgb_side, [target_label])
+        if is_target_specific_task(task_name):
+            target_labels = target_specific_labels(task_spec, instruction)
+            detections = self._detector_instance().detect_with_classes(rgb_side, target_labels)
             if not detections:
-                return None, {"side_detection": {"status": "not_found", "target_label": target_label}}
+                return None, {"side_detection": {"status": "not_found", "target_labels": target_labels}}
             detection = detections[0]
             mask, seg_debug = build_depth_mask_from_bbox(
                 depth_side,
@@ -906,8 +958,9 @@ class SharedModularPerception:
         depth = self._np.asarray(obs.depth_front, dtype=self._np.float32)
 
         detection: DetectionResult | None = None
+        target_specific = is_target_specific_task(task_name)
         if self._segmentation_mode == "oracle_gt":
-            if task_name == "language_conditioned_single_target_pick":
+            if target_specific:
                 mask_key = "sim_gt_target_mask_front"
                 target_label = str(task_spec.get("object_label", "")).strip() or instruction
                 detection_label = target_label
@@ -939,12 +992,13 @@ class SharedModularPerception:
                 "bbox_xyxy": list(bbox_xyxy),
                 "mask_pixels": int(mask.sum()),
             }
-        elif task_name == "language_conditioned_single_target_pick":
-            target_label = str(task_spec.get("object_label", "")).strip() or instruction
-            detections = self._detector_instance().detect_with_classes(rgb, [target_label])
+        elif target_specific:
+            target_labels = target_specific_labels(task_spec, instruction)
+            detections = self._detector_instance().detect_with_classes(rgb, target_labels)
             if not detections:
                 raise AdapterExecutionError(
-                    f"GroundingDINO failed to localize the requested target: {target_label}",
+                    "GroundingDINO failed to localize the requested target: "
+                    + ", ".join(target_labels),
                     failure_stage="grounding_error",
                 )
             detection = detections[0]

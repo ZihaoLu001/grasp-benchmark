@@ -73,7 +73,7 @@ The broader suites below are useful stress diagnostics. They use the frozen rele
 | Instruction Robustness Check | `38 / 40` | `8 / 40` | instruction and paraphrase diagnostic |
 | Task-Oriented Grasping Pilot | `23 / 24` | `0 / 24` | exploratory instruction-conditioned pilot |
 
-Task-Oriented Grasping Pilot note: this 24-trial suite contains 8 mug-handle prompts, 8 avoid-inside-cup prompts, and 8 power-drill-handle prompts. The public score still uses the shared target lift-and-hold success rule rather than contact-part scoring. Contact-GraspNet records `0 / 24` because the H100 run ended with 16 grasp-proposal-stage failures and 8 execution failures before satisfying lift-and-hold success; all four shards are present, with zero duplicate scene IDs.
+Task-Oriented Grasping Pilot note: this 24-trial suite contains 8 mug-handle prompts, 8 avoid-inside-cup prompts, and 8 power-drill-handle prompts. The public score still uses the shared target lift-and-hold success rule rather than contact-part scoring. A target-specific Contact-GraspNet H100 rerun records `0 / 24`: all 24 trials localized a target and produced a non-empty mask, but Contact-GraspNet returned zero executable grasp proposals before planning. All four shards are present, with zero duplicate scene IDs.
 
 Tracked machine-readable evidence:
 
@@ -146,14 +146,14 @@ The Contact-GraspNet row is a complete modular grasping system assembled for thi
 
 | Stage | Implementation in this benchmark |
 | --- | --- |
-| Target localization | GroundingDINO localizes language-conditioned targets using `GroundingDINO_SwinT_OGC.py`, `groundingdino_swint_ogc.pth`, `box_threshold=0.25`, and `text_threshold=0.20`. |
-| Segmentation mask | The detection box is converted into a depth-band object mask. Arbitrary-object trials first use catalog labels and then a foreground-depth fallback if no class box is found. |
+| Target localization | GroundingDINO localizes target-specific trials, including language-conditioned and task-oriented prompts, using `GroundingDINO_SwinT_OGC.py`, `groundingdino_swint_ogc.pth`, `box_threshold=0.25`, and `text_threshold=0.20`. Arbitrary-object trials use catalog labels and then foreground fallback. |
+| Segmentation mask | The detection box is converted into a depth-band object mask. |
 | View handling | Single-camera results use `front_view`; two-camera results fuse `front_view` and `side_view` RGB-D points after transforming side-view points into the front-camera frame. |
 | Grasp proposal | Contact-GraspNet predicts ranked 6-DoF grasp candidates. The checked official-input path uses depth in meters, camera matrix `K`, RGB, segmentation map, `local_regions=True`, and `filter_grasps=True`. |
 | Execution | The benchmark planner converts the selected grasp pose into pre-grasp, grasp, close, lift, and hold actions for the shared `IK_POSE` controller, rejecting impossible gripper openings before execution. |
 | Success check | The shared evaluator applies the same `15 cm / 2 s` lift-and-hold rule used for GraspVLA. |
 
-Single-camera CGN uses only `front_view`: GroundingDINO or foreground filtering builds a front mask, masked front depth is back-projected with intrinsics `K`, and Contact-GraspNet receives the checked `depth + K + segmap + RGB` proposal payload.
+Single-camera CGN uses only `front_view`: target-specific trials use GroundingDINO to build a front mask, arbitrary-object trials may use foreground filtering, masked front depth is back-projected with intrinsics `K`, and Contact-GraspNet receives the checked `depth + K + segmap + RGB` proposal payload.
 
 Two-camera fused RGB-D CGN uses `front_view` and `side_view`: both views produce masked point clouds, side-view points are transformed through the camera extrinsics into the front-camera frame, the two point clouds are concatenated, and the fused segmented geometry is passed to the Contact-GraspNet proposal runner before shared planner/controller execution.
 

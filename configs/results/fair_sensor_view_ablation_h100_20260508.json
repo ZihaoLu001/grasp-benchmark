@@ -149,22 +149,33 @@
         "duplicate_scene_ids": 0,
         "wrong_object_successes": 0,
         "failure_breakdown": {
-          "grasp_proposal": 16,
-          "task_failure": 8
+          "grasp_proposal": 24
         },
         "by_task": {
-          "part_oriented_grasping": {
+          "mug_handle_grasp": {
             "successes": 0,
             "trials": 8
           },
-          "handle_grasping": {
+          "avoid_inside_cup": {
             "successes": 0,
             "trials": 8
           },
-          "functional_grasping": {
+          "power_drill_handle_grasp": {
             "successes": 0,
             "trials": 8
           }
+        },
+        "target_specific_rerun": {
+          "run_id": "20260510_194153_cgn_phase2_pilot_v1_shared_sim",
+          "commit": "d866d381049095bbfb10b5cbb7fab8c601fda29b",
+          "cluster": "lakeshore",
+          "expected_shard_count": 4,
+          "observed_shard_count": 4,
+          "duplicate_scene_ids": 0,
+          "grounding_successes": 24,
+          "mask_nonempty": 24,
+          "proposal_nonempty": 0,
+          "plan_success": 0
         }
       }
     ],

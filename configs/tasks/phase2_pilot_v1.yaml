@@ -41,7 +41,6 @@ object_groups:
   - phase2_objects
 metrics:
   - task_success
-  - wrong_part
   - inference_latency
   - cycle_time
 failure_taxonomy:
@@ -51,4 +50,3 @@ failure_taxonomy:
   - planner_failure
   - collision
   - slip
-  - wrong_part

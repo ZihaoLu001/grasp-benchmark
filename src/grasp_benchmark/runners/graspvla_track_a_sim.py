@@ -1187,6 +1187,9 @@ class SharedTrackAAdapterAgent:
     def attempt_complete(self) -> bool:
         return bool(self._adapter.attempt_complete())
 
+    def latest_stage_metrics(self) -> dict[str, int]:
+        return dict(self._adapter.latest_stage_metrics())
+
     def close(self) -> None:
         self._adapter.close()
 
@@ -2072,6 +2075,11 @@ def _run_shared_track_a_suite_once(
                     failure_reason = " ".join(f"{type(exc).__name__}: {exc}".split())[:4000]
                     failure_traceback = traceback.format_exc(limit=50)
                     failure_stage = exc.failure_stage if isinstance(exc, AdapterExecutionError) else "scene_execution"
+                    if agent is not None and hasattr(agent, "latest_stage_metrics"):
+                        try:
+                            _merge_stage_metrics(attempt_stage_metrics, agent.latest_stage_metrics())
+                        except Exception:
+                            pass
                     if failure_stage == "grounding_error":
                         attempt_stage_metrics["grounding_success"] = 0
                     elif failure_stage == "segmentation_error":

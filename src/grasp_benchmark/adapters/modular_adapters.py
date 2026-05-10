@@ -14,6 +14,7 @@ from grasp_benchmark.adapters.modular_components import (
     PerceptionResult,
     SharedModularPerception,
     build_shared_pick_plan,
+    is_target_specific_task,
 )
 from grasp_benchmark.paths import PROJECT_ROOT
 from grasp_benchmark.types import Action, Observation
@@ -288,7 +289,7 @@ class _SharedModularAdapterBase(AgentAdapter):
                     instruction=self._instruction or obs.instruction,
                     obs=obs,
                 )
-                if str(self.task_spec.get("task", "")).strip() == "language_conditioned_single_target_pick":
+                if is_target_specific_task(str(self.task_spec.get("task", "")).strip()):
                     self._latest_stage_metrics["grounding_success"] = 1 if perception.detection is not None else 0
                 self._latest_stage_metrics["mask_nonempty"] = int(bool(perception.debug.get("mask_pixels", 0)))
                 payload = self._proposal_payload(obs, perception)
@@ -301,7 +302,9 @@ class _SharedModularAdapterBase(AgentAdapter):
             if exc.failure_stage == "grounding_error":
                 self._latest_stage_metrics["grounding_success"] = 0
             elif exc.failure_stage == "segmentation_error":
-                if self._latest_stage_metrics["grounding_success"] < 0 and str(self.task_spec.get("task", "")).strip() == "language_conditioned_single_target_pick":
+                if self._latest_stage_metrics["grounding_success"] < 0 and is_target_specific_task(
+                    str(self.task_spec.get("task", "")).strip()
+                ):
                     self._latest_stage_metrics["grounding_success"] = 0
                 self._latest_stage_metrics["mask_nonempty"] = 0
             elif exc.failure_stage == "grasp_proposal":
