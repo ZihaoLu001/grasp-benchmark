@@ -6,9 +6,11 @@ This is the single detailed report intended to live in the GitHub repository. Ge
 
 ## Executive Summary
 
-The benchmark compares released grasping systems under a shared simulator protocol: same Franka robot, same gripper, same rendered camera rig, same workspace, same blocking controller, up to three attempts per trial, and the same `15 cm / 2 s` lift-and-hold success rule. Each system uses its declared input interface.
+The benchmark compares released grasping systems under a shared simulator protocol: same Franka robot, same gripper, same rendered camera rig, same workspace, same blocking controller, up to three attempts per trial, and the same `15 cm / 2 s` lift-and-hold success rule.
 
-The current shared-protocol result favors GraspVLA across the completed simulator suites. Contact-GraspNet is evaluated as one modular pipeline: GroundingDINO target localization, depth masking, Contact-GraspNet grasp proposals, and shared planner/controller execution.
+The main public comparison is view-matched on the Main Shared Grasping Benchmark: both systems are compared with the front camera only, and both systems are compared again with the front and side cameras. GraspVLA reaches `68 / 90` in the single-front-camera setting and `88 / 90` in the two-camera setting; the Contact-GraspNet modular pipeline reaches `25 / 90` and `43 / 90`, respectively.
+
+Contact-GraspNet is evaluated as one modular pipeline: GroundingDINO target localization, depth masking, Contact-GraspNet grasp proposals, and shared planner/controller execution.
 
 AnyGrasp is excluded from current comparative claims until fresh SDK access and runtime validation are available.
 
@@ -23,15 +25,33 @@ The benchmark uses one frozen simulator setup for the reported comparisons.
 | Workspace | fixed tabletop workspace of `40 cm x 50 cm x 20 cm`, with target, clutter-left, clutter-right, clutter-back, and stress-test clutter-front regions defined by the scene catalog |
 | Cameras | two fixed RGB-D cameras: `front_view` and `side_view`, both `256 x 256`, `fovy=43` |
 | Camera poses | `front_view`: position `(0.7555, 0.0000, 0.5388)`, quaternion `(0.5964, 0.3799, 0.3799, 0.5964)`; `side_view`: position `(-0.1000, 0.6928, 0.5000)`, quaternion `(0.0000, 0.0000, -0.5000, -0.8660)` |
-| Observation contract | both cameras are rendered and logged for every trial; GraspVLA receives `front_view_image` and `side_view_image`; Contact-GraspNet uses front RGB-D, front camera intrinsics `K`, and a segmentation map for the `depth + K + segmap + RGB` grasp-proposal path |
+| Observation contract | both cameras are rendered and logged for every trial; the main result reports both single-front-camera and two-camera view-matched settings. GraspVLA receives RGB image streams; Contact-GraspNet receives RGB-D, camera intrinsics `K`, and segmentation for the `depth + K + segmap + RGB` grasp-proposal path |
 | Trial execution | `10` stabilization steps, up to `300` simulator control steps per attempt, and up to `3` attempts per trial |
 | Success rule | lift the specified object by at least `15 cm` and hold it for `2 s` (`10` hold steps at `5 Hz`) |
 
-The camera setup is therefore a two-camera environment, not a single-camera environment. The Contact-GraspNet shared pipeline uses the front RGB-D stream because the checked Contact-GraspNet proposal path is defined by the front depth map, camera intrinsics `K`, RGB image, and segmentation map. The side camera remains part of the shared rendered scene observation and is used by GraspVLA's two-view policy input.
+The camera setup is therefore a two-camera environment, not a single-camera environment. For the single-front-camera comparison, both systems use only `front_view`: GraspVLA receives the front RGB image in both expected image slots, while Contact-GraspNet receives front RGB-D, front intrinsics `K`, and segmentation. For the two-camera comparison, GraspVLA receives front and side RGB streams, while Contact-GraspNet receives fused front and side RGB-D geometry with segmentation before Contact-GraspNet proposal generation.
 
-This is a shared-environment system comparison, not a strict same-tensor sensor ablation. That distinction matters: GraspVLA and Contact-GraspNet are released with different observation contracts, so forcing identical tensors would be a separate diagnostic rather than the main method-level comparison.
+This is a view-count-matched system comparison. It does not force identical tensors, because GraspVLA and Contact-GraspNet have different released input contracts: GraspVLA is an RGB vision-language-action policy, while Contact-GraspNet is an RGB-D grasp-proposal method followed here by the benchmark planner/controller.
 
-## Current Headline Results
+## View-Matched Main Benchmark
+
+The fairest current headline is the Main Shared Grasping Benchmark under matched camera-view counts.
+
+| View setting | GraspVLA input and result | Contact-GraspNet modular input and result | Interpretation |
+| --- | ---: | ---: | --- |
+| Single front camera | front RGB duplicated to the two expected image slots: `68 / 90` (`75.56%`) | front RGB-D + `K` + segmentation: `25 / 90` (`27.78%`) | both methods use one rendered camera view |
+| Two cameras | front + side RGB: `88 / 90` (`97.78%`) | fused front + side RGB-D + segmentation: `43 / 90` (`47.78%`) | both methods use two rendered camera views |
+
+Adding the side camera improves the Contact-GraspNet modular pipeline from `25 / 90` to `43 / 90`, so camera coverage is a meaningful factor. GraspVLA remains higher in both the single-front-camera and two-camera comparisons on the current Main Shared Grasping Benchmark.
+
+Tracked evidence:
+
+```text
+configs/results/cgn_shared_protocol_h100_20260508.json
+configs/results/fair_sensor_view_ablation_h100_20260508.json
+```
+
+## Additional Suite Coverage
 
 Each suite is a set of paired simulator trials. A trial specifies the scene, object layout, instruction, and success target. Both methods use the same robot, gripper, rendered camera rig, object poses, blocking controller, attempt budget, and lift-and-hold success rule. For language-conditioned trials, success requires lifting the named object; for arbitrary-grasping trials, success requires lifting a valid object from the scene; for task-oriented trials, success additionally checks the requested part or constraint.
 
@@ -42,21 +62,24 @@ Each suite is a set of paired simulator trials. A trial specifies the scene, obj
 | Instruction Robustness Check (`instruction_robustness_v2`) | 40 | prompt sensitivity suite: the same basic and light-distractor scenes with canonical, lexical, compositional, and distractor-aware instruction variants |
 | Task-Oriented Grasping Pilot (`phase2_pilot_v1`) | 24 | small extension for grasp constraints, including cup-handle grasping, avoiding the inside of the cup, and power-drill handle grasping |
 
+The table below gives broader stress-test coverage in the frozen released-interface setup: GraspVLA uses its two RGB streams, while the current Contact-GraspNet modular pipeline uses the front RGB-D proposal path. These rows are useful for understanding robustness, but the view-matched table above is the main fair camera-count comparison.
+
 | Suite | GraspVLA | Contact-GraspNet modular pipeline | Interpretation |
 | --- | ---: | ---: | --- |
-| Main Shared Grasping Benchmark (`track_a_cal_v3`) | `88 / 90` | `25 / 90` (`27.78%`) | headline shared-environment table |
+| Main Shared Grasping Benchmark (`track_a_cal_v3`) | `88 / 90` | `25 / 90` (`27.78%`) | released-interface reference row |
 | Hard Shared Grasping Stress Test (`track_a_stress_v4`) | `160 / 168` | `20 / 168` (`11.90%`) | difficult-scene stress suite |
 | Instruction Robustness Check (`instruction_robustness_v2`) | `38 / 40` | `8 / 40` (`20.00%`) | instruction and paraphrase diagnostic |
 | Task-Oriented Grasping Pilot (`phase2_pilot_v1`) | `23 / 24` | `0 / 24` (`0.00%`) | small task-oriented extension |
 
-Tracked evidence for the Contact-GraspNet modular pipeline:
+Tracked evidence for the result tables:
 
 ```text
 configs/results/cgn_shared_protocol_h100_20260508.json
+configs/results/fair_sensor_view_ablation_h100_20260508.json
 configs/results/speed_validation_lakeshore_h100_20260508.json
 ```
 
-The tracked evidence records all expected shards for the four suites, duplicate scene IDs equal to `0`, and target-selection violations equal to `0`.
+The shared-protocol Contact-GraspNet evidence records all expected shards for the four broader suites, duplicate scene IDs equal to `0`, and target-selection violations equal to `0`. The view-matched evidence records completed Lakeshore H100 runs for the single-front-camera and two-camera Main Benchmark diagnostics.
 
 ## Speed and Latency
 
@@ -89,7 +112,7 @@ The shared-protocol suites freeze the following factors:
 - success defined as lifting the target object at least 15 cm and holding it for 2 s;
 - standardized logs with success, attempts, lift height, hold duration, logged latency signal, cycle time, and stage labels.
 
-The headline comparison uses the shared protocol only. Implementation-check suites verify runtime contracts and are not separate compared systems. Sensor/view ablations should be reported separately from the headline table.
+The headline comparison uses the shared protocol with matched camera-view counts. Implementation-check suites verify runtime contracts and are not separate compared systems.
 
 ## Method Definitions
 
@@ -184,4 +207,4 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build_corl2026_bundle_v3.ps1
 
 ## Conclusion
 
-> We evaluate GraspVLA and a Contact-GraspNet-based modular pipeline under one shared simulator protocol: same Franka robot, rendered camera rig, gripper, controller, attempt budget, and `15 cm / 2 s` lift-and-hold success rule, with each system using its declared input interface. Under this protocol, GraspVLA achieves `88/90` on the Main Shared Grasping Benchmark and `160/168` on the Hard Shared Grasping Stress Test; the Contact-GraspNet modular pipeline achieves `25/90` and `20/168`. On a 12-trial Lakeshore H100 speed validation subset, GraspVLA records median `136.6 ms` model-server round-trip latency and median `4.83 s` full-cycle trial time; the Contact-GraspNet modular pipeline records median `25.4 ms` adapter-step latency, median `11.45 s` cycle time on successful rows, and median `52.24 s` all-trial cycle time after including failed retries.
+> We evaluate GraspVLA and a Contact-GraspNet-based modular pipeline under one shared simulator protocol: same Franka robot, rendered camera rig, gripper, controller, attempt budget, and `15 cm / 2 s` lift-and-hold success rule. The main result is view-matched on the Main Shared Grasping Benchmark: GraspVLA achieves `68/90` versus Contact-GraspNet `25/90` when both use the front camera only, and GraspVLA achieves `88/90` versus Contact-GraspNet `43/90` when both use front and side cameras. Additional released-interface stress suites remain tracked for robustness analysis. On a 12-trial Lakeshore H100 speed validation subset, GraspVLA records median `136.6 ms` model-server round-trip latency and median `4.83 s` full-cycle trial time; the Contact-GraspNet modular pipeline records median `25.4 ms` adapter-step latency, median `11.45 s` cycle time on successful rows, and median `52.24 s` all-trial cycle time after including failed retries.

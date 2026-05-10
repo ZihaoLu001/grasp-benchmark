@@ -20,6 +20,7 @@ class PublicDocumentationDefaultsTest(unittest.TestCase):
         self.assertIn("Instruction Robustness Check", text)
         self.assertIn("Task-Oriented Grasping Pilot", text)
         self.assertIn("Contact-GraspNet modular pipeline", text)
+        self.assertIn("View-Matched Main Benchmark", text)
         self.assertIn("Speed and Latency", text)
         self.assertIn("same rendered camera rig", text)
         self.assertIn("front_view", text)
@@ -27,7 +28,14 @@ class PublicDocumentationDefaultsTest(unittest.TestCase):
         self.assertIn("256 x 256", text)
         self.assertIn("IK_POSE", text)
         self.assertIn("5 Hz", text)
-        self.assertIn("shared-environment system comparison", text)
+        self.assertIn("view-matched system comparison", text)
+        self.assertIn("view-count parity", text)
+        self.assertIn("Single front camera", text)
+        self.assertIn("Two cameras", text)
+        self.assertIn("68 / 90", text)
+        self.assertIn("43 / 90", text)
+        self.assertIn("75.56%", text)
+        self.assertIn("47.78%", text)
         self.assertIn("declared input interface", text)
         self.assertIn("about `200 ms`", text)
         self.assertIn("`5 Hz` for GraspVLA, `37 Hz` for AnyGrasp", text)
@@ -39,6 +47,7 @@ class PublicDocumentationDefaultsTest(unittest.TestCase):
         self.assertIn("median `25.4 ms`", text)
         self.assertIn("median `52.24 s`", text)
         self.assertIn("configs/results/cgn_shared_protocol_h100_20260508.json", text)
+        self.assertIn("configs/results/fair_sensor_view_ablation_h100_20260508.json", text)
         self.assertIn("configs/results/speed_validation_lakeshore_h100_20260508.json", text)
         self.assertIn("configs/results/cgn_official_depth_segmap_h100_20260508.json", text)
         self.assertIn("official-input validation", text)
@@ -61,12 +70,20 @@ class PublicDocumentationDefaultsTest(unittest.TestCase):
         self.assertIn("side_view", text)
         self.assertIn("256 x 256", text)
         self.assertIn("depth + K + segmap + RGB", text)
-        self.assertIn("same-tensor sensor ablation", text)
+        self.assertIn("View-Matched Main Benchmark", text)
+        self.assertIn("view-count-matched system comparison", text)
+        self.assertIn("Single front camera", text)
+        self.assertIn("Two cameras", text)
+        self.assertIn("68 / 90", text)
+        self.assertIn("43 / 90", text)
+        self.assertIn("75.56%", text)
+        self.assertIn("47.78%", text)
         self.assertIn("gb-cgn-tf212", text)
         self.assertIn("25 / 90", text)
         self.assertIn("20 / 168", text)
         self.assertIn("8 / 40", text)
         self.assertIn("configs/results/cgn_shared_protocol_h100_20260508.json", text)
+        self.assertIn("configs/results/fair_sensor_view_ablation_h100_20260508.json", text)
         self.assertIn("configs/results/cgn_official_depth_segmap_h100_20260508.json", text)
         self.assertNotIn("configs/results/cgn_native_reference_h100_20260507.json", text)
         self.assertNotIn("40 / 138", text)
@@ -136,6 +153,34 @@ class PublicDocumentationDefaultsTest(unittest.TestCase):
             self.assertIn(f"{successes} / {trials}", readme)
             self.assertIn(f"{successes} / {trials}", report)
             self.assertIn(percent, report)
+
+    def test_view_matched_main_numbers_are_backed_by_tracked_evidence(self) -> None:
+        evidence = json.loads(self._read("configs/results/fair_sensor_view_ablation_h100_20260508.json"))
+        readme = self._read("README.md")
+        report = self._read("docs/current_benchmark_report.md")
+
+        self.assertEqual(evidence["batch"], "fair_sensor_ablation_20260508_193155_41238af")
+        self.assertTrue(evidence["commit"].startswith("41238af"))
+
+        rows = {row["label"]: row for row in evidence["experiments"]}
+        expected = {
+            "GraspVLA front-only duplicate RGB": (68, 90, "75.56%"),
+            "Contact-GraspNet two-view fused RGB-D": (43, 90, "47.78%"),
+        }
+        for label, (successes, trials, percent) in expected.items():
+            self.assertEqual(rows[label]["successes"], successes)
+            self.assertEqual(rows[label]["trials"], trials)
+            self.assertEqual(rows[label]["success_rate"], percent)
+            self.assertEqual(rows[label]["missing_results"], [])
+            self.assertIn(f"{successes} / {trials}", readme)
+            self.assertIn(f"{successes} / {trials}", report)
+            self.assertIn(percent, readme)
+            self.assertIn(percent, report)
+
+        cgn_reference = evidence["cgn_front_rgbd_reference"]["suites"][0]
+        self.assertEqual(cgn_reference["task_set"], "track_a_cal_v3")
+        self.assertEqual(cgn_reference["successes"], 25)
+        self.assertEqual(cgn_reference["trials"], 90)
 
     def test_cgn_native_reference_appendix_is_backed_by_tracked_evidence(self) -> None:
         evidence = json.loads(self._read("configs/results/cgn_native_reference_h100_20260507.json"))

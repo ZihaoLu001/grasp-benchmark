@@ -20,7 +20,7 @@ Generated logs, videos, plots, and Slurm manifests live under `artifacts/`.
 
 As of May 8, 2026, the shared-protocol benchmark uses a fixed Franka simulation setup, fixed rendered camera rig, blocking control, up to three attempts per trial, and a success rule of lifting the target object by at least 15 cm and holding it for 2 s.
 
-Each suite is made from paired simulator trials: both methods run on the same scene definitions, object layouts, instructions, robot, camera rig, controller, and success rule. The comparison is a complete-system comparison under a shared environment, not a claim that every method consumes identical tensors.
+Each suite is made from paired simulator trials: both methods run on the same scene definitions, object layouts, instructions, robot, controller, and success rule. The main public comparison below is view-matched: one row compares both systems with the front camera only, and one row compares both systems with the front and side cameras.
 
 ## Shared Experimental Setup
 
@@ -37,7 +37,12 @@ The tables below use the same simulator setup for both methods.
 | Trial execution | `10` stabilization steps, up to `300` simulator control steps per attempt, and up to `3` attempts per trial |
 | Success rule | lift the specified object by at least `15 cm` and hold it for `2 s` (`10` hold steps at `5 Hz`) |
 
-The environment always renders the same two cameras for every trial. The difference is method input format: GraspVLA is a two-view RGB vision-language-action policy, while the current Contact-GraspNet shared pipeline is a front-view RGB-D modular proposal path followed by the benchmark's shared planner/controller. For that reason, the headline table should be read as a shared-environment system comparison. View-parity and modality-parity ablations are separate diagnostics, because forcing identical tensors would change at least one method away from its normal released interface.
+The environment always renders the same two cameras for every trial. For fairness, the Main Shared Grasping Benchmark is reported with view-count parity:
+
+- Single-camera setting: both methods use the `front_view` camera only. GraspVLA receives the front RGB image in both expected image slots; Contact-GraspNet uses front RGB-D, front intrinsics `K`, and segmentation.
+- Two-camera setting: both methods use `front_view` and `side_view`. GraspVLA receives the two RGB streams; Contact-GraspNet uses a fused two-view RGB-D point cloud with segmentation before Contact-GraspNet proposal generation.
+
+This is a view-matched system comparison. It does not force identical tensors, because GraspVLA and Contact-GraspNet have different released input contracts: GraspVLA is an RGB vision-language-action policy, while Contact-GraspNet is an RGB-D grasp-proposal method followed here by the benchmark planner/controller.
 
 | Suite | Trials | What it tests |
 | --- | ---: | --- |
@@ -46,9 +51,24 @@ The environment always renders the same two cameras for every trial. The differe
 | Instruction Robustness Check | 40 | prompt sensitivity: canonical, lexical, compositional, and distractor-aware instruction variants on matched scenes |
 | Task-Oriented Grasping Pilot | 24 | small extension for part/constraint-aware grasping, including cup-handle and power-drill-handle instructions |
 
+## View-Matched Main Benchmark
+
+The fairest current headline is the Main Shared Grasping Benchmark under matched camera-view counts.
+
+| View setting | GraspVLA input and result | Contact-GraspNet modular input and result |
+| --- | ---: | ---: |
+| Single front camera | front RGB duplicated to the two expected image slots: `68 / 90` (`75.56%`) | front RGB-D + `K` + segmentation: `25 / 90` (`27.78%`) |
+| Two cameras | front + side RGB: `88 / 90` (`97.78%`) | fused front + side RGB-D + segmentation: `43 / 90` (`47.78%`) |
+
+Interpretation: matching the number of camera views does not remove the performance gap on the current Main Shared Grasping Benchmark. Adding the side camera helps Contact-GraspNet substantially (`25 / 90` to `43 / 90`), but GraspVLA remains higher in both the single-front-camera and two-camera comparisons.
+
+## Additional Suite Coverage
+
+The broader suites below are useful stress diagnostics. They use the frozen released-interface setup: GraspVLA uses its two RGB views, while the current Contact-GraspNet modular pipeline uses the front RGB-D proposal path.
+
 | Suite | GraspVLA | Contact-GraspNet modular pipeline | Use |
 | --- | ---: | ---: | --- |
-| Main Shared Grasping Benchmark | `88 / 90` | `25 / 90` | headline shared-environment comparison |
+| Main Shared Grasping Benchmark | `88 / 90` | `25 / 90` | released-interface reference row |
 | Hard Shared Grasping Stress Test | `160 / 168` | `20 / 168` | difficult-scene stress suite |
 | Instruction Robustness Check | `38 / 40` | `8 / 40` | instruction and paraphrase diagnostic |
 | Task-Oriented Grasping Pilot | `23 / 24` | `0 / 24` | small task-oriented extension |
@@ -56,6 +76,7 @@ The environment always renders the same two cameras for every trial. The differe
 Tracked machine-readable evidence:
 
 - [configs/results/cgn_shared_protocol_h100_20260508.json](configs/results/cgn_shared_protocol_h100_20260508.json)
+- [configs/results/fair_sensor_view_ablation_h100_20260508.json](configs/results/fair_sensor_view_ablation_h100_20260508.json)
 - [configs/results/speed_validation_lakeshore_h100_20260508.json](configs/results/speed_validation_lakeshore_h100_20260508.json)
 
 ## Speed and Latency
