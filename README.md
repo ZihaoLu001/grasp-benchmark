@@ -151,6 +151,10 @@ The Contact-GraspNet row is a complete modular grasping system assembled for thi
 | Execution | The benchmark planner converts the selected grasp pose into pre-grasp, grasp, close, lift, and hold actions for the shared `IK_POSE` controller, rejecting impossible gripper openings before execution. |
 | Success check | The shared evaluator applies the same `15 cm / 2 s` lift-and-hold rule used for GraspVLA. |
 
+Single-camera CGN uses only `front_view`: GroundingDINO or foreground filtering builds a front mask, masked front depth is back-projected with intrinsics `K`, and Contact-GraspNet receives the checked `depth + K + segmap + RGB` proposal payload.
+
+Two-camera fused RGB-D CGN uses `front_view` and `side_view`: both views produce masked point clouds, side-view points are transformed through the camera extrinsics into the front-camera frame, the two point clouds are concatenated, and the fused segmented geometry is passed to the Contact-GraspNet proposal runner before shared planner/controller execution.
+
 ## Architecture
 
 ```text
