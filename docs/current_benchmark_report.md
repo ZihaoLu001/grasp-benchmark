@@ -1,6 +1,6 @@
 # Current Benchmark Report
 
-Last updated: 2026-05-08.
+Last updated: 2026-05-10.
 
 This is the single detailed report intended to live in the GitHub repository. Generated logs, plots, videos, Slurm manifests, and intermediate materials stay under `artifacts/`.
 
@@ -121,6 +121,19 @@ The headline comparison uses the shared protocol with matched camera-view counts
 | GraspVLA | Public release through the aligned simulator wrapper | shared-protocol task execution |
 | Contact-GraspNet modular pipeline | GroundingDINO localization, depth masking, Contact-GraspNet proposals, and shared planner/controller execution | benchmark-owned modular task execution |
 | AnyGrasp | pending fresh SDK access and runtime validation | excluded from current comparative claims |
+
+## Contact-GraspNet Modular Pipeline
+
+The Contact-GraspNet row is a complete modular grasping system assembled for this benchmark. Contact-GraspNet itself provides 6-DoF grasp proposals from RGB-D geometry; the language grounding, two-view fusion, and robot execution wrapper are benchmark components around that proposal model. This distinction is important because the NVLabs repository recommends segmentation preprocessing for object-wise grasps, but it does not provide an end-to-end language-conditioned Franka controller.
+
+| Stage | Implementation in this benchmark | Output passed forward |
+| --- | --- | --- |
+| Target localization | For language-conditioned trials, GroundingDINO localizes the requested object class from the instruction or task specification. The configured detector uses `GroundingDINO_SwinT_OGC.py`, `groundingdino_swint_ogc.pth`, `box_threshold=0.25`, and `text_threshold=0.20`. | target bounding box and detection score |
+| Segmentation mask | The target box is converted into a depth-band mask using the rendered depth image. For arbitrary-object trials, the pipeline first tries catalog labels and then uses a foreground-depth fallback when no class box is found. | binary target mask and one-segment object map |
+| View handling | In the single-camera setting, the mask is built from `front_view`. In the two-camera setting, the same target-masking logic is applied to `front_view` and `side_view`; side-view points are transformed through the camera extrinsics into the front-camera frame and concatenated. | front-only or fused front-plus-side RGB-D geometry with segment IDs |
+| Grasp proposal | Contact-GraspNet runs in the H100-compatible TensorFlow environment and predicts ranked 6-DoF grasp candidates. The official-input validation uses depth in meters, camera matrix `K`, RGB, segmentation map, `local_regions=True`, and `filter_grasps=True`. | ranked grasp poses, scores, contact points, and gripper openings |
+| Execution | The benchmark planner converts the selected grasp pose into pre-grasp, grasp, close, lift, and hold actions for the shared `IK_POSE` controller. Candidate gripper openings outside the shared gripper range are rejected before execution. | robot action sequence evaluated under the common `15 cm / 2 s` success rule |
+| Logging | Each trial records stage labels for grounding, segmentation, proposal, planning, execution, and success checking. | success rate, attempts, timing, and failure-stage summaries |
 
 ## Contact-GraspNet Implementation Check
 

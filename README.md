@@ -33,7 +33,7 @@ The tables below use the same simulator setup for both methods.
 | Workspace | fixed tabletop workspace of `40 cm x 50 cm x 20 cm`, with target and clutter regions defined by the scene catalog |
 | Cameras | two fixed RGB-D cameras: `front_view` and `side_view`, both `256 x 256`, `fovy=43` |
 | Camera poses | `front_view`: position `(0.7555, 0.0000, 0.5388)`, quaternion `(0.5964, 0.3799, 0.3799, 0.5964)`; `side_view`: position `(-0.1000, 0.6928, 0.5000)`, quaternion `(0.0000, 0.0000, -0.5000, -0.8660)` |
-| Method observations | GraspVLA receives the two RGB streams as `front_view_image` and `side_view_image`; Contact-GraspNet uses the front RGB-D stream, front camera intrinsics `K`, and the segmentation map for the `depth + K + segmap + RGB` proposal path |
+| Method observations | GraspVLA receives RGB image streams according to the view setting; Contact-GraspNet receives RGB-D geometry, camera intrinsics `K`, and segmentation. The single-camera setting uses `front_view`; the two-camera setting fuses `front_view` and `side_view` before grasp proposal |
 | Trial execution | `10` stabilization steps, up to `300` simulator control steps per attempt, and up to `3` attempts per trial |
 | Success rule | lift the specified object by at least `15 cm` and hold it for `2 s` (`10` hold steps at `5 Hz`) |
 
@@ -137,6 +137,19 @@ Use the readable suite names first. Put internal IDs in parentheses only when re
 | GraspVLA | Public GraspVLA release through the aligned shared simulator wrapper | shared-protocol task-execution result |
 | Contact-GraspNet modular pipeline | GroundingDINO target localization, depth masking, Contact-GraspNet proposals, and the shared planner/controller | benchmark-owned modular execution result |
 | AnyGrasp | Excluded from current comparative claims | requires fresh SDK access and runtime revalidation |
+
+## Contact-GraspNet Modular Pipeline
+
+The Contact-GraspNet row is a complete modular grasping system assembled for this benchmark. Contact-GraspNet itself provides 6-DoF grasp proposals from RGB-D geometry; the language grounding, two-view fusion, and robot execution wrapper are benchmark components around that proposal model.
+
+| Stage | Implementation in this benchmark |
+| --- | --- |
+| Target localization | GroundingDINO localizes language-conditioned targets using `GroundingDINO_SwinT_OGC.py`, `groundingdino_swint_ogc.pth`, `box_threshold=0.25`, and `text_threshold=0.20`. |
+| Segmentation mask | The detection box is converted into a depth-band object mask. Arbitrary-object trials first use catalog labels and then a foreground-depth fallback if no class box is found. |
+| View handling | Single-camera results use `front_view`; two-camera results fuse `front_view` and `side_view` RGB-D points after transforming side-view points into the front-camera frame. |
+| Grasp proposal | Contact-GraspNet predicts ranked 6-DoF grasp candidates. The checked official-input path uses depth in meters, camera matrix `K`, RGB, segmentation map, `local_regions=True`, and `filter_grasps=True`. |
+| Execution | The benchmark planner converts the selected grasp pose into pre-grasp, grasp, close, lift, and hold actions for the shared `IK_POSE` controller, rejecting impossible gripper openings before execution. |
+| Success check | The shared evaluator applies the same `15 cm / 2 s` lift-and-hold rule used for GraspVLA. |
 
 ## Architecture
 
