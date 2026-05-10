@@ -19,6 +19,9 @@ class PublicDocumentationDefaultsTest(unittest.TestCase):
         self.assertIn("Hard Shared Grasping Stress Test", text)
         self.assertIn("Instruction Robustness Check", text)
         self.assertIn("Task-Oriented Grasping Pilot", text)
+        self.assertIn("exploratory instruction-conditioned pilot", text)
+        self.assertIn("rather than contact-part scoring", text)
+        self.assertIn("16 grasp-proposal-stage failures and 8 execution failures", text)
         self.assertIn("Contact-GraspNet modular pipeline", text)
         self.assertIn("View-Matched Main Benchmark", text)
         self.assertIn("Speed and Latency", text)
@@ -71,6 +74,7 @@ class PublicDocumentationDefaultsTest(unittest.TestCase):
         self.assertNotIn("D:/codex", text)
         self.assertNotIn("D:\\codex", text)
         self.assertNotIn("same cameras", text)
+        self.assertNotIn("success additionally checks the requested part or constraint", text)
 
     def test_single_current_report_is_the_documentation_entrypoint(self) -> None:
         text = self._read("docs/current_benchmark_report.md")
@@ -83,6 +87,9 @@ class PublicDocumentationDefaultsTest(unittest.TestCase):
         self.assertIn("256 x 256", text)
         self.assertIn("depth + K + segmap + RGB", text)
         self.assertIn("View-Matched Main Benchmark", text)
+        self.assertIn("exploratory instruction-conditioned pilot", text)
+        self.assertIn("rather than contact-part scoring", text)
+        self.assertIn("16 grasp-proposal failures and 8 execution failures", text)
         self.assertIn("view-count-matched system comparison", text)
         self.assertIn("Single front camera", text)
         self.assertIn("Two cameras", text)
@@ -123,6 +130,7 @@ class PublicDocumentationDefaultsTest(unittest.TestCase):
         self.assertNotIn("D:\\codex", text)
         self.assertNotIn("Collaborator-Facing", text)
         self.assertNotIn("same cameras", text)
+        self.assertNotIn("success additionally checks the requested part or constraint", text)
 
     def test_bundle_script_targets_current_canonical_suites(self) -> None:
         text = self._read("scripts/build_corl2026_bundle_v3.ps1")

@@ -136,6 +136,7 @@
   ],
   "notes": [
     "These results are for the benchmark-owned Contact-GraspNet modular pipeline.",
-    "All canonical shared-protocol suites recorded zero target-selection violations."
+    "All canonical shared-protocol suites recorded zero target-selection violations.",
+    "The Task-Oriented Grasping Pilot is scored by the shared target lift-and-hold rule; contact-part scoring is not used for the public result."
   ]
 }

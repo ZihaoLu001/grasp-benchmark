@@ -53,14 +53,14 @@ configs/results/fair_sensor_view_ablation_h100_20260508.json
 
 ## Additional Suite Coverage
 
-Each suite is a set of paired simulator trials. A trial specifies the scene, object layout, instruction, and success target. Both methods use the same robot, gripper, rendered camera rig, object poses, blocking controller, attempt budget, and lift-and-hold success rule. For language-conditioned trials, success requires lifting the named object; for arbitrary-grasping trials, success requires lifting a valid object from the scene; for task-oriented trials, success additionally checks the requested part or constraint.
+Each suite is a set of paired simulator trials. A trial specifies the scene, object layout, instruction, and success target. Both methods use the same robot, gripper, rendered camera rig, object poses, blocking controller, attempt budget, and lift-and-hold success rule. For language-conditioned trials, success requires lifting the named object; for arbitrary-grasping trials, success requires lifting a valid object from the scene. The Task-Oriented Grasping Pilot uses handle/constraint wording in the instruction, but the public score still uses target lift-and-hold rather than contact-part scoring.
 
 | Suite | Trials | What it tests |
 | --- | ---: | --- |
 | Main Shared Grasping Benchmark (`track_a_cal_v3`) | 90 | primary shared-environment comparison suite: 60 language-conditioned single-target trials over five common opaque objects, plus 30 arbitrary opaque-object grasping trials |
 | Hard Shared Grasping Stress Test (`track_a_stress_v4`) | 168 | hard-case suite: 80 language-target trials with heavy distractors or occlusion, 40 cluttered arbitrary opaque trials, and 48 transparent-object trials |
 | Instruction Robustness Check (`instruction_robustness_v2`) | 40 | prompt sensitivity suite: the same basic and light-distractor scenes with canonical, lexical, compositional, and distractor-aware instruction variants |
-| Task-Oriented Grasping Pilot (`phase2_pilot_v1`) | 24 | small extension for grasp constraints, including cup-handle grasping, avoiding the inside of the cup, and power-drill handle grasping |
+| Task-Oriented Grasping Pilot (`phase2_pilot_v1`) | 24 | exploratory instruction-conditioned pilot with mug-handle, avoid-inside-cup, and power-drill-handle prompts, scored by the same lift-and-hold rule |
 
 The table below gives broader stress-test coverage in the frozen released-interface setup: GraspVLA uses its two RGB streams, while the current Contact-GraspNet modular pipeline uses the front RGB-D proposal path. These rows are useful for understanding robustness, but the view-matched table above is the main fair camera-count comparison.
 
@@ -69,7 +69,9 @@ The table below gives broader stress-test coverage in the frozen released-interf
 | Main Shared Grasping Benchmark (`track_a_cal_v3`) | `88 / 90` | `25 / 90` (`27.78%`) | released-interface reference row |
 | Hard Shared Grasping Stress Test (`track_a_stress_v4`) | `160 / 168` | `20 / 168` (`11.90%`) | difficult-scene stress suite |
 | Instruction Robustness Check (`instruction_robustness_v2`) | `38 / 40` | `8 / 40` (`20.00%`) | instruction and paraphrase diagnostic |
-| Task-Oriented Grasping Pilot (`phase2_pilot_v1`) | `23 / 24` | `0 / 24` (`0.00%`) | small task-oriented extension |
+| Task-Oriented Grasping Pilot (`phase2_pilot_v1`) | `23 / 24` | `0 / 24` (`0.00%`) | exploratory instruction-conditioned pilot |
+
+Task-Oriented Grasping Pilot note: the 24 trials are 8 mug-handle prompts, 8 avoid-inside-cup prompts, and 8 power-drill-handle prompts. This row should be read as an instruction-conditioned stress diagnostic under the shared lift-and-hold success rule. The Contact-GraspNet H100 result is `0 / 24` with all four shards present, duplicate scene IDs equal to `0`, and failure stages split into 16 grasp-proposal failures and 8 execution failures before satisfying lift-and-hold success.
 
 Tracked evidence for the result tables:
 

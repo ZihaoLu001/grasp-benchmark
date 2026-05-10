@@ -49,7 +49,7 @@ This is a view-matched system comparison. It does not force identical tensors, b
 | Main Shared Grasping Benchmark | 90 | primary shared-environment comparison suite: 60 language-conditioned single-target trials over five common opaque objects, plus 30 arbitrary opaque-object grasping trials |
 | Hard Shared Grasping Stress Test | 168 | hard-case suite: 80 language-target trials with heavy distractors or occlusion, 40 cluttered arbitrary opaque trials, and 48 transparent-object trials |
 | Instruction Robustness Check | 40 | prompt sensitivity: canonical, lexical, compositional, and distractor-aware instruction variants on matched scenes |
-| Task-Oriented Grasping Pilot | 24 | small extension for part/constraint-aware grasping, including cup-handle and power-drill-handle instructions |
+| Task-Oriented Grasping Pilot | 24 | exploratory instruction-conditioned pilot: mug-handle, avoid-inside-cup, and power-drill-handle prompts, scored by the same target lift-and-hold rule |
 
 ## View-Matched Main Benchmark
 
@@ -71,7 +71,9 @@ The broader suites below are useful stress diagnostics. They use the frozen rele
 | Main Shared Grasping Benchmark | `88 / 90` | `25 / 90` | released-interface reference row |
 | Hard Shared Grasping Stress Test | `160 / 168` | `20 / 168` | difficult-scene stress suite |
 | Instruction Robustness Check | `38 / 40` | `8 / 40` | instruction and paraphrase diagnostic |
-| Task-Oriented Grasping Pilot | `23 / 24` | `0 / 24` | small task-oriented extension |
+| Task-Oriented Grasping Pilot | `23 / 24` | `0 / 24` | exploratory instruction-conditioned pilot |
+
+Task-Oriented Grasping Pilot note: this 24-trial suite contains 8 mug-handle prompts, 8 avoid-inside-cup prompts, and 8 power-drill-handle prompts. The public score still uses the shared target lift-and-hold success rule rather than contact-part scoring. Contact-GraspNet records `0 / 24` because the H100 run ended with 16 grasp-proposal-stage failures and 8 execution failures before satisfying lift-and-hold success; all four shards are present, with zero duplicate scene IDs.
 
 Tracked machine-readable evidence:
 
@@ -114,7 +116,7 @@ Internal `task_set` IDs are stable for scripts and reproducibility. Use the read
 | Main Shared Grasping Benchmark | `track_a_cal_v3` | current headline | 90 paired trials under the frozen shared protocol |
 | Hard Shared Grasping Stress Test | `track_a_stress_v4` | current diagnostic | 168 difficult paired trials with clutter, occlusion, and transparent objects |
 | Instruction Robustness Check | `instruction_robustness_v2` | current diagnostic | same scenes with different instruction phrasings |
-| Task-Oriented Grasping Pilot | `phase2_pilot_v1` | current diagnostic | small suite for handle/part-oriented grasping |
+| Task-Oriented Grasping Pilot | `phase2_pilot_v1` | current diagnostic | exploratory handle/constraint instruction pilot, scored by target lift-and-hold |
 | Sim-to-Real Robustness Proxy | `sim2real_proxy_v2` | supporting diagnostic | simulated perturbations used as transfer stressors |
 | CGN Pipeline Diagnostic | `cgn_bottleneck_v2` | supporting diagnostic | isolates grounding, proposal, planning, and execution stages |
 
@@ -127,7 +129,7 @@ Use the readable suite names first. Put internal IDs in parentheses only when re
 | Main comparison | Main Shared Grasping Benchmark (`track_a_cal_v3`) |
 | Hard-case analysis | Hard Shared Grasping Stress Test (`track_a_stress_v4`) |
 | Instruction paraphrase analysis | Instruction Robustness Check (`instruction_robustness_v2`) |
-| Task-oriented grasp examples | Task-Oriented Grasping Pilot (`phase2_pilot_v1`) |
+| Task-oriented instruction examples | Task-Oriented Grasping Pilot (`phase2_pilot_v1`) |
 | Contact-GraspNet implementation check | Contact-GraspNet Official-Input Validation Suite (`track_b_cgn_official_depth_segmap_v1`) |
 
 ## Method Definitions
