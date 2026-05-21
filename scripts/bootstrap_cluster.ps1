@@ -59,6 +59,12 @@ tar -xf "{1}" -C "${{tmp_dir}}"
 mkdir -p "{0}/artifacts" "{0}/third_party" "{0}/cluster"
 cp -a "${{tmp_dir}}/." "{0}/"
 cp "{2}" "{0}/.grasp-benchmark-sync.json"
+if [ ! -d "{0}/third_party/continual-vla-rl/.git" ]; then
+  rm -rf "{0}/third_party/continual-vla-rl"
+  git clone https://github.com/UT-Austin-RobIn/continual-vla-rl.git "{0}/third_party/continual-vla-rl"
+fi
+git -C "{0}/third_party/continual-vla-rl" fetch origin
+git -C "{0}/third_party/continual-vla-rl" checkout dc1b1c8a7fb630c8d9aaf349376ae5a49b575b4e
 '@ -f $RemoteRoot, $remoteArchive, $remoteMetadata
 
 $remoteSyncBase64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes(($remoteSync -replace "`r`n", "`n")))

@@ -1,0 +1,104 @@
+project:
+  name: policy-anchor-vla
+  description: Policy-anchored offline continual VLA experiments aligned with the online Seq-RL protocol.
+
+third_party:
+  continual_vla_rl:
+    repo: https://github.com/UT-Austin-RobIn/continual-vla-rl.git
+    local_path: third_party/continual-vla-rl
+    pinned_commit: dc1b1c8a7fb630c8d9aaf349376ae5a49b575b4e
+
+cluster:
+  account: cs_yifan16_chi
+  partition: batch_gpu2
+  gres: gpu:1
+  cpus_per_task: 8
+  mem: 96G
+  time: "24:00:00"
+  slurm_module: slurm/lakeshore/23.02.4
+  project_root: /projects/cs_yifan16_chi/zlu31
+  repo_root: /projects/cs_yifan16_chi/zlu31/grasp-benchmark
+  sca_vla_root: /projects/cs_yifan16_chi/zlu31/sca-vla
+  sca_vla_python: /projects/cs_yifan16_chi/zlu31/conda_envs/sca-vla-oft/bin/python
+  continual_vla_rl_root: /projects/cs_yifan16_chi/zlu31/grasp-benchmark/third_party/continual-vla-rl
+
+offline:
+  fixed_pilot_run_root: /projects/cs_yifan16_chi/zlu31/sca-vla/artifacts/continual_oft_fixed_pilot
+  opd_probe_run_root: /projects/cs_yifan16_chi/zlu31/sca-vla/artifacts/continual_oft_opd_probe
+  policy_anchor_run_root: /projects/cs_yifan16_chi/zlu31/sca-vla/artifacts/policy_anchor_oft_v1
+  policy_anchor_smoke_root: /projects/cs_yifan16_chi/zlu31/sca-vla/artifacts/policy_anchor_oft_v1_smoke
+  policy_anchor_job_root: /projects/cs_yifan16_chi/zlu31/sca-vla/artifacts/policy_anchor_oft_v1/jobs
+  policy_anchor_slurm_log_dir: /projects/cs_yifan16_chi/zlu31/sca-vla/artifacts/slurm
+  methods:
+    - seq
+    - sca_action_homotopy
+    - distill
+    - anchor_replay
+    - policy_anchor_balanced
+    - policy_anchor_strong
+  baseline_methods:
+    - seq
+    - sca_action_homotopy
+    - distill
+    - anchor_replay
+  baseline_method_aliases:
+    sca_action_homotopy: sca
+    anchor_replay: seen
+  collector: scripts/collect_oft_continual_results.py
+  policy_anchor:
+    smoke_suite: libero_spatial
+    smoke_task_order: "0,1,2"
+    full_suites: "libero_spatial,libero_object"
+    full_task_order: "0,1,2,3,4,5,6,7,8,9"
+    submitted_method: policy_anchor_balanced
+    generated_but_not_submitted_method: policy_anchor_strong
+    anchor_lambda_balanced: 0.5
+    anchor_lambda_strong: 1.0
+    current_loss_weight: 1.0
+    old_loss_weight: 1.0
+    target_current_frac: 0.5
+    steps_per_task: 5000
+    num_trials_per_task: 10
+
+reference_seq_rl:
+  seed: 1234
+  max_epoch: ""
+  methods:
+    - seq_rl
+  suites:
+    libero_spatial:
+      task_range: "0,9"
+      train_config: crl_experiment/libero_spatial_grpo_openvlaoft_spatial
+      eval_config: crl_experiment/libero_spatial_grpo_openvlaoft_eval_spatial
+      base_checkpoint: Haozhan72/Openvla-oft-SFT-libero-spatial-traj1
+      local_model_dir: model/Openvla-oft-SFT-libero-spatial-traj1
+    libero_object:
+      task_range: "5,14"
+      train_config: crl_experiment/libero_object_grpo_openvlaoft_object
+      eval_config: crl_experiment/libero_object_grpo_openvlaoft_eval_object
+      base_checkpoint: Haozhan72/Openvla-oft-SFT-libero-object-traj1
+      local_model_dir: model/Openvla-oft-SFT-libero-object-traj1
+    libero_10:
+      task_range: "3,12"
+      train_config: crl_experiment/libero_10_grpo_openvlaoft_long
+      eval_config: crl_experiment/libero_10_grpo_openvlaoft_eval_long
+      base_checkpoint: Haozhan72/Openvla-oft-SFT-libero10-trajall
+      local_model_dir: model/Openvla-oft-SFT-libero10-trajall
+
+comparison_matrix:
+  primary_suites:
+    - libero_spatial
+    - libero_object
+  primary_methods:
+    - seq
+    - sca_action_homotopy
+    - distill
+    - anchor_replay
+    - policy_anchor_balanced
+    - seq_rl
+  diagnostics:
+    - previous_policy_action_drift
+    - rollout_drift
+    - distill_current_old_mask
+    - lora_effective_rank
+    - interaction_cost

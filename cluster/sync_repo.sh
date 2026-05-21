@@ -12,5 +12,6 @@ else
   git clone "${REPO_URL}" "${REMOTE_ROOT}"
 fi
 
-mkdir -p "${REMOTE_ROOT}/third_party" "${REMOTE_ROOT}/artifacts"
+git -C "${REMOTE_ROOT}" submodule update --init --recursive third_party/continual-vla-rl || true
 
+mkdir -p "${REMOTE_ROOT}/third_party" "${REMOTE_ROOT}/artifacts"

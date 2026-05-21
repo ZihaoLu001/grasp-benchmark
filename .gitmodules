@@ -1,0 +1,3 @@
+[submodule "third_party/continual-vla-rl"]
+	path = third_party/continual-vla-rl
+	url = https://github.com/UT-Austin-RobIn/continual-vla-rl.git
