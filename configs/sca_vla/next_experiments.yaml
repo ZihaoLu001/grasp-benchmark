@@ -25,9 +25,9 @@ cluster:
 offline:
   fixed_pilot_run_root: /projects/cs_yifan16_chi/zlu31/sca-vla/artifacts/continual_oft_fixed_pilot
   opd_probe_run_root: /projects/cs_yifan16_chi/zlu31/sca-vla/artifacts/continual_oft_opd_probe
-  policy_anchor_run_root: /projects/cs_yifan16_chi/zlu31/sca-vla/artifacts/policy_anchor_oft_v1
-  policy_anchor_smoke_root: /projects/cs_yifan16_chi/zlu31/sca-vla/artifacts/policy_anchor_oft_v1_smoke
-  policy_anchor_job_root: /projects/cs_yifan16_chi/zlu31/sca-vla/artifacts/policy_anchor_oft_v1/jobs
+  policy_anchor_run_root: /projects/cs_yifan16_chi/zlu31/sca-vla/artifacts/policy_anchor_oft_sft_v1
+  policy_anchor_smoke_root: /projects/cs_yifan16_chi/zlu31/sca-vla/artifacts/policy_anchor_oft_sft_v1_smoke
+  policy_anchor_job_root: /projects/cs_yifan16_chi/zlu31/sca-vla/artifacts/policy_anchor_oft_sft_v1/jobs
   policy_anchor_slurm_log_dir: /projects/cs_yifan16_chi/zlu31/sca-vla/artifacts/slurm
   methods:
     - seq
@@ -50,6 +50,9 @@ offline:
     smoke_task_order: "0,1,2"
     full_suites: "libero_spatial,libero_object"
     full_task_order: "0,1,2,3,4,5,6,7,8,9"
+    base_checkpoints:
+      libero_spatial: /projects/cs_yifan16_chi/zlu31/hf_snapshots/Openvla-oft-SFT-libero-spatial-traj1
+      libero_object: /projects/cs_yifan16_chi/zlu31/hf_snapshots/Openvla-oft-SFT-libero-object-traj1
     submitted_method: policy_anchor_balanced
     generated_but_not_submitted_method: policy_anchor_strong
     anchor_lambda_balanced: 0.5

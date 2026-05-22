@@ -180,26 +180,36 @@ def _policy_anchor_launch_command(config: dict[str, Any], *, smoke: bool, submit
     job_root = offline["policy_anchor_job_root"]
     method = pa["submitted_method"]
     lambda_value = pa["anchor_lambda_balanced"]
+    suite_base_checkpoints = ",".join(
+        f"{suite}={checkpoint}" for suite, checkpoint in sorted(pa.get("base_checkpoints", {}).items())
+    )
+    suite_base_arg = (
+        [f"  --suite-base-checkpoints {suite_base_checkpoints} \\"]
+        if suite_base_checkpoints
+        else []
+    )
+    lines = [
+        "set -euo pipefail",
+        f'cd "{cluster["sca_vla_root"]}"',
+        f'"{cluster["sca_vla_python"]}" scripts/launch_lakeshore_oft_continual.py \\',
+        f"  --suites {suites} \\",
+        f"  --methods {method} \\",
+        f"  --task-order {task_order} \\",
+        f"  --run-root {run_root} \\",
+        f"  --job-dir {job_root}/{'smoke' if smoke else 'full'} \\",
+        f"  --slurm-log-dir {offline['policy_anchor_slurm_log_dir']} \\",
+        *suite_base_arg,
+        f"  --steps-per-task {pa['steps_per_task']} \\",
+        f"  --num-trials-per-task {pa['num_trials_per_task']} \\",
+        f"  --teacher-distill-lambda {lambda_value} \\",
+        f"  --teacher-distill-current-weight {pa['current_loss_weight']} \\",
+        f"  --teacher-distill-old-weight {pa['old_loss_weight']} \\",
+        "  --teacher-distill-balance-groups \\",
+        "  --job-prefix policy-anchor \\",
+        f"  --global-dependency-chain{stages_arg}{submit_arg}",
+    ]
     return "\n".join(
-        [
-            "set -euo pipefail",
-            f'cd "{cluster["sca_vla_root"]}"',
-            f'"{cluster["sca_vla_python"]}" scripts/launch_lakeshore_oft_continual.py \\',
-            f"  --suites {suites} \\",
-            f"  --methods {method} \\",
-            f"  --task-order {task_order} \\",
-            f"  --run-root {run_root} \\",
-            f"  --job-dir {job_root}/{'smoke' if smoke else 'full'} \\",
-            f"  --slurm-log-dir {offline['policy_anchor_slurm_log_dir']} \\",
-            f"  --steps-per-task {pa['steps_per_task']} \\",
-            f"  --num-trials-per-task {pa['num_trials_per_task']} \\",
-            f"  --teacher-distill-lambda {lambda_value} \\",
-            f"  --teacher-distill-current-weight {pa['current_loss_weight']} \\",
-            f"  --teacher-distill-old-weight {pa['old_loss_weight']} \\",
-            "  --teacher-distill-balance-groups \\",
-            "  --job-prefix policy-anchor \\",
-            f"  --global-dependency-chain{stages_arg}{submit_arg}",
-        ]
+        lines
     )
 
 
