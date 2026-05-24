@@ -34,6 +34,8 @@ class VlaContinualPrepareTest(unittest.TestCase):
             script_names = {script["name"] for script in manifest["scripts"]}
             self.assertIn("submit_policy_anchor_smoke.sh", script_names)
             self.assertIn("submit_policy_anchor_full.sh", script_names)
+            self.assertIn("submit_behavior_field_anchor_smoke.sh", script_names)
+            self.assertIn("submit_behavior_field_anchor_full.sh", script_names)
             self.assertIn("prepare_seq_rl_checkpoints.sh", script_names)
 
             seq_job = next(job for job in manifest["jobs"] if job["kind"] == "seq-rl-ref")
@@ -47,6 +49,14 @@ class VlaContinualPrepareTest(unittest.TestCase):
             self.assertIn("--max-stages 3", smoke_script["command"])
             self.assertIn("--teacher-distill-lambda 0.5", smoke_script["command"])
             self.assertIn("--teacher-distill-balance-groups", smoke_script["command"])
+
+            bfa_smoke_script = next(
+                script for script in manifest["scripts"] if script["name"] == "submit_behavior_field_anchor_smoke.sh"
+            )
+            self.assertIn("--methods behavior_field_anchor", bfa_smoke_script["command"])
+            self.assertIn("--bfa-lambda-field 0.5", bfa_smoke_script["command"])
+            self.assertIn("--bfa-image-noise-std 0.02", bfa_smoke_script["command"])
+            self.assertIn("--bfa-proprio-noise-std 0.01", bfa_smoke_script["command"])
 
             manifest_path = Path(tmp) / "manifest.json"
             self.assertTrue(manifest_path.exists())

@@ -213,6 +213,49 @@ def _policy_anchor_launch_command(config: dict[str, Any], *, smoke: bool, submit
     )
 
 
+def _behavior_field_anchor_launch_command(config: dict[str, Any], *, smoke: bool, submit: bool) -> str:
+    cluster = config["cluster"]
+    offline = config["offline"]
+    bfa = offline["behavior_field_anchor"]
+    run_root = offline["behavior_field_smoke_root"] if smoke else offline["behavior_field_run_root"]
+    task_order = bfa["smoke_task_order"] if smoke else bfa["full_task_order"]
+    suites = bfa["smoke_suite"] if smoke else bfa["full_suites"]
+    stages_arg = " --max-stages 3" if smoke else ""
+    submit_arg = " --submit" if submit else ""
+    suite_base_checkpoints = ",".join(
+        f"{suite}={checkpoint}" for suite, checkpoint in sorted(bfa.get("base_checkpoints", {}).items())
+    )
+    suite_base_arg = (
+        [f"  --suite-base-checkpoints {suite_base_checkpoints} \\"]
+        if suite_base_checkpoints
+        else []
+    )
+    lines = [
+        "set -euo pipefail",
+        f'cd "{cluster["sca_vla_root"]}"',
+        f'"{cluster["sca_vla_python"]}" scripts/launch_lakeshore_oft_continual.py \\',
+        f"  --suites {suites} \\",
+        f"  --methods {bfa['submitted_method']} \\",
+        f"  --task-order {task_order} \\",
+        f"  --run-root {run_root} \\",
+        f"  --job-dir {offline['behavior_field_job_root']}/{'smoke' if smoke else 'full'} \\",
+        f"  --slurm-log-dir {offline['policy_anchor_slurm_log_dir']} \\",
+        *suite_base_arg,
+        f"  --steps-per-task {bfa['steps_per_task']} \\",
+        f"  --num-trials-per-task {bfa['num_trials_per_task']} \\",
+        f"  --teacher-distill-lambda {bfa['anchor_lambda']} \\",
+        f"  --teacher-distill-current-weight {bfa['current_loss_weight']} \\",
+        f"  --teacher-distill-old-weight {bfa['old_loss_weight']} \\",
+        "  --teacher-distill-balance-groups \\",
+        f"  --bfa-lambda-field {bfa['field_lambda']} \\",
+        f"  --bfa-image-noise-std {bfa['image_noise_std']} \\",
+        f"  --bfa-proprio-noise-std {bfa['proprio_noise_std']} \\",
+        "  --job-prefix bfa-anchor \\",
+        f"  --global-dependency-chain{stages_arg}{submit_arg}",
+    ]
+    return "\n".join(lines)
+
+
 def _write_job(
     *,
     config: dict[str, Any],
@@ -286,6 +329,30 @@ def generate_jobs(
                 name="submit_policy_anchor_full.sh",
                 kind="policy-anchor-full-submit",
                 command=_policy_anchor_launch_command(config, smoke=False, submit=True),
+            )
+        )
+        scripts.append(
+            _write_shell_script(
+                scripts_dir=scripts_dir,
+                name="dry_run_behavior_field_anchor_smoke.sh",
+                kind="behavior-field-anchor-smoke-dry-run",
+                command=_behavior_field_anchor_launch_command(config, smoke=True, submit=False),
+            )
+        )
+        scripts.append(
+            _write_shell_script(
+                scripts_dir=scripts_dir,
+                name="submit_behavior_field_anchor_smoke.sh",
+                kind="behavior-field-anchor-smoke-submit",
+                command=_behavior_field_anchor_launch_command(config, smoke=True, submit=True),
+            )
+        )
+        scripts.append(
+            _write_shell_script(
+                scripts_dir=scripts_dir,
+                name="submit_behavior_field_anchor_full.sh",
+                kind="behavior-field-anchor-full-submit",
+                command=_behavior_field_anchor_launch_command(config, smoke=False, submit=True),
             )
         )
 

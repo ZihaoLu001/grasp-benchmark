@@ -25,10 +25,13 @@ cluster:
 offline:
   fixed_pilot_run_root: /projects/cs_yifan16_chi/zlu31/sca-vla/artifacts/continual_oft_fixed_pilot
   opd_probe_run_root: /projects/cs_yifan16_chi/zlu31/sca-vla/artifacts/continual_oft_opd_probe
-  policy_anchor_run_root: /projects/cs_yifan16_chi/zlu31/sca-vla/artifacts/policy_anchor_oft_sft_v1
-  policy_anchor_smoke_root: /projects/cs_yifan16_chi/zlu31/sca-vla/artifacts/policy_anchor_oft_sft_v1_smoke
-  policy_anchor_job_root: /projects/cs_yifan16_chi/zlu31/sca-vla/artifacts/policy_anchor_oft_sft_v1/jobs
-  policy_anchor_slurm_log_dir: /projects/cs_yifan16_chi/zlu31/sca-vla/artifacts/slurm
+  policy_anchor_run_root: /home/zlu31/sca-vla-runs/policy_anchor_oft_sft_v1
+  policy_anchor_smoke_root: /home/zlu31/sca-vla-runs/policy_anchor_oft_sft_v1_smoke
+  policy_anchor_job_root: /home/zlu31/sca-vla-runs/policy_anchor_oft_sft_v1/jobs
+  behavior_field_run_root: /home/zlu31/sca-vla-runs/behavior_field_anchor_oft_sft_v1
+  behavior_field_smoke_root: /home/zlu31/sca-vla-runs/behavior_field_anchor_oft_sft_v1_smoke
+  behavior_field_job_root: /home/zlu31/sca-vla-runs/behavior_field_anchor_oft_sft_v1/jobs
+  policy_anchor_slurm_log_dir: /home/zlu31/sca-vla-slurm
   methods:
     - seq
     - sca_action_homotopy
@@ -36,6 +39,7 @@ offline:
     - anchor_replay
     - policy_anchor_balanced
     - policy_anchor_strong
+    - behavior_field_anchor
   baseline_methods:
     - seq
     - sca_action_homotopy
@@ -60,6 +64,23 @@ offline:
     current_loss_weight: 1.0
     old_loss_weight: 1.0
     target_current_frac: 0.5
+    steps_per_task: 5000
+    num_trials_per_task: 10
+  behavior_field_anchor:
+    smoke_suite: libero_spatial
+    smoke_task_order: "0,1,2"
+    full_suites: "libero_spatial,libero_object"
+    full_task_order: "0,1,2,3,4,5,6,7,8,9"
+    base_checkpoints:
+      libero_spatial: /home/zlu31/hf_snapshots_writable/Openvla-oft-SFT-libero-spatial-traj1
+      libero_object: /home/zlu31/hf_snapshots_writable/Openvla-oft-SFT-libero-object-traj1
+    submitted_method: behavior_field_anchor
+    anchor_lambda: 0.5
+    field_lambda: 0.5
+    current_loss_weight: 1.0
+    old_loss_weight: 1.0
+    image_noise_std: 0.02
+    proprio_noise_std: 0.01
     steps_per_task: 5000
     num_trials_per_task: 10
 
@@ -98,6 +119,7 @@ comparison_matrix:
     - distill
     - anchor_replay
     - policy_anchor_balanced
+    - behavior_field_anchor
     - seq_rl
   diagnostics:
     - previous_policy_action_drift

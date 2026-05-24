@@ -8,7 +8,8 @@ The experiment should not claim that offline BC, SCA, or OPD is the same trainin
 
 - **Online reference:** Seq-RL + LoRA from `continual-vla-rl`, which updates from the current policy's own rollouts.
 - **Offline baselines:** Seq BC/OFT, action-level SCA, teacher distillation, and seen-task anchoring.
-- **Main method:** Policy-Anchored Imitation, which adds a previous-policy action-field preservation loss on old/anchor samples.
+- **Point baseline:** Policy-Anchored Imitation, which preserves previous-policy actions at old/anchor samples.
+- **Main method:** Behavioral Field Anchoring, which also preserves the previous policy's local action-field geometry around old/anchor samples.
 - **Question:** how much of online RL's support-preserving behavior can be recovered without paying the online interaction cost?
 
 ## Generate Lakeshore Jobs
@@ -28,6 +29,9 @@ artifacts/sca_vla_next/<timestamp>/
     dry_run_policy_anchor_smoke.sh
     submit_policy_anchor_smoke.sh
     submit_policy_anchor_full.sh
+    dry_run_behavior_field_anchor_smoke.sh
+    submit_behavior_field_anchor_smoke.sh
+    submit_behavior_field_anchor_full.sh
     prepare_seq_rl_checkpoints.sh
   jobs/
     sca-vla-seq-rl-ref-libero-spatial.sbatch
@@ -54,23 +58,24 @@ To generate only one suite:
 2. Sync this repo to Lakeshore so `third_party/continual-vla-rl` is available under `/projects/cs_yifan16_chi/zlu31/grasp-benchmark/third_party/continual-vla-rl`.
 3. Apply the `policy_anchor` patch to the active OpenVLA-OFT/SCA cluster checkout.
 4. Run `commands/dry_run_policy_anchor_smoke.sh` on Lakeshore.
-5. Run `commands/submit_policy_anchor_smoke.sh`; only submit the full chain after the smoke produces non-degenerate `current_frac` metrics and eval JSON.
+5. Run `commands/submit_behavior_field_anchor_smoke.sh`; only submit the full chain after the smoke produces non-degenerate `current_frac` metrics, finite BFA field diagnostics, and eval JSON.
 6. Collect offline summaries from the fixed pilot root:
    `/projects/cs_yifan16_chi/zlu31/sca-vla/artifacts/continual_oft_fixed_pilot`
 7. Prepare Seq-RL checkpoints with `commands/prepare_seq_rl_checkpoints.sh`, then run only a one-task Seq-RL smoke before any full online reference job.
 
 ## Minimum Table
 
-| Suite | Offline Seq | Action SCA | Teacher Distill | Anchor Replay | Policy Anchor | Seq-RL Reference | Interaction Cost |
+| Suite | Offline Seq | Action SCA | Teacher Distill | Anchor Replay | Point Anchor | Behavioral Field Anchor | Seq-RL Reference | Interaction Cost |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
-| LIBERO-Spatial | TBD | TBD | TBD | TBD | TBD | TBD | env rollouts for Seq-RL only |
-| LIBERO-Object | TBD | TBD | TBD | TBD | TBD | TBD | env rollouts for Seq-RL only |
+| LIBERO-Spatial | TBD | TBD | TBD | TBD | TBD | TBD | TBD | env rollouts for Seq-RL only |
+| LIBERO-Object | TBD | TBD | TBD | TBD | TBD | TBD | TBD | env rollouts for Seq-RL only |
 
 ## Diagnostics
 
 The next code pass should add result readers for:
 
 - previous-policy action drift vs forgetting
+- behavioral field drift vs forgetting
 - rollout drift from previous teacher
 - distill current/old mask sanity
 - LoRA effective rank / SVD
