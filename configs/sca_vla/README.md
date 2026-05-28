@@ -10,7 +10,10 @@ The experiment should not claim that offline BC, SCA, or OPD is the same trainin
 - **Offline baselines:** Seq BC/OFT, action-level SCA, teacher distillation, and seen-task anchoring.
 - **Point baseline:** Policy-Anchored Imitation, which preserves previous-policy actions at old/anchor samples.
 - **Main method:** Behavioral Field Anchoring, which also preserves the previous policy's local action-field geometry around old/anchor samples.
+- **VLA-OPD-style proxy:** `opd_rollout_distill`, a continuous OpenVLA-OFT approximation that first collects previous-policy teacher targets on policy-induced rollout states, then distills those targets during the next offline task update.
 - **Question:** how much of online RL's support-preserving behavior can be recovered without paying the online interaction cost?
+
+The official `irpn-lab/VLA-OPD` repository is included as `third_party/vla-opd`, but at the pinned revision it only contains the project page and marks training code as "Coming Soon". Any `opd_rollout_distill` result should therefore be reported as an internal continuous-action proxy, not as an official VLA-OPD reproduction.
 
 ## Generate Lakeshore Jobs
 
@@ -32,6 +35,8 @@ artifacts/sca_vla_next/<timestamp>/
     dry_run_behavior_field_anchor_smoke.sh
     submit_behavior_field_anchor_smoke.sh
     submit_behavior_field_anchor_full.sh
+    submit_opd_rollout_distill_smoke.sh
+    submit_opd_rollout_distill_full.sh
     prepare_seq_rl_checkpoints.sh
   jobs/
     sca-vla-seq-rl-ref-libero-spatial.sbatch
@@ -59,16 +64,17 @@ To generate only one suite:
 3. Apply the `policy_anchor` patch to the active OpenVLA-OFT/SCA cluster checkout.
 4. Run `commands/dry_run_policy_anchor_smoke.sh` on Lakeshore.
 5. Run `commands/submit_behavior_field_anchor_smoke.sh`; only submit the full chain after the smoke produces non-degenerate `current_frac` metrics, finite BFA field diagnostics, and eval JSON.
-6. Collect offline summaries from the fixed pilot root:
+6. Run the `opd_rollout_distill` smoke as a VLA-OPD-style diagnostic. It should produce an `opd_rollout_cache.pt` for stages after 0 plus `opd/loss` and `opd/target_teacher_drift` training metrics.
+7. Collect offline summaries from the fixed pilot root:
    `/projects/cs_yifan16_chi/zlu31/sca-vla/artifacts/continual_oft_fixed_pilot`
-7. Prepare Seq-RL checkpoints with `commands/prepare_seq_rl_checkpoints.sh`, then run only a one-task Seq-RL smoke before any full online reference job.
+8. Prepare Seq-RL checkpoints with `commands/prepare_seq_rl_checkpoints.sh`, then run only a one-task Seq-RL smoke before any full online reference job.
 
 ## Minimum Table
 
 | Suite | Offline Seq | Action SCA | Teacher Distill | Anchor Replay | Point Anchor | Behavioral Field Anchor | Seq-RL Reference | Interaction Cost |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
-| LIBERO-Spatial | TBD | TBD | TBD | TBD | TBD | TBD | TBD | env rollouts for Seq-RL only |
-| LIBERO-Object | TBD | TBD | TBD | TBD | TBD | TBD | TBD | env rollouts for Seq-RL only |
+| LIBERO-Spatial | TBD | TBD | TBD | TBD | TBD | TBD | TBD | env rollouts for OPD proxy and Seq-RL |
+| LIBERO-Object | TBD | TBD | TBD | TBD | TBD | TBD | TBD | env rollouts for OPD proxy and Seq-RL |
 
 ## Diagnostics
 

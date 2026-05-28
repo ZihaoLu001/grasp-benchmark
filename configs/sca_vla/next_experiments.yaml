@@ -7,6 +7,16 @@ third_party:
     repo: https://github.com/UT-Austin-RobIn/continual-vla-rl.git
     local_path: third_party/continual-vla-rl
     pinned_commit: dc1b1c8a7fb630c8d9aaf349376ae5a49b575b4e
+  vla_opd:
+    repo: https://github.com/irpn-lab/VLA-OPD.git
+    local_path: third_party/vla-opd
+    pinned_commit: b34eda8a1a7c84222a778a52205b791c65d2ed3e
+    status: project_page_only_code_coming_soon
+    note: >
+      The official VLA-OPD repository currently exposes the project page and
+      marks training code as coming soon. We therefore run an internal
+      continuous-action OpenVLA-OFT proxy named opd_rollout_distill rather than
+      claiming an official VLA-OPD reproduction.
 
 cluster:
   account: cs_yifan16_chi
@@ -83,6 +93,24 @@ offline:
     proprio_noise_std: 0.01
     steps_per_task: 5000
     num_trials_per_task: 10
+  opd_rollout_distill:
+    smoke_suite: libero_spatial
+    smoke_task_order: "0,1,2"
+    full_suites: "libero_spatial,libero_object"
+    full_task_order:
+      libero_spatial: "0,1,2,3,4"
+      libero_object: "5,6,7,8,9"
+    base_checkpoints:
+      libero_spatial: /home/zlu31/hf_snapshots_writable/Openvla-oft-SFT-libero-spatial-traj1
+      libero_object: /home/zlu31/hf_snapshots_writable/Openvla-oft-SFT-libero-object-traj1
+    method_alias: vla_opd_style
+    rollout_trials_per_old_task: 2
+    max_rollout_cache_samples: 256
+    rollout_anchor_weight: 1.0
+    rollout_anchor_batch_size: 1
+    steps_per_task: 5000
+    num_trials_per_task: 10
+    status: smoke_submitted
 
 reference_seq_rl:
   seed: 1234
@@ -120,6 +148,7 @@ comparison_matrix:
     - anchor_replay
     - policy_anchor_balanced
     - behavior_field_anchor
+    - opd_rollout_distill
     - seq_rl
   diagnostics:
     - previous_policy_action_drift

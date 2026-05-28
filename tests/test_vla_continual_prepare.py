@@ -15,6 +15,8 @@ class VlaContinualPrepareTest(unittest.TestCase):
         text = DEFAULT_CONFIG.read_text(encoding="utf-8")
         self.assertIn("continual-vla-rl", text)
         self.assertIn("dc1b1c8a7fb630c8d9aaf349376ae5a49b575b4e", text)
+        self.assertIn("VLA-OPD", text)
+        self.assertIn("b34eda8a1a7c84222a778a52205b791c65d2ed3e", text)
 
     def test_generate_spatial_jobs(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -36,6 +38,8 @@ class VlaContinualPrepareTest(unittest.TestCase):
             self.assertIn("submit_policy_anchor_full.sh", script_names)
             self.assertIn("submit_behavior_field_anchor_smoke.sh", script_names)
             self.assertIn("submit_behavior_field_anchor_full.sh", script_names)
+            self.assertIn("submit_opd_rollout_distill_smoke.sh", script_names)
+            self.assertIn("submit_opd_rollout_distill_full_libero_spatial.sh", script_names)
             self.assertIn("prepare_seq_rl_checkpoints.sh", script_names)
 
             seq_job = next(job for job in manifest["jobs"] if job["kind"] == "seq-rl-ref")
@@ -58,6 +62,13 @@ class VlaContinualPrepareTest(unittest.TestCase):
             self.assertIn("--bfa-image-noise-std 0.02", bfa_smoke_script["command"])
             self.assertIn("--bfa-proprio-noise-std 0.01", bfa_smoke_script["command"])
 
+            opd_smoke_script = next(
+                script for script in manifest["scripts"] if script["name"] == "submit_opd_rollout_distill_smoke.sh"
+            )
+            self.assertIn("--methods opd_rollout_distill", opd_smoke_script["command"])
+            self.assertIn("--opd-rollout-trials 2", opd_smoke_script["command"])
+            self.assertIn("--opd-rollout-weight 1.0", opd_smoke_script["command"])
+
             manifest_path = Path(tmp) / "manifest.json"
             self.assertTrue(manifest_path.exists())
             saved = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -68,6 +79,7 @@ class VlaContinualPrepareTest(unittest.TestCase):
         self.assertTrue(gitmodules.exists())
         text = gitmodules.read_text(encoding="utf-8")
         self.assertIn("third_party/continual-vla-rl", text)
+        self.assertIn("third_party/vla-opd", text)
 
     def test_lora_effective_rank_summary_on_synthetic_adapter(self) -> None:
         try:

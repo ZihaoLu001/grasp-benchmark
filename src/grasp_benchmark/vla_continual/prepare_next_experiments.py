@@ -61,6 +61,21 @@ def _third_party_status(config: dict[str, Any]) -> dict[str, str]:
             status["remote_url"] = _run_git(["remote", "get-url", "origin"], path)
         except (subprocess.CalledProcessError, FileNotFoundError):
             pass
+
+    vla_opd = config.get("third_party", {}).get("vla_opd")
+    if vla_opd is not None:
+        vla_opd_path = PROJECT_ROOT / vla_opd["local_path"]
+        status["vla_opd_repo"] = str(vla_opd["repo"])
+        status["vla_opd_path"] = str(vla_opd_path)
+        status["vla_opd_pinned_commit"] = str(vla_opd.get("pinned_commit", ""))
+        status["vla_opd_status"] = str(vla_opd.get("status", ""))
+        status["vla_opd_present"] = str(vla_opd_path.exists()).lower()
+        if vla_opd_path.exists():
+            try:
+                status["vla_opd_current_commit"] = _run_git(["rev-parse", "HEAD"], vla_opd_path)
+                status["vla_opd_remote_url"] = _run_git(["remote", "get-url", "origin"], vla_opd_path)
+            except (subprocess.CalledProcessError, FileNotFoundError):
+                pass
     return status
 
 
@@ -256,6 +271,57 @@ def _behavior_field_anchor_launch_command(config: dict[str, Any], *, smoke: bool
     return "\n".join(lines)
 
 
+def _opd_rollout_launch_command(
+    config: dict[str, Any],
+    *,
+    smoke: bool,
+    submit: bool,
+    suite: str | None = None,
+) -> str:
+    cluster = config["cluster"]
+    offline = config["offline"]
+    opd = offline["opd_rollout_distill"]
+    run_root = (
+        "/home/zlu31/sca-vla-runs/opd_rollout_oft_sft_v1_smoke"
+        if smoke
+        else "/home/zlu31/sca-vla-runs/opd_rollout_oft_sft_v1"
+    )
+    suites = opd["smoke_suite"] if smoke else suite
+    if suites is None:
+        raise ValueError("suite is required for full OPD rollout commands")
+    task_order = opd["smoke_task_order"] if smoke else opd["full_task_order"][suite]
+    stages_arg = " --max-stages 3" if smoke else ""
+    submit_arg = " --submit" if submit else ""
+    checkpoints = (
+        {opd["smoke_suite"]: opd["base_checkpoints"][opd["smoke_suite"]]}
+        if smoke
+        else {suite: opd["base_checkpoints"][suite]}
+    )
+    suite_base_checkpoints = ",".join(f"{key}={value}" for key, value in sorted(checkpoints.items()))
+    lines = [
+        "set -euo pipefail",
+        f'cd "{cluster["sca_vla_root"]}"',
+        f'"{cluster["sca_vla_python"]}" scripts/launch_lakeshore_oft_continual.py \\',
+        f"  --suites {suites} \\",
+        "  --methods opd_rollout_distill \\",
+        f"  --task-order {task_order} \\",
+        f"  --run-root {run_root} \\",
+        f"  --job-dir {run_root}/jobs/{'smoke' if smoke else suite} \\",
+        f"  --slurm-log-dir {offline['policy_anchor_slurm_log_dir']} \\",
+        f"  --suite-base-checkpoints {suite_base_checkpoints} \\",
+        f"  --steps-per-task {opd['steps_per_task']} \\",
+        f"  --num-trials-per-task {opd['num_trials_per_task']} \\",
+        f"  --opd-rollout-trials {opd['rollout_trials_per_old_task']} \\",
+        f"  --opd-max-samples {opd['max_rollout_cache_samples']} \\",
+        f"  --opd-rollout-weight {opd['rollout_anchor_weight']} \\",
+        f"  --opd-rollout-batch-size {opd['rollout_anchor_batch_size']} \\",
+        "  --hf-home /home/zlu31/hf_cache \\",
+        "  --job-prefix opd-rollout \\",
+        f"  --global-dependency-chain{stages_arg}{submit_arg}",
+    ]
+    return "\n".join(lines)
+
+
 def _write_job(
     *,
     config: dict[str, Any],
@@ -355,6 +421,32 @@ def generate_jobs(
                 command=_behavior_field_anchor_launch_command(config, smoke=False, submit=True),
             )
         )
+        scripts.append(
+            _write_shell_script(
+                scripts_dir=scripts_dir,
+                name="dry_run_opd_rollout_distill_smoke.sh",
+                kind="opd-rollout-distill-smoke-dry-run",
+                command=_opd_rollout_launch_command(config, smoke=True, submit=False),
+            )
+        )
+        scripts.append(
+            _write_shell_script(
+                scripts_dir=scripts_dir,
+                name="submit_opd_rollout_distill_smoke.sh",
+                kind="opd-rollout-distill-smoke-submit",
+                command=_opd_rollout_launch_command(config, smoke=True, submit=True),
+            )
+        )
+        for suite in selected_suites:
+            if suite in config["offline"]["opd_rollout_distill"]["full_task_order"]:
+                scripts.append(
+                    _write_shell_script(
+                        scripts_dir=scripts_dir,
+                        name=f"submit_opd_rollout_distill_full_{suite}.sh",
+                        kind="opd-rollout-distill-full-submit",
+                        command=_opd_rollout_launch_command(config, smoke=False, submit=True, suite=suite),
+                    )
+                )
 
     for suite in selected_suites:
         if include_seq_rl:
